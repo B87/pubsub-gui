@@ -6,8 +6,6 @@ import (
 	"os"
 
 	"cloud.google.com/go/pubsub/v2"
-	"google.golang.org/api/internal/credentialstype"
-	"google.golang.org/api/option"
 
 	"myproject/internal/models"
 )
@@ -28,7 +26,19 @@ func ConnectWithServiceAccount(ctx context.Context, projectID, keyPath string) (
 	}
 
 	// Create Pub/Sub client with service account credentials
-	client, err := pubsub.NewClient(ctx, projectID, option.WithAuthCredentialsFile(credentialstype.ServiceAccount, keyPath))
+	// Set GOOGLE_APPLICATION_CREDENTIALS environment variable temporarily
+	// This is the standard way to authenticate with a service account key file
+	originalCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", keyPath)
+	defer func() {
+		if originalCreds != "" {
+			os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", originalCreds)
+		} else {
+			os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
+		}
+	}()
+
+	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}

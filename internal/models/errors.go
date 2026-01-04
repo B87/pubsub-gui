@@ -28,4 +28,13 @@ var (
 
 	// ErrDuplicateProfile is returned when trying to create a profile with a duplicate name
 	ErrDuplicateProfile = errors.New("profile with this name already exists")
+
+	// ErrTemplateNotFound is returned when a template with the given ID is not found
+	ErrTemplateNotFound = errors.New("template not found")
+
+	// ErrDuplicateTemplate is returned when trying to create a template with a duplicate name
+	ErrDuplicateTemplate = errors.New("template with this name already exists")
+
+	// ErrInvalidTemplate is returned when a template fails validation
+	ErrInvalidTemplate = errors.New("invalid template")
 )

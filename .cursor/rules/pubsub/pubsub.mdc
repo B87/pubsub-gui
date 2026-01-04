@@ -1,0 +1,487 @@
+---
+alwaysApply: false
+description: Guidelines for working with GCP Pub/Sub using the Go v2 client library
+---
+
+# GCP Pub/Sub v2 Client Guidelines
+
+This project uses `cloud.google.com/go/pubsub/v2` for all Pub/Sub operations. Follow these patterns and best practices.
+
+## Client Creation
+
+### Basic Client Creation
+
+```go
+import "cloud.google.com/go/pubsub/v2"
+
+ctx := context.Background()
+client, err := pubsub.NewClient(ctx, "my-project-id")
+if err != nil {
+    return err
+}
+defer client.Close()
+```
+
+### Authentication Methods
+
+**Application Default Credentials (ADC):**
+
+- Automatically detects `GOOGLE_APPLICATION_CREDENTIALS` env var
+- Falls back to `gcloud auth application-default login`
+- Works with GCE/Cloud Run metadata server
+- Automatically detects `PUBSUB_EMULATOR_HOST` for local emulator
+
+```go
+import (
+    "cloud.google.com/go/pubsub/v2"
+    "google.golang.org/api/option"
+)
+
+// For emulator support
+opts := []option.ClientOption{}
+if os.Getenv("PUBSUB_EMULATOR_HOST") != "" {
+    opts = append(opts, option.WithoutAuthentication())
+}
+client, err := pubsub.NewClient(ctx, projectID, opts...)
+```
+
+**Service Account JSON Key:**
+
+```go
+import (
+    "cloud.google.com/go/pubsub/v2"
+    "google.golang.org/api/internal/credentialstype"
+    "google.golang.org/api/option"
+)
+
+client, err := pubsub.NewClient(ctx, projectID,
+    option.WithAuthCredentialsFile(credentialstype.ServiceAccount, keyPath))
+```
+
+## Admin Operations
+
+### Topics
+
+Use `client.TopicAdminClient` for topic management operations.
+
+**List Topics:**
+
+```go
+import (
+    "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
+    "google.golang.org/api/iterator"
+)
+
+req := &pubsubpb.ListTopicsRequest{
+    Project: "projects/" + projectID,
+}
+it := client.TopicAdminClient.ListTopics(ctx, req)
+
+for {
+    topic, err := it.Next()
+    if err == iterator.Done {
+        break
+    }
+    if err != nil {
+        return err
+    }
+    // Process topic
+}
+```
+
+**Get Topic:**
+
+```go
+topicName := "projects/" + projectID + "/topics/" + topicID
+req := &pubsubpb.GetTopicRequest{
+    Topic: topicName,
+}
+topic, err := client.TopicAdminClient.GetTopic(ctx, req)
+```
+
+**Create Topic:**
+
+```go
+req := &pubsubpb.CreateTopicRequest{
+    Parent: "projects/" + projectID,
+    Topic: &pubsubpb.Topic{
+        Name: "projects/" + projectID + "/topics/" + topicID,
+    },
+}
+topic, err := client.TopicAdminClient.CreateTopic(ctx, req)
+```
+
+### Subscriptions
+
+Use `client.SubscriptionAdminClient` for subscription management operations.
+
+**List Subscriptions:**
+
+```go
+req := &pubsubpb.ListSubscriptionsRequest{
+    Project: "projects/" + projectID,
+}
+it := client.SubscriptionAdminClient.ListSubscriptions(ctx, req)
+
+for {
+    sub, err := it.Next()
+    if err == iterator.Done {
+        break
+    }
+    if err != nil {
+        return err
+    }
+    // Process subscription
+}
+```
+
+**Get Subscription:**
+
+```go
+subName := "projects/" + projectID + "/subscriptions/" + subID
+req := &pubsubpb.GetSubscriptionRequest{
+    Subscription: subName,
+}
+sub, err := client.SubscriptionAdminClient.GetSubscription(ctx, req)
+```
+
+**Create Subscription:**
+
+```go
+req := &pubsubpb.CreateSubscriptionRequest{
+    Parent: "projects/" + projectID,
+    Subscription: &pubsubpb.Subscription{
+        Name:  "projects/" + projectID + "/subscriptions/" + subID,
+        Topic: "projects/" + projectID + "/topics/" + topicID,
+    },
+}
+sub, err := client.SubscriptionAdminClient.CreateSubscription(ctx, req)
+```
+
+## Publishing Messages
+
+### Basic Publishing
+
+```go
+// Get publisher (can use full name or short name)
+publisher := client.Publisher("projects/my-project/topics/my-topic")
+// OR
+publisher := client.Publisher("my-topic") // Short form works too
+
+// Publish a message
+msg := &pubsub.Message{
+    Data: []byte("message payload"),
+    Attributes: map[string]string{
+        "key": "value",
+    },
+}
+result := publisher.Publish(ctx, msg)
+
+// Wait for publish to complete (optional)
+id, err := result.Get(ctx)
+if err != nil {
+    return err
+}
+```
+
+### Publishing Best Practices
+
+- `Publisher.Publish()` queues messages and returns immediately
+- Messages are batched automatically for efficiency
+- Always call `publisher.Stop()` when done to clean up goroutines
+- Use `PublishResult.Get(ctx)` to wait for confirmation if needed
+
+```go
+defer publisher.Stop()
+
+// Publish multiple messages
+for _, data := range messages {
+    result := publisher.Publish(ctx, &pubsub.Message{Data: []byte(data)})
+    // Don't wait for each - let batching work
+}
+
+// Flush remaining messages before stopping
+publisher.Flush()
+```
+
+## Receiving Messages
+
+### Basic Subscribing
+
+```go
+// Get subscriber (can use full name or short name)
+subscriber := client.Subscriber("projects/my-project/subscriptions/my-sub")
+// OR
+subscriber := client.Subscriber("my-sub") // Short form works too
+
+// Configure receive settings (optional)
+subscriber.ReceiveSettings.MaxOutstandingMessages = 100
+subscriber.ReceiveSettings.MaxOutstandingBytes = 10e6 // 10MB
+subscriber.ReceiveSettings.MaxExtension = 30 * time.Second
+
+// Receive messages
+err := subscriber.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
+    // Process message
+    log.Printf("Received: %s", m.Data)
+
+    // MUST call Ack or Nack within the handler
+    m.Ack()
+})
+if err != nil && !errors.Is(err, context.Canceled) {
+    return err
+}
+```
+
+### Critical Receive Rules
+
+1. **Ack/Nack MUST be called within the handler function**, not from a goroutine
+2. **Only one `Receive()` call per subscriber** can be active at a time
+3. **Cancel context to stop receiving** - don't call methods on subscriber directly
+4. **Messages are processed concurrently** - synchronize access to shared state
+
+```go
+// CORRECT: Ack in handler
+subscriber.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
+    processMessage(m)
+    m.Ack() // ✅ Correct
+})
+
+// WRONG: Ack from goroutine
+subscriber.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
+    go func() {
+        processMessage(m)
+        m.Ack() // ❌ Wrong - breaks flow control
+    }()
+})
+```
+
+### Flow Control
+
+Configure `ReceiveSettings` to control resource usage:
+
+```go
+subscriber.ReceiveSettings.MaxOutstandingMessages = 100  // Max concurrent messages
+subscriber.ReceiveSettings.MaxOutstandingBytes = 10e6    // Max bytes in memory
+subscriber.ReceiveSettings.MaxExtension = 30 * time.Second // Max ack deadline extension
+```
+
+## Resource Naming
+
+### Full Resource Names
+
+Always use full resource names for admin operations:
+
+- Topics: `"projects/{project-id}/topics/{topic-id}"`
+- Subscriptions: `"projects/{project-id}/subscriptions/{subscription-id}"`
+
+### Short Names
+
+For `Publisher()` and `Subscriber()`, you can use short names:
+
+- `client.Publisher("my-topic")` - automatically resolves to current project
+- `client.Subscriber("my-sub")` - automatically resolves to current project
+
+**Best Practice:** Use full names when you have the project ID available for clarity and consistency.
+
+## Error Handling
+
+### Iterator Errors
+
+Always check for `iterator.Done` when iterating:
+
+```go
+for {
+    item, err := it.Next()
+    if err == iterator.Done {
+        break
+    }
+    if err != nil {
+        return err
+    }
+    // Process item
+}
+```
+
+### Context Cancellation
+
+When receiving messages, distinguish between cancellation and errors:
+
+```go
+err := subscriber.Receive(ctx, callback)
+if err != nil && !errors.Is(err, context.Canceled) {
+    // Handle actual error
+    return err
+}
+// Context was canceled - this is normal shutdown
+```
+
+## Emulator Support
+
+The client automatically detects `PUBSUB_EMULATOR_HOST` environment variable:
+
+```go
+// Set before creating client
+os.Setenv("PUBSUB_EMULATOR_HOST", "localhost:8085")
+
+// Client will automatically use emulator
+client, err := pubsub.NewClient(ctx, "my-project-id")
+```
+
+When using emulator, use `option.WithoutAuthentication()`:
+
+```go
+if os.Getenv("PUBSUB_EMULATOR_HOST") != "" {
+    opts = append(opts, option.WithoutAuthentication())
+}
+```
+
+## Common Patterns
+
+### Graceful Shutdown
+
+```go
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+
+// Start receiving in goroutine
+go func() {
+    err := subscriber.Receive(ctx, callback)
+    if err != nil && !errors.Is(err, context.Canceled) {
+        log.Printf("Receive error: %v", err)
+    }
+}()
+
+// Later, to stop:
+cancel() // This will gracefully stop Receive()
+```
+
+### Message Attributes
+
+```go
+msg := &pubsub.Message{
+    Data: []byte("payload"),
+    Attributes: map[string]string{
+        "source": "api",
+        "version": "1.0",
+        "timestamp": time.Now().Format(time.RFC3339),
+    },
+}
+```
+
+### Duration Handling
+
+When working with protobuf duration fields:
+
+```go
+import "google.golang.org/protobuf/types/known/durationpb"
+
+// Convert from protobuf duration
+if topic.MessageRetentionDuration != nil {
+    duration := topic.MessageRetentionDuration.AsDuration()
+    // Use duration
+}
+
+// Convert to protobuf duration
+retention := durationpb.New(7 * 24 * time.Hour)
+```
+
+## Connection Management & Profile Switching
+
+### Connection Lifecycle
+
+When switching between connection profiles or projects:
+
+1. **Disconnect First**: Always disconnect the current connection before connecting to a new one
+2. **Close Clients**: Ensure all Pub/Sub clients are properly closed before creating new ones
+3. **Clear State**: Clear all cached resources (topics, subscriptions) when disconnecting
+4. **Verify Connection**: After connecting, verify the connection is established before loading resources
+
+**Example Pattern:**
+```go
+// SwitchProfile switches to a different connection profile
+func (a *App) SwitchProfile(profileID string) error {
+    // 1. Disconnect current connection first
+    if a.clientManager.IsConnected() {
+        if err := a.Disconnect(); err != nil {
+            return fmt.Errorf("failed to disconnect current profile: %w", err)
+        }
+    }
+
+    // 2. Find and validate profile
+    var targetProfile *models.ConnectionProfile
+    for i, p := range a.config.Profiles {
+        if p.ID == profileID {
+            targetProfile = &a.config.Profiles[i]
+            break
+        }
+    }
+    if targetProfile == nil {
+        return models.ErrProfileNotFound
+    }
+
+    // 3. Connect with new profile
+    if err := a.connectWithProfile(targetProfile); err != nil {
+        return fmt.Errorf("failed to connect to profile: %w", err)
+    }
+
+    // 4. Update active profile ID
+    a.config.ActiveProfileID = profileID
+    return a.configManager.SaveConfig(a.config)
+}
+```
+
+### Client Manager Best Practices
+
+The `ClientManager` handles client lifecycle:
+
+- **SetClient**: Closes existing client before setting new one (thread-safe)
+- **Close**: Properly closes client and clears project ID
+- **IsConnected**: Thread-safe check for active connection
+
+**Always use ClientManager methods** - never manipulate client directly:
+```go
+// ✅ CORRECT: Use ClientManager
+client := a.clientManager.GetClient()
+if client == nil {
+    return models.ErrNotConnected
+}
+
+// ❌ WRONG: Direct client access
+client := a.client // Don't do this
+```
+
+### Resource Loading After Connection Switch
+
+When loading resources (topics, subscriptions) after a connection switch:
+
+1. **Verify Connection**: Check `IsConnected()` before loading
+2. **Get Project ID**: Use `GetProjectID()` to ensure it matches expected project
+3. **Handle Errors**: Clear resources on error to prevent stale data
+
+**Example:**
+```go
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    client := a.clientManager.GetClient()
+    if client == nil {
+        return nil, models.ErrNotConnected
+    }
+
+    projectID := a.clientManager.GetProjectID()
+    if projectID == "" {
+        return nil, fmt.Errorf("no project ID available")
+    }
+
+    return admin.ListTopicsAdmin(a.ctx, client, projectID)
+}
+```
+
+## Migration from v1
+
+If migrating from v1, note these key differences:
+
+- Use `client.TopicAdminClient` instead of `client.Topic()`
+- Use `client.SubscriptionAdminClient` instead of `client.Subscription()`
+- Use `client.Publisher()` and `client.Subscriber()` for pub/sub operations
+- Message handling is similar but API surface changed
+
+See: <https://github.com/googleapis/google-cloud-go/blob/main/pubsub/MIGRATING.md>

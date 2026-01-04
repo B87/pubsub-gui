@@ -22,6 +22,8 @@ export namespace admin {
 	    retentionDuration: string;
 	    filter?: string;
 	    deadLetterPolicy?: DeadLetterPolicyInfo;
+	    subscriptionType: string;
+	    pushEndpoint?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SubscriptionInfo(source);
@@ -36,6 +38,8 @@ export namespace admin {
 	        this.retentionDuration = source["retentionDuration"];
 	        this.filter = source["filter"];
 	        this.deadLetterPolicy = this.convertValues(source["deadLetterPolicy"], DeadLetterPolicyInfo);
+	        this.subscriptionType = source["subscriptionType"];
+	        this.pushEndpoint = source["pushEndpoint"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -95,6 +99,20 @@ export namespace main {
 	        this.emulatorHost = source["emulatorHost"];
 	    }
 	}
+	export class PublishResult {
+	    messageId: string;
+	    timestamp: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublishResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageId = source["messageId"];
+	        this.timestamp = source["timestamp"];
+	    }
+	}
 
 }
 
@@ -124,6 +142,59 @@ export namespace models {
 	        this.emulatorHost = source["emulatorHost"];
 	        this.isDefault = source["isDefault"];
 	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class MessageTemplate {
+	    id: string;
+	    name: string;
+	    topicId?: string;
+	    payload: string;
+	    attributes: Record<string, string>;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.topicId = source["topicId"];
+	        this.payload = source["payload"];
+	        this.attributes = source["attributes"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+
+}
+
+export namespace subscriber {
+	
+	export class PubSubMessage {
+	    id: string;
+	    publishTime: string;
+	    receiveTime: string;
+	    data: string;
+	    attributes: Record<string, string>;
+	    deliveryAttempt?: number;
+	    orderingKey?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PubSubMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.publishTime = source["publishTime"];
+	        this.receiveTime = source["receiveTime"];
+	        this.data = source["data"];
+	        this.attributes = source["attributes"];
+	        this.deliveryAttempt = source["deliveryAttempt"];
+	        this.orderingKey = source["orderingKey"];
 	    }
 	}
 

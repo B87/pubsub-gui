@@ -1,0 +1,311 @@
+---
+alwaysApply: true
+description: Guidelines for working with Message Templates in the Pub/Sub GUI application
+---
+
+# Message Templates System
+
+The Message Templates feature allows users to save, manage, and quickly reuse common message patterns when publishing to Pub/Sub topics. Templates store both payload content and message attributes for easy reuse.
+
+## Overview
+
+Message Templates are saved message configurations that can be:
+
+- **Topic-Specific**: Linked to a specific topic (only shown when that topic is selected)
+- **Global**: Available for all topics (shown regardless of selected topic)
+
+Templates persist across app restarts and are stored in `~/.pubsub-gui/config.json` alongside connection profiles.
+
+## Data Model
+
+### Backend (`internal/models/template.go`)
+
+```go
+type MessageTemplate struct {
+    ID         string            `json:"id"`                // Timestamp-based unique ID
+    Name       string            `json:"name"`              // User-defined name
+    TopicID    string            `json:"topicId,omitempty"` // Optional: linked topic
+    Payload    string            `json:"payload"`           // Message payload (string)
+    Attributes map[string]string `json:"attributes"`        // Key-value attributes
+    CreatedAt  string            `json:"createdAt"`         // ISO 8601 timestamp
+    UpdatedAt  string            `json:"updatedAt"`         // ISO 8601 timestamp
+}
+```
+
+### Frontend (`frontend/src/types/index.ts`)
+
+```typescript
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  topicId?: string;        // Optional: link to specific topic
+  payload: string;
+  attributes: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+## Storage
+
+- **Location**: `~/.pubsub-gui/config.json`
+- **Scope**: Global (shared across all connection profiles)
+- **Persistence**: Templates persist across app restarts
+- **Format**: JSON array in `AppConfig.Templates` field
+
+## API Methods
+
+### Backend (`app.go`)
+
+#### GetTemplates
+
+```go
+func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error)
+```
+
+- If `topicID` is empty: returns all templates
+- If `topicID` is provided: returns templates where `TopicID == ""` (global) OR `TopicID == topicID` (topic-specific)
+- Used to filter templates shown in the dropdown
+
+#### SaveTemplate
+
+```go
+func (a *App) SaveTemplate(template models.MessageTemplate) error
+```
+
+- Validates template (name and payload required)
+- Generates ID if not provided (timestamp-based)
+- Sets `CreatedAt` and `UpdatedAt` timestamps
+- Checks for duplicate names (returns `ErrDuplicateTemplate` if found)
+- Adds new template or updates existing one (if ID matches)
+- Saves config atomically
+
+#### UpdateTemplate
+
+```go
+func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate) error
+```
+
+- Updates existing template by ID
+- Preserves `CreatedAt` timestamp
+- Updates `UpdatedAt` timestamp
+- Validates and checks for duplicate names
+- Returns `ErrTemplateNotFound` if template doesn't exist
+
+#### DeleteTemplate
+
+```go
+func (a *App) DeleteTemplate(templateID string) error
+```
+
+- Removes template from config
+- Returns `ErrTemplateNotFound` if template doesn't exist
+- Saves config atomically
+
+### Frontend Usage
+
+#### Loading Templates
+
+```typescript
+import { GetTemplates } from '../wailsjs/go/main/App';
+
+// Load all templates
+const allTemplates = await GetTemplates('');
+
+// Load templates for specific topic (topic-specific + global)
+const filteredTemplates = await GetTemplates(topic.name);
+```
+
+#### Saving Templates
+
+```typescript
+import { SaveTemplate } from '../wailsjs/go/main/App';
+
+const template: MessageTemplate = {
+  id: '', // Auto-generated if empty
+  name: 'User Signup Event',
+  topicId: topic.name, // Optional: link to topic
+  payload: JSON.stringify({ userId: '123', event: 'signup' }),
+  attributes: { eventType: 'user.signup', source: 'webapp' },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+await SaveTemplate(template);
+```
+
+#### Updating Templates
+
+```typescript
+import { UpdateTemplate } from '../wailsjs/go/main/App';
+
+const updatedTemplate: MessageTemplate = {
+  ...existingTemplate,
+  name: 'Updated Name',
+  payload: 'new payload',
+  updatedAt: new Date().toISOString(),
+};
+
+await UpdateTemplate(templateId, updatedTemplate);
+```
+
+#### Deleting Templates
+
+```typescript
+import { DeleteTemplate } from '../wailsjs/go/main/App';
+
+await DeleteTemplate(templateId);
+```
+
+## UI Components
+
+### TopicDetails Component (`frontend/src/components/TopicDetails.tsx`)
+
+**Template Dropdown:**
+
+- Located above payload textarea in Publish tab
+- Shows filtered templates (topic-specific + global)
+- Displays template name with indicator: "(Topic-specific)" or "(Global)"
+- Selecting a template populates payload and attributes fields
+- User can edit loaded template before publishing
+
+**Save as Template:**
+
+- Button in Publish tab
+- Opens dialog with:
+  - Template name input (required)
+  - "Link to this topic" checkbox (optional)
+- Saves current payload and attributes as template
+- Updates dropdown immediately after save
+
+**Template Manager:**
+
+- Accessible via "Manage Templates" button
+- Lists all templates with metadata
+- Edit template (name, payload, attributes, topic link)
+- Delete template with confirmation
+- Shows creation/update timestamps
+
+### TemplateManager Component (`frontend/src/components/TemplateManager.tsx`)
+
+- Modal dialog for managing all templates
+- Displays template list with:
+  - Name
+  - Topic link indicator (if topic-specific)
+  - Created/updated timestamps
+- Edit mode allows full template modification
+- Delete with confirmation dialog
+
+## Template Filtering Logic
+
+Templates are filtered based on the selected topic:
+
+```go
+// Include template if:
+// 1. Template has no TopicID (global template), OR
+// 2. Template's TopicID matches the current topic
+if t.TopicID == "" || t.TopicID == topicID {
+    filtered = append(filtered, t)
+}
+```
+
+**Examples:**
+
+- Topic "projects/my-project/topics/user-events" selected:
+  - Shows: Global templates + templates linked to "projects/my-project/topics/user-events"
+  - Hides: Templates linked to other topics
+
+- No topic selected (or empty topicID):
+  - Shows: All templates
+
+## Validation Rules
+
+### Template Validation (`MessageTemplate.Validate()`)
+
+- `ID` cannot be empty
+- `Name` cannot be empty (after trimming whitespace)
+- `Payload` cannot be empty (after trimming whitespace)
+- `Attributes` can be empty (optional)
+
+### Duplicate Name Check
+
+- Template names must be unique across all templates
+- Check excludes the template itself when updating
+- Returns `ErrDuplicateTemplate` if duplicate found
+
+## Best Practices
+
+### Creating Templates
+
+1. **Use Descriptive Names**: Choose clear, descriptive names (e.g., "User Signup Event" not "Template 1")
+2. **Link to Topics When Appropriate**: Use topic-specific templates for topic-specific message formats
+3. **Use Global Templates for Common Patterns**: Create global templates for messages used across multiple topics
+4. **Include Helpful Attributes**: Add attributes that provide context (e.g., `eventType`, `source`, `version`)
+
+### Template Organization
+
+- **Topic-Specific**: Use when message format is unique to a topic
+- **Global**: Use for common message patterns shared across topics
+- **Naming Convention**: Consider prefixing with topic name for topic-specific templates (e.g., "user-events: Signup")
+
+### Payload Format
+
+- Templates support both JSON and plain text payloads
+- JSON validation is performed client-side (shows error but allows publishing)
+- Consider using JSON for structured data, plain text for simple messages
+
+## Error Handling
+
+### Common Errors
+
+- `ErrTemplateNotFound`: Template ID doesn't exist (update/delete operations)
+- `ErrDuplicateTemplate`: Template name already exists
+- `ErrInvalidTemplate`: Template fails validation (missing name or payload)
+
+### Frontend Error Display
+
+- Errors shown in red banner above action buttons
+- Validation errors shown inline (e.g., JSON validation below payload textarea)
+- User-friendly error messages (no raw API errors)
+
+## Integration with Publishing
+
+1. User selects topic → Templates filtered and loaded
+2. User selects template → Payload and attributes populated
+3. User can edit → Modify payload/attributes before publishing
+4. User clicks Publish → Message published with current form values
+5. Template remains loaded → Can publish multiple times with same template
+
+## Configuration File Structure
+
+```json
+{
+  "profiles": [...],
+  "activeProfileId": "...",
+  "messageBufferSize": 500,
+  "autoAck": true,
+  "theme": "auto",
+  "templates": [
+    {
+      "id": "20260104120000",
+      "name": "User Signup Event",
+      "topicId": "projects/my-project/topics/user-events",
+      "payload": "{\"userId\":\"123\",\"email\":\"user@example.com\"}",
+      "attributes": {
+        "eventType": "user.signup",
+        "source": "webapp"
+      },
+      "createdAt": "2026-01-04T12:00:00Z",
+      "updatedAt": "2026-01-04T12:00:00Z"
+    }
+  ]
+}
+```
+
+## Future Enhancements (Not Yet Implemented)
+
+- Template variables/placeholders (e.g., `{{timestamp}}`, `{{uuid}}`)
+- Template categories/tags
+- Template import/export
+- Template versioning
+- Bulk publish from templates

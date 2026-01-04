@@ -6,7 +6,9 @@ import {
   GetProfiles,
   Disconnect,
   ListTopics,
-  ListSubscriptions
+  ListSubscriptions,
+  SwitchProfile,
+  SaveProfile
 } from "../wailsjs/go/main/App";
 import type { ConnectionProfile, ConnectionStatus, Topic, Subscription } from './types';
 import Layout from './components/Layout';
@@ -26,6 +28,7 @@ function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingResources, setLoadingResources] = useState(false);
+  const [profileRefreshTrigger, setProfileRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const initialize = async () => {
@@ -47,9 +50,11 @@ function App() {
 
       // If connected, load resources
       if (s.isConnected) {
-        loadResources();
+        await loadResources(); // Await to ensure resources load before continuing
       } else {
-        // Clear selection when disconnected
+        // Clear resources when disconnected
+        setTopics([]);
+        setSubscriptions([]);
         setSelectedResource(null);
       }
 
@@ -74,32 +79,105 @@ function App() {
     setError('');
 
     try {
+      // Clear resources first to prevent showing stale data
+      setTopics([]);
+      setSubscriptions([]);
+
       const [topicsData, subsData] = await Promise.all([
         ListTopics(),
         ListSubscriptions()
       ]);
 
-      setTopics(topicsData as any || []);
-      setSubscriptions(subsData as any || []);
+      // Only set resources if we're still connected (prevent race conditions)
+      const currentStatus = await GetConnectionStatus();
+      if (currentStatus.isConnected) {
+        setTopics(topicsData as any || []);
+        setSubscriptions(subsData as any || []);
+      }
     } catch (e: any) {
       setError('Failed to load resources: ' + e.toString());
+      // Clear resources on error to prevent showing stale data
+      setTopics([]);
+      setSubscriptions([]);
     } finally {
       setLoadingResources(false);
     }
   };
 
-  const handleConnect = async (projectId: string) => {
+  const handleConnect = async (projectId: string, saveAsProfile?: { name: string; isDefault?: boolean }) => {
     setError('');
     setLoading(true);
 
     try {
       await ConnectWithADC(projectId);
       await loadStatus();
+
+      // Save as profile if requested
+      if (saveAsProfile) {
+        const profile: ConnectionProfile = {
+          id: Date.now().toString(),
+          name: saveAsProfile.name,
+          projectId: projectId,
+          authMethod: 'ADC',
+          isDefault: saveAsProfile.isDefault || false,
+          createdAt: new Date().toISOString(),
+        };
+        try {
+          await SaveProfile(profile as any);
+          await loadProfiles();
+          setProfileRefreshTrigger(prev => prev + 1); // Trigger dropdown refresh
+        } catch (e: any) {
+          console.error('Failed to save profile:', e);
+          // Don't fail the connection if profile save fails
+        }
+      }
     } catch (e: any) {
       setError(e.toString());
       throw e; // Re-throw so dialog can handle it
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProfileSwitch = async () => {
+    // Clear current resources immediately to prevent showing stale data
+    setTopics([]);
+    setSubscriptions([]);
+    setSelectedResource(null);
+    setError('');
+    setLoadingResources(true);
+
+    try {
+      // Reload status first to get the new connection state
+      // This ensures we have the latest connection info
+      const newStatus = await GetConnectionStatus();
+      setStatus(newStatus);
+
+      // If connected, reload resources for the new project
+      if (newStatus.isConnected) {
+        // Small delay to ensure backend connection is fully established
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Verify we're still connected before loading resources
+        const verifyStatus = await GetConnectionStatus();
+        if (verifyStatus.isConnected && verifyStatus.projectId === newStatus.projectId) {
+          await loadResources();
+        } else {
+          console.warn('Connection changed during profile switch, skipping resource load');
+        }
+      }
+
+      // Reload profiles to update active status
+      await loadProfiles();
+      setProfileRefreshTrigger(prev => prev + 1); // Trigger dropdown refresh
+    } catch (e: any) {
+      console.error('Failed to reload after profile switch:', e);
+      setError('Failed to reload resources: ' + e.toString());
+      // Ensure resources are cleared on error
+      setTopics([]);
+      setSubscriptions([]);
+    } finally {
+      setLoadingResources(false);
     }
   };
 
@@ -185,6 +263,9 @@ function App() {
             onSelectSubscription={handleSelectSubscription}
             onRefresh={loadResources}
             onDisconnect={handleDisconnect}
+            onProfileSwitch={handleProfileSwitch}
+            onCreateConnection={() => setDialogOpen(true)}
+            profileRefreshTrigger={profileRefreshTrigger}
             loading={loadingResources}
           />
         }

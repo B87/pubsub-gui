@@ -1,0 +1,561 @@
+---
+description: UI Development Guide for Pub/Sub GUI
+alwaysApply: false
+---
+# UI Development Guide for Pub/Sub GUI
+
+This guide covers UI development patterns, conventions, and best practices for the Pub/Sub GUI desktop application.
+
+## Tech Stack
+
+- **Framework**: React 18 with TypeScript
+- **Styling**: Tailwind CSS v4 (using `@tailwindcss/postcss`)
+- **UI Components**: Radix UI (accessible, unstyled primitives)
+- **Build Tool**: Vite 3
+- **Desktop Framework**: Wails v2 (Go backend + React frontend)
+
+## Project Structure
+
+```
+frontend/src/
+├── components/          # React components
+│   ├── Layout.tsx      # Main layout wrapper (sidebar + main)
+│   ├── Sidebar.tsx     # Resource navigation sidebar
+│   ├── TopicDetails.tsx
+│   ├── SubscriptionDetails.tsx
+│   └── ...
+├── types/              # TypeScript type definitions
+│   └── index.ts
+├── wailsjs/           # Auto-generated Wails bindings (DO NOT EDIT)
+│   └── go/main/App.js
+├── App.tsx            # Root component
+├── main.tsx           # React entry point
+└── style.css          # Global styles + Tailwind imports
+```
+
+## Component Patterns
+
+### Component Structure
+
+```typescript
+import { useState, useEffect } from 'react';
+import type { Topic } from '../types';
+import { SomeWailsMethod } from '../wailsjs/go/main/App';
+
+interface ComponentProps {
+  topic: Topic;
+  onAction?: () => void;
+}
+
+export default function Component({ topic, onAction }: ComponentProps) {
+  const [state, setState] = useState<string>('');
+
+  useEffect(() => {
+    // Side effects
+  }, [topic]);
+
+  return (
+    <div className="...">
+      {/* Component JSX */}
+    </div>
+  );
+}
+```
+
+### Naming Conventions
+
+- **Components**: PascalCase, descriptive names (e.g., `TopicDetails`, `ConnectionDialog`)
+- **Files**: Match component name (e.g., `TopicDetails.tsx`)
+- **Props interfaces**: `ComponentNameProps` (e.g., `TopicDetailsProps`)
+- **Types**: PascalCase, exported from `types/index.ts`
+
+## Styling Guidelines
+
+### Tailwind CSS v4 Usage
+
+This project uses **Tailwind CSS v4** with the new `@import "tailwindcss"` syntax.
+
+**Key Principles:**
+1. **Use Tailwind utility classes** for all styling (prefer over custom CSS)
+2. **Dark theme by default**: The app uses a dark color scheme (slate-800/900 backgrounds)
+3. **Consistent spacing**: Use Tailwind's spacing scale (p-4, m-2, gap-3, etc.)
+4. **Responsive design**: Not required for desktop app, but maintain consistent sizing
+
+### Color Palette
+
+The app uses a dark theme with slate colors:
+
+```typescript
+// Backgrounds
+bg-slate-900    // Main app background
+bg-slate-800    // Sidebar, cards, elevated surfaces
+bg-slate-700    // Inputs, buttons, hover states
+bg-slate-600    // Active states, borders
+
+// Text
+text-slate-100  // Primary text
+text-slate-200  // Secondary text
+text-slate-400  // Muted text, placeholders
+text-slate-500  // Disabled text
+
+// Accents
+text-blue-500   // Links, focus rings
+bg-blue-500     // Primary actions
+ring-blue-500   // Focus indicators
+```
+
+### Common Patterns
+
+**Buttons:**
+```tsx
+// Primary button
+<button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors">
+  Submit
+</button>
+
+// Secondary button
+<button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md transition-colors">
+  Cancel
+</button>
+
+// Text button
+<button className="text-slate-400 hover:text-slate-200 transition-colors">
+  Disconnect
+</button>
+```
+
+**Input Fields:**
+```tsx
+<input
+  type="text"
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  placeholder="Enter text..."
+/>
+```
+
+**Cards/Panels:**
+```tsx
+<div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+  {/* Card content */}
+</div>
+```
+
+**Loading States:**
+```tsx
+<button disabled={loading} className="... disabled:opacity-50 disabled:cursor-not-allowed">
+  {loading ? 'Loading...' : 'Submit'}
+</button>
+```
+
+## Radix UI Integration
+
+Radix UI provides accessible, unstyled primitives. Always style them with Tailwind classes.
+
+**Common Radix Components Used:**
+- `@radix-ui/react-dialog` - Modal dialogs
+- `@radix-ui/react-dropdown-menu` - Dropdown menus
+- `@radix-ui/react-tabs` - Tabbed interfaces
+- `@radix-ui/react-select` - Select dropdowns
+- `@radix-ui/react-label` - Form labels
+- `@radix-ui/react-separator` - Visual separators
+
+**Example - Dialog:**
+```tsx
+import * as Dialog from '@radix-ui/react-dialog';
+
+<Dialog.Root open={open} onOpenChange={setOpen}>
+  <Dialog.Trigger className="...">Open</Dialog.Trigger>
+  <Dialog.Portal>
+    <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+    <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 rounded-lg p-6 w-full max-w-md">
+      <Dialog.Title className="text-lg font-bold mb-4">Title</Dialog.Title>
+      {/* Content */}
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
+```
+
+## Wails Integration
+
+### Calling Go Methods from React
+
+```typescript
+import { MethodName } from '../wailsjs/go/main/App';
+
+// Async method call
+const result = await MethodName(param1, param2);
+```
+
+**Available Methods** (from `wailsjs/go/main/App.d.ts`):
+- `ConnectWithADC(projectID: string)`
+- `GetConnectionStatus()`
+- `ListTopics()`, `ListSubscriptions()`
+- `PublishMessage(...)`
+- `GetTemplates(...)`, `SaveTemplate(...)`
+- etc.
+
+### Listening to Go Events
+
+```typescript
+import { EventsOn } from '../wailsjs/runtime/runtime';
+
+useEffect(() => {
+  const unsubscribe = EventsOn('event:name', (data) => {
+    // Handle event
+  });
+
+  return () => unsubscribe();
+}, []);
+```
+
+**Common Events:**
+- `message:received` - New message from subscription
+- `connection:status` - Connection status updates
+- `monitor:error` - Monitoring errors
+
+### Error Handling
+
+Always wrap Wails calls in try-catch:
+
+```typescript
+try {
+  const result = await SomeMethod();
+  setError('');
+} catch (e: any) {
+  setError(e.toString());
+}
+```
+
+## Type Safety
+
+### Type Definitions
+
+All types are defined in `frontend/src/types/index.ts`:
+
+```typescript
+export interface Topic {
+  name: string;
+  displayName: string;
+  messageRetention?: string;
+}
+
+export interface Subscription {
+  name: string;
+  displayName: string;
+  topic: string;
+  // ...
+}
+```
+
+**Always:**
+- Import types from `types/index.ts`
+- Use TypeScript interfaces for props
+- Type Wails method return values (use `as` if needed for auto-generated types)
+
+## Layout Structure
+
+The app uses a consistent layout pattern:
+
+```tsx
+<Layout sidebar={<Sidebar ... />}>
+  {/* Main content */}
+</Layout>
+```
+
+**Layout Component:**
+- Fixed sidebar (320px width, `w-80`)
+- Flexible main content area
+- Dark theme (`bg-slate-900`, `bg-slate-800`)
+
+## State Management
+
+**Current Approach:** React `useState` and `useEffect` (no global state library)
+
+**Patterns:**
+- Lift state up to `App.tsx` for shared state (connection status, resources)
+- Use local state for component-specific UI state
+- Pass callbacks down for actions
+
+**Example:**
+```tsx
+// In App.tsx
+const [topics, setTopics] = useState<Topic[]>([]);
+const handleSelectTopic = (topic: Topic) => {
+  setSelectedResource({ type: 'topic', id: topic.name });
+};
+
+// Pass to child
+<TopicDetails topic={topic} />
+```
+
+### Async State Management & Connection Switching
+
+**CRITICAL: Always follow these patterns when switching connections or profiles:**
+
+1. **Clear State Immediately**: Always clear dependent state (resources, selections) at the START of any connection switch operation, before any async operations begin.
+
+2. **Proper Async Sequencing**: Always `await` all async operations in sequence. Never call async functions without awaiting them, especially when loading resources after connection changes.
+
+3. **Connection Verification**: After switching connections, verify the connection status and project ID match expectations before loading resources.
+
+4. **Defensive State Updates**: Only update state with new data if the connection is still valid. Check connection status before setting resources.
+
+**Example - Profile Switching Pattern:**
+```tsx
+const handleProfileSwitch = async () => {
+  // 1. Clear state IMMEDIATELY (before any async operations)
+  setTopics([]);
+  setSubscriptions([]);
+  setSelectedResource(null);
+  setError('');
+  setLoadingResources(true);
+
+  try {
+    // 2. Wait for backend operation to complete
+    await SwitchProfile(profileId);
+
+    // 3. Get new connection status
+    const newStatus = await GetConnectionStatus();
+    setStatus(newStatus);
+
+    // 4. Verify connection before loading resources
+    if (newStatus.isConnected) {
+      // Small delay to ensure backend connection is fully established
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 5. Double-check connection still matches
+      const verifyStatus = await GetConnectionStatus();
+      if (verifyStatus.isConnected && verifyStatus.projectId === newStatus.projectId) {
+        // 6. Only then load resources
+        await loadResources(); // MUST be awaited
+      }
+    }
+  } catch (e: any) {
+    // 7. Clear resources on error to prevent stale data
+    setTopics([]);
+    setSubscriptions([]);
+    setError('Failed to reload resources: ' + e.toString());
+  } finally {
+    setLoadingResources(false);
+  }
+};
+```
+
+**Example - Resource Loading Pattern:**
+```tsx
+const loadResources = async () => {
+  setLoadingResources(true);
+  setError('');
+
+  try {
+    // Clear resources first to prevent showing stale data
+    setTopics([]);
+    setSubscriptions([]);
+
+    const [topicsData, subsData] = await Promise.all([
+      ListTopics(),
+      ListSubscriptions()
+    ]);
+
+    // Verify connection is still valid before setting resources
+    const currentStatus = await GetConnectionStatus();
+    if (currentStatus.isConnected) {
+      setTopics(topicsData as any || []);
+      setSubscriptions(subsData as any || []);
+    }
+  } catch (e: any) {
+    setError('Failed to load resources: ' + e.toString());
+    // Clear resources on error
+    setTopics([]);
+    setSubscriptions([]);
+  } finally {
+    setLoadingResources(false);
+  }
+};
+```
+
+**Anti-Patterns to Avoid:**
+```tsx
+// ❌ WRONG: Not awaiting async operations
+const loadStatus = async () => {
+  const s = await GetConnectionStatus();
+  setStatus(s);
+  if (s.isConnected) {
+    loadResources(); // ❌ Not awaited - creates race condition!
+  }
+};
+
+// ❌ WRONG: Not clearing state before async operations
+const handleProfileSwitch = async () => {
+  await SwitchProfile(profileId);
+  await loadStatus(); // ❌ Old resources still in state!
+};
+
+// ❌ WRONG: Not verifying connection before loading
+const handleProfileSwitch = async () => {
+  setTopics([]); // Good
+  await SwitchProfile(profileId);
+  await loadResources(); // ❌ May load from wrong connection if switch not complete
+};
+
+// ✅ CORRECT: Clear, verify, then load
+const handleProfileSwitch = async () => {
+  setTopics([]); // Clear immediately
+  setSubscriptions([]);
+  await SwitchProfile(profileId); // Wait for switch
+  const status = await GetConnectionStatus(); // Verify
+  if (status.isConnected) {
+    await loadResources(); // Load only if verified
+  }
+};
+```
+
+**Key Rules:**
+- **Always clear dependent state first** when starting any connection/context switch
+- **Always await async operations** - never fire-and-forget async calls that update state
+- **Always verify connection** before loading resources after a switch
+- **Always clear state on errors** to prevent displaying stale data
+- **Use loading states** to prevent UI updates during transitions
+
+## Common UI Patterns
+
+### Empty States
+
+Use the `EmptyState` component for empty/initial states:
+
+```tsx
+<EmptyState
+  icon={<svg>...</svg>}
+  title="No Resources"
+  description="Connect to a project to see topics and subscriptions."
+  action={{
+    label: 'Connect',
+    onClick: () => handleConnect()
+  }}
+/>
+```
+
+### Loading States
+
+```tsx
+{loading ? (
+  <div className="flex items-center justify-center p-8">
+    <div className="text-slate-400">Loading...</div>
+  </div>
+) : (
+  // Content
+)}
+```
+
+### Error Display
+
+```tsx
+{error && (
+  <div className="bg-red-900/20 border border-red-700 text-red-200 rounded-md p-3 mb-4">
+    {error}
+  </div>
+)}
+```
+
+### Tabs
+
+```tsx
+import * as Tabs from '@radix-ui/react-tabs';
+
+<Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+  <Tabs.List className="flex border-b border-slate-700">
+    <Tabs.Trigger value="tab1" className="px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+      Tab 1
+    </Tabs.Trigger>
+  </Tabs.List>
+  <Tabs.Content value="tab1">
+    {/* Content */}
+  </Tabs.Content>
+</Tabs.Root>
+```
+
+## Best Practices
+
+1. **Accessibility**
+   - Use semantic HTML
+   - Add ARIA labels where needed
+   - Ensure keyboard navigation works
+   - Radix UI components handle accessibility automatically
+
+2. **Performance**
+   - Use `useMemo` for expensive computations
+   - Use `useCallback` for stable function references
+   - Avoid unnecessary re-renders
+
+3. **Code Organization**
+   - One component per file
+   - Keep components focused and small
+   - Extract reusable logic into custom hooks
+
+4. **Styling**
+   - Prefer Tailwind utilities over custom CSS
+   - Use consistent spacing scale
+   - Maintain dark theme consistency
+
+5. **Error Handling**
+   - Always handle async errors
+   - Display user-friendly error messages
+   - Clear errors on new actions
+
+6. **Type Safety**
+   - Type all props with interfaces
+   - Use TypeScript strict mode
+   - Avoid `any` when possible (use `as` for Wails types if needed)
+
+## Development Workflow
+
+### Running the Dev Server
+
+```bash
+# From project root
+wails dev
+
+# Or standalone frontend (for UI-only development)
+cd frontend
+npm run dev
+```
+
+### Hot Reload
+
+- Wails dev mode supports hot reload for both Go and React
+- Frontend changes auto-reload in the desktop window
+- Go changes require app restart
+
+### Debugging
+
+- Use browser DevTools (available in Wails dev mode)
+- Console logs appear in terminal and DevTools
+- React DevTools extension works in dev mode
+
+## Common Gotchas
+
+1. **Wails Bindings**: Never edit files in `wailsjs/` - they're auto-generated
+2. **Async Operations**: Always handle loading and error states
+3. **Event Cleanup**: Unsubscribe from Wails events in `useEffect` cleanup
+4. **Type Assertions**: Wails return types may need `as` assertions for TypeScript
+5. **Dark Theme**: All components should work with dark theme (slate colors)
+6. **Async State Race Conditions**:
+   - **ALWAYS await async operations** that update state
+   - **ALWAYS clear dependent state** before starting connection/profile switches
+   - **ALWAYS verify connection** before loading resources after a switch
+   - Never call async functions without `await` when they update state
+7. **Connection Switching**: When switching profiles or connections:
+   - Clear resources immediately (topics, subscriptions, selections)
+   - Wait for backend switch to complete
+   - Verify new connection status
+   - Only then load new resources
+   - Clear resources on any error
+
+## Resources
+
+- [Tailwind CSS v4 Docs](https://tailwindcss.com/docs)
+- [Radix UI Docs](https://www.radix-ui.com/)
+- [Wails v2 Docs](https://wails.io/docs/v2/)
+- [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/)

@@ -4,10 +4,13 @@ package admin
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"cloud.google.com/go/pubsub/v2"
 	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"google.golang.org/api/iterator"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // SubscriptionInfo represents subscription metadata
@@ -19,6 +22,8 @@ type SubscriptionInfo struct {
 	RetentionDuration string                `json:"retentionDuration"`
 	Filter            string                `json:"filter,omitempty"`
 	DeadLetterPolicy  *DeadLetterPolicyInfo `json:"deadLetterPolicy,omitempty"`
+	SubscriptionType  string                `json:"subscriptionType"`       // "pull" or "push"
+	PushEndpoint      string                `json:"pushEndpoint,omitempty"` // Only for push subscriptions
 }
 
 // DeadLetterPolicyInfo represents dead letter queue configuration
@@ -53,6 +58,14 @@ func ListSubscriptionsAdmin(ctx context.Context, client *pubsub.Client, projectI
 			Topic:             sub.Topic,
 			AckDeadline:       int(sub.AckDeadlineSeconds),
 			RetentionDuration: sub.MessageRetentionDuration.AsDuration().String(),
+		}
+
+		// Determine subscription type (pull or push)
+		if sub.PushConfig != nil && sub.PushConfig.PushEndpoint != "" {
+			subInfo.SubscriptionType = "push"
+			subInfo.PushEndpoint = sub.PushConfig.PushEndpoint
+		} else {
+			subInfo.SubscriptionType = "pull"
 		}
 
 		if sub.Filter != "" {
@@ -93,6 +106,14 @@ func GetSubscriptionMetadataAdmin(ctx context.Context, client *pubsub.Client, pr
 		RetentionDuration: sub.MessageRetentionDuration.AsDuration().String(),
 	}
 
+	// Determine subscription type (pull or push)
+	if sub.PushConfig != nil && sub.PushConfig.PushEndpoint != "" {
+		subInfo.SubscriptionType = "push"
+		subInfo.PushEndpoint = sub.PushConfig.PushEndpoint
+	} else {
+		subInfo.SubscriptionType = "pull"
+	}
+
 	if sub.Filter != "" {
 		subInfo.Filter = sub.Filter
 	}
@@ -105,4 +126,77 @@ func GetSubscriptionMetadataAdmin(ctx context.Context, client *pubsub.Client, pr
 	}
 
 	return subInfo, nil
+}
+
+// CreateSubscriptionAdmin creates a new subscription for a topic
+func CreateSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, topicID, subID string, ttl time.Duration) error {
+	// Normalize subscription ID (extract short name if full path provided)
+	shortSubID := subID
+	if strings.HasPrefix(subID, "projects/") {
+		// Extract subscription ID from full path: projects/{project}/subscriptions/{sub-id}
+		parts := strings.Split(subID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "subscriptions" {
+			shortSubID = parts[3]
+		}
+	}
+
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		// Extract topic ID from full path: projects/{project}/topics/{topic-id}
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
+
+	// Build full resource names
+	subName := "projects/" + projectID + "/subscriptions/" + shortSubID
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Verify topic exists before creating subscription
+	topicReq := &pubsubpb.GetTopicRequest{
+		Topic: topicName,
+	}
+	_, err := client.TopicAdminClient.GetTopic(ctx, topicReq)
+	if err != nil {
+		return fmt.Errorf("topic %s does not exist or you don't have permission to access it: %w", topicName, err)
+	}
+
+	// Create subscription using Subscription object directly (v2 API pattern)
+	req := &pubsubpb.Subscription{
+		Name:  subName,
+		Topic: topicName,
+		// Set expiration policy to automatically delete the subscription after it's been idle for ttl
+		ExpirationPolicy: &pubsubpb.ExpirationPolicy{
+			Ttl: durationpb.New(ttl),
+		},
+	}
+
+	_, err = client.SubscriptionAdminClient.CreateSubscription(ctx, req)
+	if err != nil {
+		// Provide more helpful error message
+		return fmt.Errorf("failed to create subscription %s for topic %s: %w. Ensure you have 'pubsub.subscriptions.create' permission", subName, topicName, err)
+	}
+
+	return nil
+}
+
+// DeleteSubscriptionAdmin deletes a subscription
+func DeleteSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, subID string) error {
+	subName := subID
+	if !strings.HasPrefix(subID, "projects/") {
+		subName = "projects/" + projectID + "/subscriptions/" + subID
+	}
+
+	deleteReq := &pubsubpb.DeleteSubscriptionRequest{
+		Subscription: subName,
+	}
+
+	err := client.SubscriptionAdminClient.DeleteSubscription(ctx, deleteReq)
+	if err != nil {
+		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	return nil
 }

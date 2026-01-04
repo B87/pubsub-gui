@@ -1,0 +1,4 @@
+---
+alwaysApply: false
+---
+How to use Goreleaser to build the application for all platforms (local and CI/CD).

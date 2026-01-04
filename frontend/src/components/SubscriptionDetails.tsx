@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
+import SubscriptionMonitor from './SubscriptionMonitor';
 import type { Subscription } from '../types';
 
 interface SubscriptionDetailsProps {
@@ -5,25 +8,54 @@ interface SubscriptionDetailsProps {
 }
 
 export default function SubscriptionDetails({ subscription }: SubscriptionDetailsProps) {
+  const [activeTab, setActiveTab] = useState('metadata');
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
   return (
-    <div className="p-8">
-      <div className="max-w-4xl">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <div>
-              <h2 className="text-2xl font-bold">{subscription.displayName}</h2>
-              <p className="text-sm text-slate-400">Subscription</p>
+    <div className="flex flex-col h-full">
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
+        <div className="p-8 border-b border-slate-700">
+          <div className="max-w-4xl">
+            {/* Header */}
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <div>
+                  <h2 className="text-2xl font-bold">{subscription.displayName}</h2>
+                  <p className="text-sm text-slate-400">Subscription</p>
+                </div>
+              </div>
             </div>
+
+            {/* Tabs */}
+            <Tabs.List className="flex gap-2 border-b border-slate-700">
+              <Tabs.Trigger
+                value="metadata"
+                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+              >
+                Metadata
+              </Tabs.Trigger>
+              {subscription.subscriptionType === 'pull' && (
+                <Tabs.Trigger
+                  value="monitor"
+                  className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+                >
+                  Monitor
+                </Tabs.Trigger>
+              )}
+            </Tabs.List>
           </div>
         </div>
+
+        {/* Tab Content */}
+        <Tabs.Content value="metadata" className="flex-1 overflow-auto">
+          <div className="p-8">
+            <div className="max-w-4xl">
 
         {/* Metadata Card */}
         <div className="bg-slate-800 rounded-lg border border-slate-700">
@@ -68,6 +100,35 @@ export default function SubscriptionDetails({ subscription }: SubscriptionDetail
                   Copy
                 </button>
               </div>
+            </div>
+
+            {/* Subscription Type */}
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">
+                Subscription Type
+              </label>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-2 rounded text-sm font-medium ${
+                  subscription.subscriptionType === 'pull'
+                    ? 'bg-blue-900/50 text-blue-300 border border-blue-700'
+                    : 'bg-purple-900/50 text-purple-300 border border-purple-700'
+                }`}>
+                  {subscription.subscriptionType === 'pull' ? 'Pull' : 'Push'}
+                </span>
+                {subscription.subscriptionType === 'push' && subscription.pushEndpoint && (
+                  <div className="flex-1">
+                    <span className="text-xs text-slate-500 mr-2">Endpoint:</span>
+                    <code className="px-3 py-2 bg-slate-900 rounded text-sm font-mono">
+                      {subscription.pushEndpoint}
+                    </code>
+                  </div>
+                )}
+              </div>
+              {subscription.subscriptionType === 'push' && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Push subscriptions deliver messages via HTTP POST to an endpoint. Monitoring is not available for push subscriptions.
+                </p>
+              )}
             </div>
 
             {/* Ack Deadline */}
@@ -121,13 +182,16 @@ export default function SubscriptionDetails({ subscription }: SubscriptionDetail
           </div>
         </div>
 
-        {/* Placeholder for future features */}
-        <div className="mt-6 p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
-          <p className="text-sm text-slate-400">
-            💡 <strong>Coming in Milestone 4:</strong> Monitor this subscription and view real-time messages with auto-acknowledge support.
-          </p>
-        </div>
-      </div>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        {subscription.subscriptionType === 'pull' && (
+          <Tabs.Content value="monitor" className="flex-1 overflow-hidden">
+            <SubscriptionMonitor subscription={subscription} />
+          </Tabs.Content>
+        )}
+      </Tabs.Root>
     </div>
   );
 }

@@ -1,0 +1,43 @@
+---
+alwaysApply: true
+---
+
+# Topics and Subscriptions Guidelines
+
+## Resource Name Handling
+
+### Topic and Subscription IDs
+- **Full Resource Names**: GCP Pub/Sub uses full resource names like `projects/{project-id}/topics/{topic-id}` or `projects/{project-id}/subscriptions/{subscription-id}`
+- **Topic/Subscription Names Only**: Sometimes code receives just the name part (e.g., `my-topic` instead of the full path)
+- **Always Normalize**: When creating subscriptions or topics, check if the input is already a full resource name before prepending the project prefix
+
+### Subscription ID Format Requirements
+- **Valid Characters**: Subscription IDs can only contain lowercase letters, numbers, hyphens, and underscores
+- **Invalid Characters**: Forward slashes (`/`) are NOT allowed in subscription IDs
+- **Length Limits**: Subscription IDs must be between 3 and 255 characters
+- **When Generating IDs**: Always extract the topic name (last segment after `/`) before using it in subscription ID generation
+
+### Example: Creating Temporary Subscriptions
+```go
+// Extract topic name from full resource path
+topicName := topicID
+if parts := strings.Split(topicID, "/"); len(parts) > 0 {
+    topicName = parts[len(parts)-1]
+}
+
+// Generate valid subscription ID (no slashes!)
+subID := fmt.Sprintf("ps-gui-mon-%s-%d", topicName, timestamp)
+```
+
+## Resource Name Normalization Pattern
+
+When working with GCP Pub/Sub resources, always handle both formats:
+
+```go
+func normalizeTopicName(projectID, topicID string) string {
+    if strings.HasPrefix(topicID, "projects/") {
+        return topicID // Already a full resource name
+    }
+    return fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+}
+```

@@ -25,7 +25,8 @@ type AppConfig struct {
 	ActiveProfileID   string              `json:"activeProfileId,omitempty"`
 	MessageBufferSize int                 `json:"messageBufferSize"`
 	AutoAck           bool                `json:"autoAck"`
-	Theme             string              `json:"theme"` // "light" | "dark" | "auto"
+	Theme             string              `json:"theme"`     // "light" | "dark" | "auto"
+	Templates         []MessageTemplate   `json:"templates"` // Message templates
 }
 
 // Validate checks if the ConnectionProfile has all required fields
@@ -56,6 +57,7 @@ func NewDefaultConfig() *AppConfig {
 		MessageBufferSize: 500,
 		AutoAck:           true,
 		Theme:             "auto",
+		Templates:         []MessageTemplate{},
 	}
 }
 
@@ -71,7 +73,12 @@ func NewConnectionProfile(name, projectID, authMethod string) *ConnectionProfile
 	}
 }
 
-// generateID generates a simple unique ID (timestamp-based)
-func generateID() string {
+// GenerateID generates a simple unique ID (timestamp-based)
+func GenerateID() string {
 	return time.Now().Format("20060102150405")
+}
+
+// generateID is an alias for GenerateID (kept for backward compatibility)
+func generateID() string {
+	return GenerateID()
 }

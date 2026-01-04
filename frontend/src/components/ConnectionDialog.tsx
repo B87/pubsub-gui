@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 interface ConnectionDialogProps {
   open: boolean;
-  onConnect: (projectId: string) => Promise<void>;
+  onConnect: (projectId: string, saveAsProfile?: { name: string; isDefault?: boolean }) => Promise<void>;
   onClose: () => void;
   error?: string;
 }
@@ -10,6 +10,9 @@ interface ConnectionDialogProps {
 export default function ConnectionDialog({ open, onConnect, onClose, error }: ConnectionDialogProps) {
   const [projectId, setProjectId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [saveAsProfile, setSaveAsProfile] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
 
   if (!open) return null;
 
@@ -18,8 +21,14 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
 
     setLoading(true);
     try {
-      await onConnect(projectId.trim());
+      const saveProfile = saveAsProfile && profileName.trim()
+        ? { name: profileName.trim(), isDefault }
+        : undefined;
+      await onConnect(projectId.trim(), saveProfile);
       setProjectId('');
+      setSaveAsProfile(false);
+      setProfileName('');
+      setIsDefault(false);
       onClose();
     } catch (e) {
       // Error is handled by parent
@@ -65,6 +74,49 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
             />
           </div>
 
+          {/* Save as Connection Profile */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveAsProfile}
+                onChange={(e) => setSaveAsProfile(e.target.checked)}
+                disabled={loading}
+                className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-300">Save as connection profile</span>
+            </label>
+
+            {saveAsProfile && (
+              <div className="ml-6 space-y-3">
+                <div>
+                  <label htmlFor="profileName" className="block text-sm font-medium mb-2">
+                    Connection Name
+                  </label>
+                  <input
+                    id="profileName"
+                    type="text"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="Production, Staging, etc."
+                    disabled={loading}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isDefault}
+                    onChange={(e) => setIsDefault(e.target.checked)}
+                    disabled={loading}
+                    className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-300">Set as default connection</span>
+                </label>
+              </div>
+            )}
+          </div>
+
           {error && (
             <div className="p-3 bg-red-900/50 border border-red-700 rounded-md text-red-200 text-sm">
               {error}
@@ -91,7 +143,7 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
           </button>
           <button
             onClick={handleConnect}
-            disabled={!projectId.trim() || loading}
+            disabled={!projectId.trim() || loading || (saveAsProfile && !profileName.trim())}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-md transition-colors"
           >
             {loading ? 'Connecting...' : 'Connect'}

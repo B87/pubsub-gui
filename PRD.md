@@ -453,45 +453,45 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 
 ## 12. Implementation Roadmap
 
-### Milestone 1: Foundation (Week 1-2)
+### Milestone 1: Foundation (Week 1-2) ✅ **COMPLETE**
 **Deliverables:**
-- [ ] Wails project scaffolding with React + TypeScript
-- [ ] Authentication: ADC + Service Account JSON
-- [ ] Connection profile management (CRUD)
-- [ ] Basic UI layout: sidebar + main area
+- [x] Wails project scaffolding with React + TypeScript
+- [x] Authentication: ADC + Service Account JSON
+- [x] Connection profile management (CRUD)
+- [x] Basic UI layout: sidebar + main area
 
 **Acceptance:**
-- User can authenticate and see "Connected to [project]" indicator
+- ✅ User can authenticate and see "Connected to [project]" indicator
 
 ---
 
-### Milestone 2: Resource Explorer (Week 3)
+### Milestone 2: Resource Explorer (Week 3) ✅ **COMPLETE**
 **Deliverables:**
-- [ ] List topics with pagination
-- [ ] List subscriptions with pagination
-- [ ] Display topic/subscription metadata in detail panel
-- [ ] Refresh button
-- [ ] Client-side search/filter
+- [x] List topics with pagination
+- [x] List subscriptions with pagination
+- [x] Display topic/subscription metadata in detail panel
+- [x] Refresh button
+- [x] Client-side search/filter
 
 **Acceptance:**
-- User can browse all topics and subscriptions in their project
+- ✅ User can browse all topics and subscriptions in their project
 
 ---
 
-### Milestone 3: Message Publisher (Week 4)
+### Milestone 3: Message Publisher (Week 4) ✅ **COMPLETE**
 **Deliverables:**
-- [ ] Publish form (payload + attributes)
-- [ ] JSON validation
-- [ ] Publish result display (message ID)
-- [ ] Message template CRUD
-- [ ] Template quick-load
+- [x] Publish form (payload + attributes)
+- [x] JSON validation
+- [x] Publish result display (message ID)
+- [x] Message template CRUD
+- [x] Template quick-load
 
 **Acceptance:**
-- User can publish a message and receive confirmation message ID
+- ✅ User can publish a message and receive confirmation message ID
 
 ---
 
-### Milestone 4: Subscription Monitor (Week 5-6)
+### Milestone 4: Subscription Monitor (Week 5-6) ⏳ **IN PROGRESS**
 **Deliverables:**
 - [ ] Streaming pull implementation (Go backend)
 - [ ] Message list UI with virtual scrolling
@@ -507,18 +507,26 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 
 ---
 
-### Milestone 5: Polish & Packaging (Week 7)
+### Milestone 5: Packaging (Week 7) 📋 **NOT STARTED**
 **Deliverables:**
-- [ ] Error handling and user-facing messages
-- [ ] Keyboard shortcuts
-- [ ] Dark mode
-- [ ] Application icon and branding
-- [ ] Build scripts for macOS/Windows/Linux
-- [ ] Installation packages (.dmg, .exe, .AppImage)
+- [ ] Goreleaser configuration for cross-platform builds
+- [ ] Installation packages (.dmg, .exe, .AppImage) via goreleaser
 - [ ] README with setup instructions
 
 **Acceptance:**
 - Application can be installed and run on all three platforms
+
+---
+
+### Milestone 6: Polish (Week 8) 📋 **NOT STARTED**
+**Deliverables:**
+- [ ] Error handling and user-facing messages
+- [ ] Keyboard shortcuts & command bar
+- [ ] Dark mode
+- [ ] Application icon and branding
+- [ ] Add template variables/placeholders ({{timestamp}}, {{uuid}}, {{date}})
+
+**Acceptance:**
 - All core user flows work end-to-end without errors
 
 ---
@@ -604,3 +612,4 @@ Potential features for v2.0+:
 
 **Change Log:**
 - 2026-01-04: Initial draft (v1.0)
+- 2026-01-04: Updated milestone status - Milestones 1-3 marked as complete

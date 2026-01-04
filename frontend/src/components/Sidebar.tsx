@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StatusIndicator from './StatusIndicator';
+import ConnectionDropdown from './ConnectionDropdown';
 import type { Topic, Subscription, ConnectionStatus } from '../types';
 
 interface SidebarProps {
@@ -11,6 +12,9 @@ interface SidebarProps {
   onSelectSubscription: (subscription: Subscription) => void;
   onRefresh: () => void;
   onDisconnect: () => void;
+  onProfileSwitch: () => void;
+  onCreateConnection: () => void;
+  profileRefreshTrigger?: number;
   loading?: boolean;
 }
 
@@ -23,6 +27,9 @@ export default function Sidebar({
   onSelectSubscription,
   onRefresh,
   onDisconnect,
+  onProfileSwitch,
+  onCreateConnection,
+  profileRefreshTrigger,
   loading = false,
 }: SidebarProps) {
   const [topicsExpanded, setTopicsExpanded] = useState(true);
@@ -59,7 +66,13 @@ export default function Sidebar({
             </button>
           )}
         </div>
-        <StatusIndicator status={getStatusType()} projectId={status.projectId} />
+        <ConnectionDropdown
+          currentProjectId={status.projectId}
+          isConnected={status.isConnected}
+          onProfileSwitch={onProfileSwitch}
+          onCreateNew={onCreateConnection}
+          refreshTrigger={profileRefreshTrigger}
+        />
       </div>
 
       {/* Search & Actions */}
