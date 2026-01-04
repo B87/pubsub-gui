@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { MessageTemplate } from '../types';
 import { GetTemplates, UpdateTemplate, DeleteTemplate } from '../../wailsjs/go/main/App';
+import JsonEditor from './JsonEditor';
 
 interface TemplateManagerProps {
   open: boolean;
@@ -36,7 +37,9 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
   const handleEdit = (template: MessageTemplate) => {
     setEditingTemplate(template);
     setEditName(template.name);
-    setEditPayload(template.payload);
+    // Set default empty JSON if template payload is empty
+    const payloadValue = template.payload?.trim() || '{\n\n}';
+    setEditPayload(payloadValue);
     setEditTopicId(template.topicId || '');
     // Convert attributes object to array
     const attrs = Object.entries(template.attributes || {}).map(([key, value]) => ({ key, value }));
@@ -44,6 +47,10 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
       attrs.push({ key: '', value: '' });
     }
     setEditAttributes(attrs);
+  };
+
+  const handlePayloadChange = (value: string) => {
+    setEditPayload(value);
   };
 
   const handleSaveEdit = async () => {
@@ -166,17 +173,10 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
-                Payload
-              </label>
-              <textarea
-                value={editPayload}
-                onChange={(e) => setEditPayload(e.target.value)}
-                rows={8}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-              />
-            </div>
+            <JsonEditor
+              value={editPayload}
+              onChange={handlePayloadChange}
+            />
 
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -221,7 +221,10 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
 
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setEditingTemplate(null)}
+                onClick={() => {
+                  setEditingTemplate(null);
+                  setEditPayload('');
+                }}
                 className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
               >
                 Cancel

@@ -16,6 +16,7 @@ import {
   DeleteSubscription
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime/runtime";
+import { WindowSetLightTheme, WindowSetDarkTheme, WindowSetSystemDefaultTheme } from "../wailsjs/runtime/runtime";
 import { main } from "../wailsjs/go/models";
 import type { ConnectionProfile, ConnectionStatus, Topic, Subscription } from './types';
 import Layout from './components/Layout';
@@ -25,6 +26,7 @@ import TopicDetails from './components/TopicDetails';
 import SubscriptionDetails from './components/SubscriptionDetails';
 import TopicCreateDialog from './components/TopicCreateDialog';
 import SubscriptionDialog from './components/SubscriptionDialog';
+import ConfigEditorDialog from './components/ConfigEditorDialog';
 import EmptyState from './components/EmptyState';
 
 function App() {
@@ -42,6 +44,7 @@ function App() {
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
   const [subscriptionDialogMode, setSubscriptionDialogMode] = useState<'create' | 'edit'>('create');
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
+  const [showConfigEditorDialog, setShowConfigEditorDialog] = useState(false);
 
   // Use ref to track selectedResource in event listeners without causing re-renders
   const selectedResourceRef = useRef(selectedResource);
@@ -91,6 +94,16 @@ function App() {
         setSelectedResource(null);
       }
     });
+    const unsubscribeThemeChanged = EventsOn('config:theme-changed', (theme: string) => {
+      // Apply theme change immediately
+      if (theme === 'light') {
+        WindowSetLightTheme();
+      } else if (theme === 'dark') {
+        WindowSetDarkTheme();
+      } else if (theme === 'auto') {
+        WindowSetSystemDefaultTheme();
+      }
+    });
 
     return () => {
       unsubscribeTopicCreated();
@@ -98,6 +111,7 @@ function App() {
       unsubscribeSubscriptionUpdated();
       unsubscribeSubscriptionCreated();
       unsubscribeSubscriptionDeleted();
+      unsubscribeThemeChanged();
     };
   }, []); // Empty dependency array - only set up once
 
@@ -364,7 +378,14 @@ function App() {
       if (selectedResource.type === 'topic') {
         const topic = topics.find(t => t.name === selectedResource.id);
         if (topic) {
-          return <TopicDetails topic={topic} onDelete={handleDeleteTopic} />;
+          return (
+            <TopicDetails
+              topic={topic}
+              onDelete={handleDeleteTopic}
+              onSelectSubscription={handleSelectSubscription}
+              onSelectTopic={handleSelectTopic}
+            />
+          );
         }
       } else {
         const subscription = subscriptions.find(s => s.name === selectedResource.id);
@@ -416,6 +437,7 @@ function App() {
               setShowSubscriptionDialog(true);
             }}
             onEditSubscription={handleEditSubscription}
+            onOpenConfigEditor={() => setShowConfigEditorDialog(true)}
             profileRefreshTrigger={profileRefreshTrigger}
             loading={loadingResources}
           />
@@ -456,6 +478,15 @@ function App() {
         }}
         onCreate={handleCreateSubscription}
         onUpdate={handleUpdateSubscription}
+        error={error}
+      />
+
+      <ConfigEditorDialog
+        open={showConfigEditorDialog}
+        onClose={() => {
+          setShowConfigEditorDialog(false);
+          setError('');
+        }}
         error={error}
       />
     </>

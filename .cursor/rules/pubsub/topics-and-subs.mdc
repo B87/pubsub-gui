@@ -86,3 +86,26 @@ Always provide user-friendly error messages with permission hints. See actual im
 **Subscription Operations:**
 - Create: See `internal/pubsub/admin/subscriptions.go:164-165` for topic existence check and `internal/pubsub/admin/subscriptions.go:181` for error message with permission hint
 - Delete: See `internal/pubsub/admin/subscriptions.go:200` for error handling
+
+## Topic-Subscription Relationships
+
+### Querying Relationships
+
+The codebase provides methods to query relationships between topics and subscriptions:
+
+**Backend Methods (in `app.go`):**
+- `GetTopicSubscriptions(topicID string)` - Returns all subscriptions subscribed to a topic
+- `GetSubscriptionsUsingTopicAsDeadLetter(topicID string)` - Returns subscriptions that use a topic as their dead letter topic
+- `GetDeadLetterTopicsForTopic(topicID string)` - Returns dead letter topics used by subscriptions subscribed to a topic
+
+**Implementation Pattern:**
+- All methods normalize topic IDs (handle both full path and short name)
+- Methods filter client-side from full lists (no GCP API filtering available)
+- Return empty arrays (not errors) when no relationships exist
+- See `app.go:348-447` for implementation examples
+
+**Frontend Usage:**
+- These methods are exposed via Wails bindings
+- Use in React components to display relationship tabs (e.g., "Subscriptions" and "Dead Letter" tabs in TopicDetails)
+- Handle loading states and empty states appropriately
+- See `frontend/src/components/TopicDetails.tsx` for example usage

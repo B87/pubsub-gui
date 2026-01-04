@@ -50,8 +50,16 @@ export function GetBufferedMessages(arg1) {
   return window['go']['main']['App']['GetBufferedMessages'](arg1);
 }
 
+export function GetConfigFileContent() {
+  return window['go']['main']['App']['GetConfigFileContent']();
+}
+
 export function GetConnectionStatus() {
   return window['go']['main']['App']['GetConnectionStatus']();
+}
+
+export function GetDeadLetterTopicsForTopic(arg1) {
+  return window['go']['main']['App']['GetDeadLetterTopicsForTopic'](arg1);
 }
 
 export function GetProfiles() {
@@ -62,12 +70,20 @@ export function GetSubscriptionMetadata(arg1) {
   return window['go']['main']['App']['GetSubscriptionMetadata'](arg1);
 }
 
+export function GetSubscriptionsUsingTopicAsDeadLetter(arg1) {
+  return window['go']['main']['App']['GetSubscriptionsUsingTopicAsDeadLetter'](arg1);
+}
+
 export function GetTemplates(arg1) {
   return window['go']['main']['App']['GetTemplates'](arg1);
 }
 
 export function GetTopicMetadata(arg1) {
   return window['go']['main']['App']['GetTopicMetadata'](arg1);
+}
+
+export function GetTopicSubscriptions(arg1) {
+  return window['go']['main']['App']['GetTopicSubscriptions'](arg1);
 }
 
 export function ListSubscriptions() {
@@ -80,6 +96,10 @@ export function ListTopics() {
 
 export function PublishMessage(arg1, arg2, arg3) {
   return window['go']['main']['App']['PublishMessage'](arg1, arg2, arg3);
+}
+
+export function SaveConfigFileContent(arg1) {
+  return window['go']['main']['App']['SaveConfigFileContent'](arg1);
 }
 
 export function SaveProfile(arg1) {

@@ -1,8 +1,7 @@
 ---
-alwaysApply: true
 description: Guidelines for working with Message Templates in the Pub/Sub GUI application
+alwaysApply: false
 ---
-
 # Message Templates System
 
 > **Note:** This rule covers message templates used for publishing. For actual message publishing implementation details, see `pubsub.mdc`.

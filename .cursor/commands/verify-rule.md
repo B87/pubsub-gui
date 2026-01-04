@@ -51,6 +51,7 @@ Follow these steps systematically:
 - [ ] Ensure the rule explains the "why" behind patterns, not just the "how"
 - [ ] Verify that warnings and important notes are prominently displayed
 - [ ] Check that the rule is scoped appropriately (not too broad, not too narrow)
+- [ ] Consider removing not so useful information from the rule if it is not needed or can be referenced from other rules.
 
 ### 6. Codebase Alignment
 

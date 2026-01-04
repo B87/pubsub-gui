@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -343,6 +344,121 @@ func (a *App) GetSubscriptionMetadata(subID string) (admin.SubscriptionInfo, err
 
 	projectID := a.clientManager.GetProjectID()
 	return admin.GetSubscriptionMetadataAdmin(a.ctx, client, projectID, subID)
+}
+
+// GetTopicSubscriptions returns all subscriptions subscribed to the given topic
+func (a *App) GetTopicSubscriptions(topicID string) ([]admin.SubscriptionInfo, error) {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return nil, models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+
+	// Normalize topic ID (handle both full path and short name)
+	normalizedTopicID := topicID
+	if !strings.HasPrefix(topicID, "projects/") {
+		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+	}
+
+	// List all subscriptions
+	allSubscriptions, err := admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
+	}
+
+	// Filter subscriptions that subscribe to this topic
+	var topicSubscriptions []admin.SubscriptionInfo
+	for _, sub := range allSubscriptions {
+		if sub.Topic == normalizedTopicID {
+			topicSubscriptions = append(topicSubscriptions, sub)
+		}
+	}
+
+	return topicSubscriptions, nil
+}
+
+// GetSubscriptionsUsingTopicAsDeadLetter returns all subscriptions that use the given topic as their dead letter topic
+func (a *App) GetSubscriptionsUsingTopicAsDeadLetter(topicID string) ([]admin.SubscriptionInfo, error) {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return nil, models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+
+	// Normalize topic ID (handle both full path and short name)
+	normalizedTopicID := topicID
+	if !strings.HasPrefix(topicID, "projects/") {
+		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+	}
+
+	// List all subscriptions
+	allSubscriptions, err := admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
+	}
+
+	// Filter subscriptions that use this topic as dead letter topic
+	var deadLetterSubscriptions []admin.SubscriptionInfo
+	for _, sub := range allSubscriptions {
+		if sub.DeadLetterPolicy != nil && sub.DeadLetterPolicy.DeadLetterTopic == normalizedTopicID {
+			deadLetterSubscriptions = append(deadLetterSubscriptions, sub)
+		}
+	}
+
+	return deadLetterSubscriptions, nil
+}
+
+// GetDeadLetterTopicsForTopic returns all dead letter topics used by subscriptions subscribed to the given topic
+func (a *App) GetDeadLetterTopicsForTopic(topicID string) ([]admin.TopicInfo, error) {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return nil, models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+
+	// Normalize topic ID (handle both full path and short name)
+	normalizedTopicID := topicID
+	if !strings.HasPrefix(topicID, "projects/") {
+		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+	}
+
+	// List all subscriptions
+	allSubscriptions, err := admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
+	}
+
+	// Collect unique dead letter topics from subscriptions subscribed to this topic
+	deadLetterTopicMap := make(map[string]bool)
+	for _, sub := range allSubscriptions {
+		if sub.Topic == normalizedTopicID && sub.DeadLetterPolicy != nil && sub.DeadLetterPolicy.DeadLetterTopic != "" {
+			deadLetterTopicMap[sub.DeadLetterPolicy.DeadLetterTopic] = true
+		}
+	}
+
+	// If no dead letter topics found, return empty array
+	if len(deadLetterTopicMap) == 0 {
+		return []admin.TopicInfo{}, nil
+	}
+
+	// List all topics to get metadata
+	allTopics, err := admin.ListTopicsAdmin(a.ctx, client, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list topics: %w", err)
+	}
+
+	// Filter topics that are in the dead letter topic map
+	var deadLetterTopics []admin.TopicInfo
+	for _, topic := range allTopics {
+		if deadLetterTopicMap[topic.Name] {
+			deadLetterTopics = append(deadLetterTopics, topic)
+		}
+	}
+
+	return deadLetterTopics, nil
 }
 
 // CreateTopic creates a new topic with optional message retention duration
@@ -728,6 +844,58 @@ func (a *App) StopMonitor(subscriptionID string) error {
 	return nil
 }
 
+// findExistingMonitoringSubscription searches for an existing subscription
+// that matches the monitoring pattern for the given topic
+func (a *App) findExistingMonitoringSubscription(topicID string) (string, error) {
+	// List all subscriptions
+	subscriptions, err := a.ListSubscriptions()
+	if err != nil {
+		return "", fmt.Errorf("failed to list subscriptions: %w", err)
+	}
+
+	// Extract short topic name
+	topicName := topicID
+	if parts := strings.Split(topicID, "/"); len(parts) > 0 {
+		topicName = parts[len(parts)-1]
+	}
+	shortTopic := topicName
+	if len(shortTopic) > 20 {
+		shortTopic = shortTopic[:20]
+	}
+
+	// Build pattern prefix
+	patternPrefix := fmt.Sprintf("ps-gui-mon-%s-", shortTopic)
+
+	// Normalize topic ID for comparison
+	projectID := a.clientManager.GetProjectID()
+	normalizedTopicID := topicID
+	if !strings.HasPrefix(topicID, "projects/") {
+		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+	}
+
+	// Search for matching subscription
+	for _, sub := range subscriptions {
+		// Extract subscription ID from full name
+		subID := sub.DisplayName
+		if strings.HasPrefix(sub.Name, "projects/") {
+			parts := strings.Split(sub.Name, "/")
+			if len(parts) >= 4 && parts[2] == "subscriptions" {
+				subID = parts[3]
+			}
+		}
+
+		// Check if it matches the pattern and is linked to the target topic
+		if strings.HasPrefix(subID, patternPrefix) && sub.Topic == normalizedTopicID {
+			// Verify it's a pull subscription (required for monitoring)
+			if sub.SubscriptionType == "pull" {
+				return subID, nil
+			}
+		}
+	}
+
+	return "", nil // No existing subscription found
+}
+
 // StartTopicMonitor creates a temporary subscription and starts monitoring a topic
 func (a *App) StartTopicMonitor(topicID string) error {
 	// Check connection status
@@ -748,29 +916,55 @@ func (a *App) StartTopicMonitor(topicID string) error {
 	}
 	a.monitorsMu.Unlock()
 
-	// Generate a unique subscription ID for monitoring
-	// Format: ps-gui-mon-{short-topic}-{random}
-	// Extract the actual topic name from the full resource path if necessary
-	topicName := topicID
-	if parts := strings.Split(topicID, "/"); len(parts) > 0 {
-		topicName = parts[len(parts)-1]
+	// Check for existing monitoring subscription
+	existingSubID, err := a.findExistingMonitoringSubscription(topicID)
+	if err != nil {
+		return fmt.Errorf("failed to search for existing subscription: %w", err)
 	}
 
-	shortTopic := topicName
-	if len(shortTopic) > 20 {
-		shortTopic = shortTopic[:20]
-	}
-	subID := fmt.Sprintf("ps-gui-mon-%s-%d", shortTopic, time.Now().UnixNano()%1000000)
+	var subID string
+	var isNewSubscription bool
 
-	// Create temporary subscription with 24h TTL
-	if err := admin.CreateSubscriptionAdmin(a.ctx, client, projectID, topicID, subID, 24*time.Hour); err != nil {
-		return fmt.Errorf("failed to create temporary subscription: %w", err)
+	if existingSubID != "" {
+		// Check if the existing subscription is already being monitored
+		a.monitorsMu.RLock()
+		if _, alreadyMonitored := a.activeMonitors[existingSubID]; alreadyMonitored {
+			a.monitorsMu.RUnlock()
+			return fmt.Errorf("subscription %s is already being monitored", existingSubID)
+		}
+		a.monitorsMu.RUnlock()
+
+		// Reuse existing subscription
+		subID = existingSubID
+		isNewSubscription = false
+	} else {
+		// Generate a unique subscription ID for monitoring
+		// Format: ps-gui-mon-{short-topic}-{random}
+		// Extract the actual topic name from the full resource path if necessary
+		topicName := topicID
+		if parts := strings.Split(topicID, "/"); len(parts) > 0 {
+			topicName = parts[len(parts)-1]
+		}
+
+		shortTopic := topicName
+		if len(shortTopic) > 20 {
+			shortTopic = shortTopic[:20]
+		}
+		subID = fmt.Sprintf("ps-gui-mon-%s-%d", shortTopic, time.Now().UnixNano()%1000000)
+
+		// Create temporary subscription with 24h TTL
+		if err := admin.CreateSubscriptionAdmin(a.ctx, client, projectID, topicID, subID, 24*time.Hour); err != nil {
+			return fmt.Errorf("failed to create temporary subscription: %w", err)
+		}
+		isNewSubscription = true
 	}
 
-	// Start monitoring the new subscription
+	// Start monitoring the subscription
 	if err := a.StartMonitor(subID); err != nil {
-		// Cleanup subscription if monitoring fails to start
-		_ = admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, subID)
+		// Cleanup subscription if it was newly created and monitoring fails to start
+		if isNewSubscription {
+			_ = admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, subID)
+		}
 		return fmt.Errorf("failed to start monitor for topic: %w", err)
 	}
 
@@ -886,4 +1080,81 @@ func (a *App) GetAutoAck() (bool, error) {
 		return true, nil // default
 	}
 	return a.config.AutoAck, nil
+}
+
+// GetConfigFileContent returns the raw JSON content of the config file
+func (a *App) GetConfigFileContent() (string, error) {
+	if a.configManager == nil {
+		return "", fmt.Errorf("config manager not initialized")
+	}
+
+	// Load current config
+	config, err := a.configManager.LoadConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Marshal to JSON with indentation
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	return string(data), nil
+}
+
+// SaveConfigFileContent saves the raw JSON content to the config file
+func (a *App) SaveConfigFileContent(content string) error {
+	if a.configManager == nil {
+		return fmt.Errorf("config manager not initialized")
+	}
+
+	// Validate JSON syntax
+	var tempConfig models.AppConfig
+	if err := json.Unmarshal([]byte(content), &tempConfig); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// Validate config structure
+	if tempConfig.MessageBufferSize < 100 || tempConfig.MessageBufferSize > 10000 {
+		return fmt.Errorf("messageBufferSize must be between 100 and 10000")
+	}
+
+	if tempConfig.Theme != "light" && tempConfig.Theme != "dark" && tempConfig.Theme != "auto" {
+		return fmt.Errorf("theme must be 'light', 'dark', or 'auto'")
+	}
+
+	// Store old values to detect changes
+	oldTheme := ""
+	oldAutoAck := false
+	if a.config != nil {
+		oldTheme = a.config.Theme
+		oldAutoAck = a.config.AutoAck
+	}
+
+	// Save config
+	if err := a.configManager.SaveConfig(&tempConfig); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Reload config into memory
+	a.config = &tempConfig
+
+	// Apply theme changes if theme was modified
+	if oldTheme != tempConfig.Theme {
+		// Emit event to frontend to apply theme change
+		// Frontend will handle theme application using Wails runtime methods
+		runtime.EventsEmit(a.ctx, "config:theme-changed", tempConfig.Theme)
+	}
+
+	// Update auto-ack for all active monitors if it changed
+	if oldAutoAck != tempConfig.AutoAck {
+		a.monitorsMu.RLock()
+		for _, streamer := range a.activeMonitors {
+			streamer.SetAutoAck(tempConfig.AutoAck)
+		}
+		a.monitorsMu.RUnlock()
+	}
+
+	return nil
 }

@@ -10,6 +10,8 @@ interface TopicMonitorProps {
   isMonitoring: boolean;
   tempSubId: string | null;
   autoAck: boolean;
+  monitoringError?: string;
+  onStartMonitoring: () => void;
   onClearBuffer: () => void;
   onToggleAutoAck: (enabled: boolean) => void;
 }
@@ -20,6 +22,8 @@ export default function TopicMonitor({
   isMonitoring,
   tempSubId,
   autoAck,
+  monitoringError,
+  onStartMonitoring,
   onClearBuffer,
   onToggleAutoAck,
 }: TopicMonitorProps) {
@@ -57,6 +61,21 @@ export default function TopicMonitor({
 
   return (
     <div className="flex flex-col h-[calc(100vh-280px)] bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+      {/* Error Notification */}
+      {monitoringError && (
+        <div className="p-4 bg-red-900/20 border-b border-red-700/50">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-red-400 mb-1">Failed to Start Monitoring</h4>
+              <p className="text-sm text-red-300">{monitoringError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="p-4 border-b border-slate-700 bg-slate-800/50 flex items-center justify-between gap-4">
         <div className="flex-1 max-w-md">
@@ -99,7 +118,12 @@ export default function TopicMonitor({
                 Monitoring
               </span>
             ) : (
-              <span className="text-xs text-slate-400">Connecting...</span>
+              <button
+                onClick={onStartMonitoring}
+                className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 rounded transition-colors font-medium"
+              >
+                Start Monitoring
+              </button>
             )}
           </div>
         </div>
@@ -107,7 +131,13 @@ export default function TopicMonitor({
 
       {/* Message List */}
       <div ref={parentRef} className="flex-1 overflow-auto p-4 bg-slate-900/30">
-        {filteredMessages.length === 0 ? (
+        {!isMonitoring ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="text-slate-500 mb-4">
+              Click "Start Monitoring" to begin receiving messages
+            </div>
+          </div>
+        ) : filteredMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-slate-500 mb-2">
               {searchQuery ? 'No messages match search' : 'Waiting for messages...'}
