@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+            artifact_name: myproject-linux-amd64
+          - os: windows-latest
+            platform: windows/amd64
+            artifact_name: myproject-windows-amd64-installer.exe
+            build_flags: -nsis
+          - os: macos-latest
+            platform: darwin/universal
+            artifact_name: myproject-macos-universal.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@1d32ee54547401d614ef3b0703953c8471f4961d # v4.2.2
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Build Wails App
+        run: |
+          wails build -platform ${{ matrix.platform }} ${{ matrix.build_flags }}
+
+      - name: Package macOS App
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd build/bin
+          zip -r myproject-macos-universal.zip myproject.app
+
+      - name: Rename Windows Installer
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          if (Test-Path "build/bin/myproject-installer.exe") {
+            Move-Item "build/bin/myproject-installer.exe" "build/bin/myproject-windows-amd64-installer.exe"
+          }
+
+      - name: Rename Linux Binary
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ -f "build/bin/myproject" ]; then
+            mv build/bin/myproject build/bin/myproject-linux-amd64
+          fi
+
+      - name: Release
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8ad5bf8926083d # v2.2.1
+        with:
+          files: build/bin/${{ matrix.artifact_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

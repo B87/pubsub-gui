@@ -1,0 +1,11 @@
+
+
+#Ignore cursor AI rules
+.cursor/rules/codacy.mdc
+.codacy
+frontend/node_modules
+frontend/dist
+
+build/bin
+build/darwin
+build/windows
