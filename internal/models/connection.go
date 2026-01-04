@@ -1,0 +1,77 @@
+// Package models defines data structures for connection profiles and application configuration
+package models
+
+import (
+	"errors"
+	"strings"
+	"time"
+)
+
+// ConnectionProfile represents a saved connection configuration
+type ConnectionProfile struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	ProjectID          string `json:"projectId"`
+	AuthMethod         string `json:"authMethod"` // "ADC" | "ServiceAccount"
+	ServiceAccountPath string `json:"serviceAccountPath,omitempty"`
+	EmulatorHost       string `json:"emulatorHost,omitempty"`
+	IsDefault          bool   `json:"isDefault"`
+	CreatedAt          string `json:"createdAt"`
+}
+
+// AppConfig represents the application configuration stored in ~/.pubsub-gui/config.json
+type AppConfig struct {
+	Profiles          []ConnectionProfile `json:"profiles"`
+	ActiveProfileID   string              `json:"activeProfileId,omitempty"`
+	MessageBufferSize int                 `json:"messageBufferSize"`
+	AutoAck           bool                `json:"autoAck"`
+	Theme             string              `json:"theme"` // "light" | "dark" | "auto"
+}
+
+// Validate checks if the ConnectionProfile has all required fields
+func (cp *ConnectionProfile) Validate() error {
+	if strings.TrimSpace(cp.ID) == "" {
+		return errors.New("profile ID cannot be empty")
+	}
+	if strings.TrimSpace(cp.Name) == "" {
+		return errors.New("profile name cannot be empty")
+	}
+	if strings.TrimSpace(cp.ProjectID) == "" {
+		return errors.New("project ID cannot be empty")
+	}
+	if cp.AuthMethod != "ADC" && cp.AuthMethod != "ServiceAccount" {
+		return errors.New("auth method must be 'ADC' or 'ServiceAccount'")
+	}
+	if cp.AuthMethod == "ServiceAccount" && strings.TrimSpace(cp.ServiceAccountPath) == "" {
+		return errors.New("service account path required when using ServiceAccount auth method")
+	}
+	return nil
+}
+
+// NewDefaultConfig creates a new AppConfig with default values
+func NewDefaultConfig() *AppConfig {
+	return &AppConfig{
+		Profiles:          []ConnectionProfile{},
+		ActiveProfileID:   "",
+		MessageBufferSize: 500,
+		AutoAck:           true,
+		Theme:             "auto",
+	}
+}
+
+// NewConnectionProfile creates a new ConnectionProfile with a generated ID and timestamp
+func NewConnectionProfile(name, projectID, authMethod string) *ConnectionProfile {
+	return &ConnectionProfile{
+		ID:         generateID(),
+		Name:       name,
+		ProjectID:  projectID,
+		AuthMethod: authMethod,
+		IsDefault:  false,
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+}
+
+// generateID generates a simple unique ID (timestamp-based)
+func generateID() string {
+	return time.Now().Format("20060102150405")
+}
