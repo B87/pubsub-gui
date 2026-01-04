@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { GetConfigFileContent, SaveConfigFileContent } from '../../wailsjs/go/main/App';
+import { useTheme } from '../hooks/useTheme';
+import { registerCustomThemes } from '../utils/monacoThemes';
 
 interface ConfigEditorDialogProps {
   open: boolean;
@@ -9,6 +11,7 @@ interface ConfigEditorDialogProps {
 }
 
 export default function ConfigEditorDialog({ open, onClose, error: externalError }: ConfigEditorDialogProps) {
+  const { monacoTheme, fontSize } = useTheme();
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +21,10 @@ export default function ConfigEditorDialog({ open, onClose, error: externalError
   const [isValidJSON, setIsValidJSON] = useState(true);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
+
+  // Map font size to Monaco editor font size
+  const fontSizeMap = { small: 12, medium: 14, large: 16 };
+  const editorFontSize = fontSizeMap[fontSize];
 
   // Load config content when dialog opens
   useEffect(() => {
@@ -119,6 +126,9 @@ export default function ConfigEditorDialog({ open, onClose, error: externalError
   const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+
+    // Register custom Monaco themes (Dracula, Monokai)
+    registerCustomThemes(monaco);
 
     // Configure JSON validation
     monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
@@ -262,13 +272,13 @@ export default function ConfigEditorDialog({ open, onClose, error: externalError
                 <Editor
                   height="600px"
                   language="json"
-                  theme="vs-dark"
+                  theme={monacoTheme}
                   value={content}
                   onChange={handleContentChange}
                   onMount={handleEditorDidMount}
                   options={{
                     minimap: { enabled: false },
-                    fontSize: 14,
+                    fontSize: editorFontSize,
                     lineNumbers: 'on',
                     roundedSelection: false,
                     scrollBeyondLastLine: false,

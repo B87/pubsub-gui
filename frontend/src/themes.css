@@ -1,0 +1,404 @@
+/* Theme System for Pub/Sub GUI
+ * Supports 5 themes: auto, dark, light, dracula, monokai
+ * Uses CSS custom properties for dynamic theme switching
+ */
+
+/* ===========================
+   Base Theme Variables (Dark - Default)
+   =========================== */
+
+:root {
+  /* Background colors */
+  --color-bg-primary: #0f172a;      /* slate-900 */
+  --color-bg-secondary: #1e293b;    /* slate-800 */
+  --color-bg-tertiary: #334155;     /* slate-700 */
+  --color-bg-hover: #475569;        /* slate-600 */
+  --color-bg-input: #334155;        /* slate-700 */
+  --color-bg-code: #0f172a;         /* slate-900 */
+
+  /* Text colors */
+  --color-text-primary: #f1f5f9;    /* slate-100 */
+  --color-text-secondary: #e2e8f0;  /* slate-200 */
+  --color-text-tertiary: #cbd5e1;   /* slate-300 */
+  --color-text-muted: #94a3b8;      /* slate-400 */
+  --color-text-disabled: #64748b;   /* slate-500 */
+
+  /* Border colors */
+  --color-border-primary: #334155;  /* slate-700 */
+  --color-border-secondary: #475569; /* slate-600 */
+
+  /* Accent colors */
+  --color-accent-primary: #3b82f6;  /* blue-500 */
+  --color-accent-hover: #2563eb;    /* blue-600 */
+  --color-accent-active: #1d4ed8;   /* blue-700 */
+  --color-accent-light: #60a5fa;    /* blue-400 */
+  --color-accent-dark: #1e40af;     /* blue-800 */
+
+  /* Status colors */
+  --color-success: #22c55e;         /* green-500 */
+  --color-success-hover: #16a34a;   /* green-600 */
+  --color-success-bg: rgba(34, 197, 94, 0.1);
+  --color-success-border: #15803d;  /* green-700 */
+
+  --color-error: #ef4444;           /* red-500 */
+  --color-error-hover: #dc2626;     /* red-600 */
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-border: #b91c1c;    /* red-700 */
+
+  --color-warning: #eab308;         /* yellow-500 */
+  --color-warning-hover: #ca8a04;   /* yellow-600 */
+  --color-warning-bg: rgba(234, 179, 8, 0.1);
+  --color-warning-border: #a16207;  /* yellow-700 */
+
+  /* Special colors */
+  --color-purple-bg: rgba(168, 85, 247, 0.1);
+  --color-purple-text: #d8b4fe;     /* purple-300 */
+  --color-purple-border: #7c3aed;   /* purple-700 */
+
+  --color-orange: #f97316;          /* orange-500 */
+
+  /* Font sizes - Base (medium) */
+  --font-size-xs: 0.75rem;      /* 12px */
+  --font-size-sm: 0.875rem;     /* 14px */
+  --font-size-base: 1rem;       /* 16px */
+  --font-size-lg: 1.125rem;     /* 18px */
+  --font-size-xl: 1.25rem;      /* 20px */
+  --font-size-2xl: 1.5rem;      /* 24px */
+
+  /* Monaco editor font size */
+  --monaco-font-size: 14px;
+}
+
+/* ===========================
+   Light Theme
+   =========================== */
+
+[data-theme="light"] {
+  /* Background colors */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;    /* gray-50 */
+  --color-bg-tertiary: #f3f4f6;     /* gray-100 */
+  --color-bg-hover: #e5e7eb;        /* gray-200 */
+  --color-bg-input: #ffffff;
+  --color-bg-code: #f3f4f6;         /* gray-100 */
+
+  /* Text colors */
+  --color-text-primary: #111827;    /* gray-900 */
+  --color-text-secondary: #374151;  /* gray-700 */
+  --color-text-tertiary: #4b5563;   /* gray-600 */
+  --color-text-muted: #6b7280;      /* gray-500 */
+  --color-text-disabled: #9ca3af;   /* gray-400 */
+
+  /* Border colors */
+  --color-border-primary: #d1d5db;  /* gray-300 */
+  --color-border-secondary: #e5e7eb; /* gray-200 */
+
+  /* Accent colors - keep blue but adjust for light bg */
+  --color-accent-primary: #3b82f6;  /* blue-500 */
+  --color-accent-hover: #2563eb;    /* blue-600 */
+  --color-accent-active: #1d4ed8;   /* blue-700 */
+  --color-accent-light: #60a5fa;    /* blue-400 */
+  --color-accent-dark: #1e40af;     /* blue-800 */
+
+  /* Status colors */
+  --color-success: #16a34a;         /* green-600 */
+  --color-success-hover: #15803d;   /* green-700 */
+  --color-success-bg: rgba(22, 163, 74, 0.1);
+  --color-success-border: #15803d;  /* green-700 */
+
+  --color-error: #dc2626;           /* red-600 */
+  --color-error-hover: #b91c1c;     /* red-700 */
+  --color-error-bg: rgba(220, 38, 38, 0.1);
+  --color-error-border: #b91c1c;    /* red-700 */
+
+  --color-warning: #ca8a04;         /* yellow-600 */
+  --color-warning-hover: #a16207;   /* yellow-700 */
+  --color-warning-bg: rgba(202, 138, 4, 0.1);
+  --color-warning-border: #a16207;  /* yellow-700 */
+
+  /* Special colors */
+  --color-purple-bg: rgba(168, 85, 247, 0.1);
+  --color-purple-text: #7c3aed;     /* purple-700 */
+  --color-purple-border: #6d28d9;   /* purple-800 */
+
+  --color-orange: #ea580c;          /* orange-600 */
+}
+
+/* ===========================
+   Dracula Theme
+   =========================== */
+
+[data-theme="dracula"] {
+  /* Background colors */
+  --color-bg-primary: #282a36;      /* Dracula background */
+  --color-bg-secondary: #44475a;    /* Dracula current line */
+  --color-bg-tertiary: #6272a4;     /* Dracula comment */
+  --color-bg-hover: #7081b5;        /* Lighter comment */
+  --color-bg-input: #44475a;
+  --color-bg-code: #21222c;         /* Darker than bg */
+
+  /* Text colors */
+  --color-text-primary: #f8f8f2;    /* Dracula foreground */
+  --color-text-secondary: #f8f8f2;
+  --color-text-tertiary: #e6e6e6;
+  --color-text-muted: #d0d0d0;
+  --color-text-disabled: #6272a4;   /* Dracula comment */
+
+  /* Border colors */
+  --color-border-primary: #6272a4;  /* Dracula comment */
+  --color-border-secondary: #44475a;
+
+  /* Accent colors - Dracula Purple */
+  --color-accent-primary: #bd93f9;  /* Dracula purple */
+  --color-accent-hover: #c9a8fc;
+  --color-accent-active: #a578f0;
+  --color-accent-light: #d4b3ff;
+  --color-accent-dark: #9065e6;
+
+  /* Status colors */
+  --color-success: #50fa7b;         /* Dracula green */
+  --color-success-hover: #6bff8f;
+  --color-success-bg: rgba(80, 250, 123, 0.1);
+  --color-success-border: #3fe167;
+
+  --color-error: #ff5555;           /* Dracula red */
+  --color-error-hover: #ff6e6e;
+  --color-error-bg: rgba(255, 85, 85, 0.1);
+  --color-error-border: #ff3c3c;
+
+  --color-warning: #f1fa8c;         /* Dracula yellow */
+  --color-warning-hover: #f5fca8;
+  --color-warning-bg: rgba(241, 250, 140, 0.1);
+  --color-warning-border: #e7f66e;
+
+  /* Special colors */
+  --color-purple-bg: rgba(189, 147, 249, 0.15);
+  --color-purple-text: #bd93f9;     /* Dracula purple */
+  --color-purple-border: #a578f0;
+
+  --color-orange: #ffb86c;          /* Dracula orange */
+}
+
+/* ===========================
+   Monokai Theme
+   =========================== */
+
+[data-theme="monokai"] {
+  /* Background colors */
+  --color-bg-primary: #272822;      /* Monokai background */
+  --color-bg-secondary: #3e3d32;    /* Monokai line */
+  --color-bg-tertiary: #49483e;     /* Monokai selection */
+  --color-bg-hover: #5a594e;        /* Lighter selection */
+  --color-bg-input: #3e3d32;
+  --color-bg-code: #1e1f1c;         /* Darker than bg */
+
+  /* Text colors */
+  --color-text-primary: #f8f8f2;    /* Monokai foreground */
+  --color-text-secondary: #cfcfc2;
+  --color-text-tertiary: #a8a89d;
+  --color-text-muted: #75715e;      /* Monokai comment */
+  --color-text-disabled: #5a574e;
+
+  /* Border colors */
+  --color-border-primary: #49483e;  /* Monokai selection */
+  --color-border-secondary: #3e3d32;
+
+  /* Accent colors - Monokai Cyan */
+  --color-accent-primary: #66d9ef;  /* Monokai cyan */
+  --color-accent-hover: #7fe0f4;
+  --color-accent-active: #4dd2ea;
+  --color-accent-light: #99e5f7;
+  --color-accent-dark: #3bc9e0;
+
+  /* Status colors */
+  --color-success: #a6e22e;         /* Monokai green */
+  --color-success-hover: #b8e84d;
+  --color-success-bg: rgba(166, 226, 46, 0.1);
+  --color-success-border: #8fd61f;
+
+  --color-error: #f92672;           /* Monokai red/pink */
+  --color-error-hover: #fc4488;
+  --color-error-bg: rgba(249, 38, 114, 0.1);
+  --color-error-border: #e21060;
+
+  --color-warning: #e6db74;         /* Monokai yellow */
+  --color-warning-hover: #efe490;
+  --color-warning-bg: rgba(230, 219, 116, 0.1);
+  --color-warning-border: #d9cc58;
+
+  /* Special colors */
+  --color-purple-bg: rgba(174, 129, 255, 0.15);
+  --color-purple-text: #ae81ff;     /* Monokai purple */
+  --color-purple-border: #9965f4;
+
+  --color-orange: #fd971f;          /* Monokai orange */
+}
+
+/* ===========================
+   Auto Theme (System Preference)
+   =========================== */
+
+/* Auto theme inherits from dark by default */
+[data-theme="auto"] {
+  /* Dark theme is default, see :root above */
+}
+
+/* Auto theme switches to light when system prefers light */
+@media (prefers-color-scheme: light) {
+  [data-theme="auto"] {
+    /* Background colors */
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f9fafb;
+    --color-bg-tertiary: #f3f4f6;
+    --color-bg-hover: #e5e7eb;
+    --color-bg-input: #ffffff;
+    --color-bg-code: #f3f4f6;
+
+    /* Text colors */
+    --color-text-primary: #111827;
+    --color-text-secondary: #374151;
+    --color-text-tertiary: #4b5563;
+    --color-text-muted: #6b7280;
+    --color-text-disabled: #9ca3af;
+
+    /* Border colors */
+    --color-border-primary: #d1d5db;
+    --color-border-secondary: #e5e7eb;
+
+    /* Accent colors */
+    --color-accent-primary: #3b82f6;
+    --color-accent-hover: #2563eb;
+    --color-accent-active: #1d4ed8;
+    --color-accent-light: #60a5fa;
+    --color-accent-dark: #1e40af;
+
+    /* Status colors */
+    --color-success: #16a34a;
+    --color-success-hover: #15803d;
+    --color-success-bg: rgba(22, 163, 74, 0.1);
+    --color-success-border: #15803d;
+
+    --color-error: #dc2626;
+    --color-error-hover: #b91c1c;
+    --color-error-bg: rgba(220, 38, 38, 0.1);
+    --color-error-border: #b91c1c;
+
+    --color-warning: #ca8a04;
+    --color-warning-hover: #a16207;
+    --color-warning-bg: rgba(202, 138, 4, 0.1);
+    --color-warning-border: #a16207;
+
+    /* Special colors */
+    --color-purple-bg: rgba(168, 85, 247, 0.1);
+    --color-purple-text: #7c3aed;
+    --color-purple-border: #6d28d9;
+
+    --color-orange: #ea580c;
+  }
+}
+
+/* ===========================
+   Font Size Variants
+   =========================== */
+
+[data-font-size="small"] {
+  --font-size-xs: 0.6875rem;    /* 11px */
+  --font-size-sm: 0.8125rem;    /* 13px */
+  --font-size-base: 0.9375rem;  /* 15px */
+  --font-size-lg: 1.0625rem;    /* 17px */
+  --font-size-xl: 1.1875rem;    /* 19px */
+  --font-size-2xl: 1.375rem;    /* 22px */
+
+  --monaco-font-size: 12px;
+}
+
+[data-font-size="medium"] {
+  /* Default values already set in :root */
+  --font-size-xs: 0.75rem;      /* 12px */
+  --font-size-sm: 0.875rem;     /* 14px */
+  --font-size-base: 1rem;       /* 16px */
+  --font-size-lg: 1.125rem;     /* 18px */
+  --font-size-xl: 1.25rem;      /* 20px */
+  --font-size-2xl: 1.5rem;      /* 24px */
+
+  --monaco-font-size: 14px;
+}
+
+[data-font-size="large"] {
+  --font-size-xs: 0.8125rem;    /* 13px */
+  --font-size-sm: 0.9375rem;    /* 15px */
+  --font-size-base: 1.0625rem;  /* 17px */
+  --font-size-lg: 1.1875rem;    /* 19px */
+  --font-size-xl: 1.3125rem;    /* 21px */
+  --font-size-2xl: 1.625rem;    /* 26px */
+
+  --monaco-font-size: 16px;
+}
+
+/* ===========================
+   Backward Compatibility
+   Map existing Tailwind classes to CSS variables
+   =========================== */
+
+/* Background mappings */
+.bg-slate-900 { background-color: var(--color-bg-primary) !important; }
+.bg-slate-800 { background-color: var(--color-bg-secondary) !important; }
+.bg-slate-700 { background-color: var(--color-bg-tertiary) !important; }
+.bg-slate-600 { background-color: var(--color-bg-hover) !important; }
+
+/* Text mappings */
+.text-slate-100 { color: var(--color-text-primary) !important; }
+.text-slate-200 { color: var(--color-text-secondary) !important; }
+.text-slate-300 { color: var(--color-text-tertiary) !important; }
+.text-slate-400 { color: var(--color-text-muted) !important; }
+.text-slate-500 { color: var(--color-text-disabled) !important; }
+
+/* Border mappings */
+.border-slate-700 { border-color: var(--color-border-primary) !important; }
+.border-slate-600 { border-color: var(--color-border-secondary) !important; }
+
+/* Accent mappings */
+.bg-blue-600 { background-color: var(--color-accent-hover) !important; }
+.bg-blue-500 { background-color: var(--color-accent-primary) !important; }
+.bg-blue-700 { background-color: var(--color-accent-active) !important; }
+.text-blue-400 { color: var(--color-accent-light) !important; }
+.text-blue-500 { color: var(--color-accent-primary) !important; }
+.text-blue-300 { color: var(--color-accent-light) !important; }
+.border-blue-500 { border-color: var(--color-accent-primary) !important; }
+.border-blue-700 { border-color: var(--color-accent-dark) !important; }
+
+/* Success mappings */
+.text-green-400 { color: var(--color-success) !important; }
+.text-green-500 { color: var(--color-success) !important; }
+.border-green-700 { border-color: var(--color-success-border) !important; }
+
+/* Error mappings */
+.text-red-400 { color: var(--color-error) !important; }
+.text-red-300 { color: var(--color-error) !important; }
+.bg-red-600 { background-color: var(--color-error) !important; }
+.bg-red-700 { background-color: var(--color-error-hover) !important; }
+.border-red-700 { border-color: var(--color-error-border) !important; }
+
+/* Warning mappings */
+.text-yellow-400 { color: var(--color-warning) !important; }
+.text-yellow-500 { color: var(--color-warning) !important; }
+
+/* Special colors */
+.text-purple-300 { color: var(--color-purple-text) !important; }
+.border-purple-700 { border-color: var(--color-purple-border) !important; }
+.text-orange-500 { color: var(--color-orange) !important; }
+
+/* Hover states */
+.hover\:bg-slate-600:hover { background-color: var(--color-bg-hover) !important; }
+.hover\:bg-slate-700:hover { background-color: var(--color-bg-tertiary) !important; }
+.hover\:bg-blue-700:hover { background-color: var(--color-accent-active) !important; }
+.hover\:bg-blue-600:hover { background-color: var(--color-accent-hover) !important; }
+.hover\:text-blue-300:hover { color: var(--color-accent-light) !important; }
+
+/* ===========================
+   Smooth Transitions
+   =========================== */
+
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}

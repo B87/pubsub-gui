@@ -17,9 +17,9 @@ import {
   SyncResources
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime/runtime";
-import { WindowSetLightTheme, WindowSetDarkTheme, WindowSetSystemDefaultTheme } from "../wailsjs/runtime/runtime";
 import { main } from "../wailsjs/go/models";
 import type { ConnectionProfile, ConnectionStatus, Topic, Subscription } from './types';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import Sidebar from './components/Sidebar';
 import ConnectionDialog from './components/ConnectionDialog';
@@ -73,12 +73,34 @@ function App() {
   useEffect(() => {
     // Listen for synchronized resource updates from backend
     const unsubscribeResourcesUpdated = EventsOn('resources:updated', (data: any) => {
-      // Update state directly from synchronized data
-      if (data?.topics) {
+      // Update state directly from synchronized data (only update what was successfully synced)
+      // This allows partial updates - if topics fail but subscriptions succeed, we still update subscriptions
+      if (data?.topics !== undefined) {
         setTopics(data.topics as Topic[] || []);
       }
-      if (data?.subscriptions) {
+      if (data?.subscriptions !== undefined) {
         setSubscriptions(data.subscriptions as Subscription[] || []);
+      }
+      setLoadingResources(false);
+      // Don't clear error here - let it persist until user dismisses or new error occurs
+    });
+
+    // Listen for sync errors
+    const unsubscribeSyncError = EventsOn('resources:sync-error', (data: any) => {
+      const errors = data?.errors || {};
+      const errorMessages: string[] = [];
+
+      if (errors.topics) {
+        errorMessages.push(`Failed to sync topics: ${errors.topics}`);
+      }
+      if (errors.subscriptions) {
+        errorMessages.push(`Failed to sync subscriptions: ${errors.subscriptions}`);
+      }
+
+      if (errorMessages.length > 0) {
+        const fullError = errorMessages.join('. ');
+        setError(fullError);
+        console.error('Resource sync error:', fullError);
       }
       setLoadingResources(false);
     });
@@ -106,25 +128,15 @@ function App() {
         setSelectedResource(null);
       }
     });
-    const unsubscribeThemeChanged = EventsOn('config:theme-changed', (theme: string) => {
-      // Apply theme change immediately
-      if (theme === 'light') {
-        WindowSetLightTheme();
-      } else if (theme === 'dark') {
-        WindowSetDarkTheme();
-      } else if (theme === 'auto') {
-        WindowSetSystemDefaultTheme();
-      }
-    });
 
     return () => {
       unsubscribeResourcesUpdated();
+      unsubscribeSyncError();
       unsubscribeTopicCreated();
       unsubscribeTopicDeleted();
       unsubscribeSubscriptionUpdated();
       unsubscribeSubscriptionCreated();
       unsubscribeSubscriptionDeleted();
-      unsubscribeThemeChanged();
     };
   }, []); // Empty dependency array - only set up once
 
@@ -433,7 +445,7 @@ function App() {
   };
 
   return (
-    <>
+    <ThemeProvider>
       <Layout
         sidebar={
           <Sidebar
@@ -460,6 +472,29 @@ function App() {
           />
         }
       >
+        {/* Global Error Banner */}
+        {error && (
+          <div className="p-4 bg-red-900/20 border-b border-red-700/50">
+            <div className="flex items-start gap-3 max-w-7xl mx-auto">
+              <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-red-400 mb-1">Error</h4>
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+              <button
+                onClick={() => setError('')}
+                className="text-red-400 hover:text-red-300 transition-colors"
+                title="Dismiss error"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
         {renderMainContent()}
       </Layout>
 
@@ -506,7 +541,7 @@ function App() {
         }}
         error={error}
       />
-    </>
+    </ThemeProvider>
   );
 }
 

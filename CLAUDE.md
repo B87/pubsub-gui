@@ -186,6 +186,75 @@ declare const NewMethodName: (param: string) => Promise<ReturnType>;
 - **Radix UI + Tailwind CSS**: Accessible components, rapid styling
 - **Monaco Editor** (optional): JSON payload editing with syntax highlighting
 
+### Theme System
+- **5 Themes**: Auto (system preference), Dark (default), Light, Dracula, Monokai
+- **3 Font Sizes**: Small, Medium (default), Large - independent of theme selection
+- **CSS Custom Properties**: All themes use CSS variables for runtime switching without component changes
+- **Monaco Integration**: Editor themes automatically match application theme
+- **Configuration**: Users edit `~/.pubsub-gui/config.json` via ConfigEditorDialog
+- **Backward Compatible**: Existing Tailwind classes (e.g., `bg-slate-900`) map to theme variables
+- **Event-Driven**: Backend emits `config:theme-changed` and `config:font-size-changed` events
+- **System Integration**: Auto theme respects OS dark/light mode preference via `prefers-color-scheme`
+
+**Architecture:**
+```
+Backend (Go):
+- internal/models/connection.go: AppConfig.Theme, AppConfig.FontSize
+- app.go: Validation and event emission
+
+Frontend (React):
+- frontend/src/themes.css: Theme color palettes (CSS variables)
+- frontend/src/contexts/ThemeContext.tsx: Theme orchestration
+- frontend/src/hooks/useTheme.ts: Theme access hook
+- frontend/src/types/theme.ts: TypeScript definitions
+- frontend/src/utils/monacoThemes.ts: Monaco Editor themes
+```
+
+**Color Palette Structure:**
+Each theme defines semantic color tokens:
+- Backgrounds: `--color-bg-primary/secondary/tertiary`
+- Text: `--color-text-primary/secondary/tertiary/muted`
+- Borders: `--color-border-primary/secondary`
+- Accent: `--color-accent-primary/hover/active`
+- Status: `--color-success/error/warning` (with variants)
+
+**Usage Pattern:**
+```tsx
+// Components use theme via context
+import { useTheme } from '../hooks/useTheme';
+
+function MyComponent() {
+  const { theme, fontSize, effectiveTheme, monacoTheme } = useTheme();
+
+  // Existing Tailwind classes work automatically (mapped to CSS variables)
+  return <div className="bg-slate-900 text-slate-100">Content</div>;
+}
+```
+
+**Monaco Editor Integration:**
+```tsx
+import { useTheme } from '../hooks/useTheme';
+import { registerCustomThemes } from '../utils/monacoThemes';
+
+const { monacoTheme, fontSize } = useTheme();
+const fontSizeMap = { small: 12, medium: 14, large: 16 };
+
+// Register custom themes on mount
+handleEditorDidMount = (editor, monaco) => {
+  registerCustomThemes(monaco); // Registers Dracula + Monokai
+};
+
+<Editor
+  theme={monacoTheme}           // Dynamic: vs-light, vs-dark, dracula, monokai
+  options={{ fontSize: fontSizeMap[fontSize] }}
+/>
+```
+
+**Theme Switching:**
+Users change themes by editing config via ConfigEditorDialog. Changes apply instantly without app reload. Theme preference persists across restarts.
+
+See `.cursor/rules/theme-system.mdc` for comprehensive documentation.
+
 ## Configuration Files
 
 - `wails.json`: Wails project configuration (frontend build commands, author info)

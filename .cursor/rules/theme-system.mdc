@@ -1,0 +1,540 @@
+---
+description: Theme System Architecture and Patterns
+globs:
+  - "frontend/src/themes.css"
+  - "frontend/src/contexts/ThemeContext.tsx"
+  - "frontend/src/hooks/useTheme.ts"
+  - "frontend/src/types/theme.ts"
+  - "frontend/src/utils/monacoThemes.ts"
+  - "internal/models/connection.go"
+  - "app.go"
+---
+
+# Theme System Architecture
+
+The application supports a comprehensive theme system with 5 themes (Auto, Dark, Light, Dracula, Monokai) and 3 font sizes (small, medium, large). Theme configuration is independent of font size, allowing users to mix any theme with any font size.
+
+## Architecture Overview
+
+### Backend (Go)
+
+**Configuration Storage**
+- Location: `internal/models/connection.go` (AppConfig struct)
+- Fields:
+  - `Theme string` - "light" | "dark" | "auto" | "dracula" | "monokai"
+  - `FontSize string` - "small" | "medium" | "large"
+- Defaults: `Theme: "auto"`, `FontSize: "medium"`
+
+**Validation**
+- Location: `app.go` (SaveConfigFileContent method, lines ~1178-1184)
+- Validates theme values: `["light", "dark", "auto", "dracula", "monokai"]`
+- Validates font size values: `["small", "medium", "large"]`
+- Returns validation errors for invalid values
+
+**Event Emission**
+- Location: `app.go` (SaveConfigFileContent method, lines ~1204-1215)
+- Emits `config:theme-changed` when theme changes
+- Emits `config:font-size-changed` when font size changes
+- Frontend listens for these events to apply changes instantly
+
+### Frontend (React + TypeScript)
+
+**Theme Definitions**
+- Location: `frontend/src/themes.css`
+- Uses CSS custom properties (variables) for all colors
+- 5 complete theme palettes defined
+- Backward compatibility mapping for existing Tailwind classes
+- Smooth 200ms transitions between themes
+
+**Theme Context**
+- Location: `frontend/src/contexts/ThemeContext.tsx`
+- Provides: `theme`, `fontSize`, `effectiveTheme`, `monacoTheme`
+- Listens for backend events (`config:theme-changed`, `config:font-size-changed`)
+- Applies `data-theme` and `data-font-size` attributes to `<html>` element
+- Handles "auto" theme with system preference detection
+- Syncs Wails window theme for native chrome
+
+**Theme Hook**
+- Location: `frontend/src/hooks/useTheme.ts`
+- Simple hook to access ThemeContext
+- Must be used within ThemeProvider
+
+**TypeScript Types**
+- Location: `frontend/src/types/theme.ts`
+- Defines: `Theme`, `FontSize`, `EffectiveTheme`, `ThemeConfig`
+
+**Monaco Editor Themes**
+- Location: `frontend/src/utils/monacoThemes.ts`
+- Defines Dracula and Monokai themes for Monaco Editor
+- Registers themes via `registerCustomThemes(monaco)` function
+- Maps app themes to Monaco themes
+
+## Theme Color Palettes
+
+### CSS Custom Properties Structure
+
+All themes define the following semantic color tokens:
+
+```css
+--color-bg-primary        /* Main background */
+--color-bg-secondary      /* Card/panel backgrounds */
+--color-bg-tertiary       /* Hover states, tertiary backgrounds */
+--color-bg-hover          /* Hover state background */
+--color-bg-input          /* Input field backgrounds */
+--color-bg-code           /* Code block backgrounds */
+
+--color-text-primary      /* Primary text */
+--color-text-secondary    /* Secondary text */
+--color-text-tertiary     /* Tertiary text */
+--color-text-muted        /* Muted/placeholder text */
+--color-text-disabled     /* Disabled text */
+
+--color-border-primary    /* Primary borders */
+--color-border-secondary  /* Secondary borders */
+
+--color-accent-primary    /* Primary accent (buttons, links) */
+--color-accent-hover      /* Accent hover state */
+--color-accent-active     /* Accent active state */
+--color-accent-light      /* Light accent variant */
+--color-accent-dark       /* Dark accent variant */
+
+--color-success           /* Success state */
+--color-success-hover     /* Success hover */
+--color-success-bg        /* Success background */
+--color-success-border    /* Success border */
+
+--color-error             /* Error state */
+--color-error-hover       /* Error hover */
+--color-error-bg          /* Error background */
+--color-error-border      /* Error border */
+
+--color-warning           /* Warning state */
+--color-warning-hover     /* Warning hover */
+--color-warning-bg        /* Warning background */
+--color-warning-border    /* Warning border */
+
+--color-purple-bg         /* Special: purple background */
+--color-purple-text       /* Special: purple text */
+--color-purple-border     /* Special: purple border */
+
+--color-orange            /* Special: orange color */
+```
+
+### Theme Palettes
+
+**Dark Theme (Default)**
+- Background: Slate-900/800/700 (#0f172a, #1e293b, #334155)
+- Text: Slate-100/200/300/400 (light grays)
+- Accent: Blue-500/600/700 (#3b82f6, #2563eb, #1d4ed8)
+
+**Light Theme**
+- Background: White, Gray-50/100 (#ffffff, #f9fafb, #f3f4f6)
+- Text: Gray-900/700/600/500 (dark grays)
+- Accent: Blue-500/600/700 (same blues, good contrast on light)
+
+**Dracula Theme**
+- Background: #282a36, #44475a, #6272a4 (purple-tinted grays)
+- Text: #f8f8f2 (Dracula foreground)
+- Accent: #bd93f9 (Dracula purple)
+- Success: #50fa7b (Dracula green)
+- Error: #ff5555 (Dracula red)
+- Warning: #f1fa8c (Dracula yellow)
+
+**Monokai Theme**
+- Background: #272822, #3e3d32, #49483e (olive-tinted grays)
+- Text: #f8f8f2 (Monokai foreground)
+- Accent: #66d9ef (Monokai cyan)
+- Success: #a6e22e (Monokai green)
+- Error: #f92672 (Monokai pink)
+- Warning: #e6db74 (Monokai yellow)
+
+**Auto Theme**
+- Inherits from Dark by default
+- Switches to Light when `prefers-color-scheme: light`
+- Uses `@media (prefers-color-scheme: light)` query
+
+## Font Size Configuration
+
+### CSS Custom Properties
+
+```css
+--font-size-xs: 0.75rem;      /* 12px (medium) */
+--font-size-sm: 0.875rem;     /* 14px (medium) */
+--font-size-base: 1rem;       /* 16px (medium) */
+--font-size-lg: 1.125rem;     /* 18px (medium) */
+--font-size-xl: 1.25rem;      /* 20px (medium) */
+--font-size-2xl: 1.5rem;      /* 24px (medium) */
+
+--monaco-font-size: 14px;     /* Monaco editor font size */
+```
+
+### Font Size Variants
+
+**Small**: All sizes reduced by ~2px
+- xs: 11px, sm: 13px, base: 15px, lg: 17px, xl: 19px, 2xl: 22px
+- Monaco: 12px
+
+**Medium** (Default): Standard sizes
+- xs: 12px, sm: 14px, base: 16px, lg: 18px, xl: 20px, 2xl: 24px
+- Monaco: 14px
+
+**Large**: All sizes increased by ~2px
+- xs: 13px, sm: 15px, base: 17px, lg: 19px, xl: 21px, 2xl: 26px
+- Monaco: 16px
+
+## Implementation Patterns
+
+### Using Themes in Components
+
+**DON'T** hardcode theme values:
+```tsx
+// ❌ BAD - hardcoded values
+<div className="bg-slate-900 text-white">Content</div>
+```
+
+**DO** use existing Tailwind classes (backward compatible):
+```tsx
+// ✅ GOOD - uses Tailwind classes that map to CSS variables
+<div className="bg-slate-900 text-slate-100">Content</div>
+```
+
+**Future Migration** (optional, not required):
+```tsx
+// ✅ BETTER - semantic classes (future enhancement)
+<div className="bg-bg-primary text-text-primary">Content</div>
+```
+
+### Using Theme Context
+
+```tsx
+import { useTheme } from '../hooks/useTheme';
+
+function MyComponent() {
+  const { theme, fontSize, effectiveTheme, monacoTheme } = useTheme();
+
+  return (
+    <div>
+      <p>Current theme: {theme}</p>
+      <p>Effective theme: {effectiveTheme}</p>
+      <p>Font size: {fontSize}</p>
+    </div>
+  );
+}
+```
+
+### Monaco Editor Integration
+
+**Pattern** (used in ConfigEditorDialog.tsx and JsonEditor.tsx):
+
+```tsx
+import { useTheme } from '../hooks/useTheme';
+import { registerCustomThemes } from '../utils/monacoThemes';
+
+function MyEditor() {
+  const { monacoTheme, fontSize } = useTheme();
+
+  // Map font size to Monaco editor font size
+  const fontSizeMap = { small: 12, medium: 14, large: 16 };
+  const editorFontSize = fontSizeMap[fontSize];
+
+  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
+    // IMPORTANT: Register custom themes when Monaco mounts
+    registerCustomThemes(monaco);
+
+    // ... other Monaco configuration
+  }, []);
+
+  return (
+    <Editor
+      theme={monacoTheme}        // Dynamic theme from context
+      options={{
+        fontSize: editorFontSize, // Dynamic font size
+        // ... other options
+      }}
+      onMount={handleEditorDidMount}
+    />
+  );
+}
+```
+
+### Theme Provider Setup
+
+**Location**: `frontend/src/App.tsx`
+
+```tsx
+import { ThemeProvider } from './contexts/ThemeContext';
+
+function App() {
+  return (
+    <ThemeProvider>
+      {/* All app content */}
+    </ThemeProvider>
+  );
+}
+```
+
+**IMPORTANT**: ThemeProvider must wrap the entire app to ensure all components have access to theme context.
+
+## User Configuration
+
+### How Users Change Themes
+
+Users edit the config file via ConfigEditorDialog:
+
+1. Open Config Editor (sidebar menu)
+2. Edit JSON:
+   ```json
+   {
+     "theme": "dracula",
+     "fontSize": "large"
+   }
+   ```
+3. Save
+4. Theme/font size updates instantly (no reload required)
+
+### Config File Location
+
+- Path: `~/.pubsub-gui/config.json`
+- Permissions: `0600` (user read/write only)
+- Auto-created with defaults if missing
+
+## Backend Implementation Details
+
+### Config Validation Example
+
+From `app.go` (SaveConfigFileContent method):
+
+```go
+// Validate theme
+if tempConfig.Theme != "light" && tempConfig.Theme != "dark" &&
+   tempConfig.Theme != "auto" && tempConfig.Theme != "dracula" &&
+   tempConfig.Theme != "monokai" {
+    return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', or 'monokai'")
+}
+
+// Validate font size
+if tempConfig.FontSize != "small" && tempConfig.FontSize != "medium" &&
+   tempConfig.FontSize != "large" {
+    return fmt.Errorf("fontSize must be 'small', 'medium', or 'large'")
+}
+```
+
+### Event Emission Example
+
+```go
+// Emit events when values change
+if oldTheme != tempConfig.Theme {
+    runtime.EventsEmit(a.ctx, "config:theme-changed", tempConfig.Theme)
+}
+
+if oldFontSize != tempConfig.FontSize {
+    runtime.EventsEmit(a.ctx, "config:font-size-changed", tempConfig.FontSize)
+}
+```
+
+## Frontend Implementation Details
+
+### Theme Context Implementation
+
+Key features of `ThemeContext.tsx`:
+
+1. **Event Listening**: Listens for `config:theme-changed` and `config:font-size-changed`
+2. **Auto Theme Detection**: Uses `window.matchMedia('(prefers-color-scheme: dark)')`
+3. **HTML Attributes**: Applies `data-theme` and `data-font-size` to `<html>`
+4. **Wails Sync**: Calls `WindowSetLightTheme()`, `WindowSetDarkTheme()`, or `WindowSetSystemDefaultTheme()`
+5. **Monaco Mapping**: Maps app theme to Monaco theme name
+
+### Effective Theme Resolution
+
+```typescript
+// "auto" theme resolves to "light" or "dark" based on system
+const effectiveTheme = theme === 'auto'
+  ? (systemPrefersDark ? 'dark' : 'light')
+  : theme;
+```
+
+### Monaco Theme Mapping
+
+```typescript
+function getMonacoTheme(effectiveTheme: EffectiveTheme): string {
+  switch (effectiveTheme) {
+    case 'light': return 'vs-light';
+    case 'dark': return 'vs-dark';
+    case 'dracula': return 'dracula';    // Custom theme
+    case 'monokai': return 'monokai';    // Custom theme
+    default: return 'vs-dark';
+  }
+}
+```
+
+## Backward Compatibility
+
+### CSS Class Mapping
+
+The theme system maintains backward compatibility with all existing Tailwind classes:
+
+```css
+/* Existing code using bg-slate-900 works with all themes */
+.bg-slate-900 { background-color: var(--color-bg-primary) !important; }
+.bg-slate-800 { background-color: var(--color-bg-secondary) !important; }
+.text-slate-100 { color: var(--color-text-primary) !important; }
+.text-blue-500 { color: var(--color-accent-primary) !important; }
+/* ... all mappings defined in themes.css */
+```
+
+**Result**: No component changes required. 200+ hardcoded color references work with all themes.
+
+## Common Patterns
+
+### Adding a New Theme
+
+To add a new theme (e.g., "nord"):
+
+1. **Update Go validation** (`app.go`):
+   ```go
+   if tempConfig.Theme != "light" && ... && tempConfig.Theme != "nord" {
+   ```
+
+2. **Add theme definition** (`frontend/src/themes.css`):
+   ```css
+   [data-theme="nord"] {
+     --color-bg-primary: #2e3440;
+     --color-bg-secondary: #3b4252;
+     /* ... all color tokens */
+   }
+   ```
+
+3. **Add Monaco theme** (if custom styling needed):
+   ```typescript
+   // In frontend/src/utils/monacoThemes.ts
+   export const nordTheme: editor.IStandaloneThemeData = { ... };
+
+   // In registerCustomThemes:
+   monaco.editor.defineTheme('nord', nordTheme);
+
+   // In ThemeContext getMonacoTheme:
+   case 'nord': return 'nord';
+   ```
+
+4. **Update TypeScript types** (`frontend/src/types/theme.ts`):
+   ```typescript
+   export type Theme = 'light' | 'dark' | 'auto' | 'dracula' | 'monokai' | 'nord';
+   export type EffectiveTheme = 'light' | 'dark' | 'dracula' | 'monokai' | 'nord';
+   ```
+
+### Using Theme Colors in New Components
+
+```tsx
+// Use existing Tailwind classes that map to theme variables
+function NewComponent() {
+  return (
+    <div className="bg-slate-800 border border-slate-700">
+      <h1 className="text-slate-100">Title</h1>
+      <p className="text-slate-300">Content</p>
+      <button className="bg-blue-600 hover:bg-blue-700 text-white">
+        Action
+      </button>
+    </div>
+  );
+}
+```
+
+### Accessing Current Theme in JavaScript
+
+```tsx
+import { useTheme } from '../hooks/useTheme';
+
+function ComponentWithLogic() {
+  const { effectiveTheme, theme } = useTheme();
+
+  // Use effectiveTheme (resolves "auto" to actual theme)
+  if (effectiveTheme === 'light') {
+    // Light-specific logic
+  }
+
+  // Use theme (includes "auto" option)
+  if (theme === 'auto') {
+    // Auto theme selected
+  }
+}
+```
+
+## Performance Considerations
+
+- **CSS Variables**: Minimal performance impact (native browser feature)
+- **Theme Switching**: Smooth 200ms transitions
+- **No Re-renders**: Theme changes update CSS only, components don't re-render
+- **Monaco Registration**: Themes registered once on mount, not on every change
+
+## Accessibility
+
+- **Contrast Ratios**: All themes meet WCAG AA minimum contrast requirements
+- **Focus States**: All themes define clear focus states (`focus:ring-blue-500` maps to accent)
+- **System Preference**: Auto theme respects user's OS accessibility settings
+
+## Testing
+
+### Manual Testing Checklist
+
+- [ ] All 5 themes load correctly
+- [ ] All 3 font sizes work correctly
+- [ ] Theme persists across app restarts
+- [ ] Auto theme responds to system preference changes
+- [ ] Monaco Editor matches app theme
+- [ ] No broken UI elements in any theme
+- [ ] Smooth transitions between themes
+- [ ] All status colors (success, error, warning) visible in all themes
+
+### Testing Theme Changes
+
+1. Open ConfigEditorDialog
+2. Change `"theme": "light"` to `"theme": "dracula"`
+3. Save
+4. Verify instant theme change
+5. Restart app
+6. Verify theme persisted
+
+## Common Mistakes to Avoid
+
+❌ **Don't** use `useTheme()` outside ThemeProvider:
+```tsx
+// ❌ BAD - will throw error
+function StandaloneComponent() {
+  const { theme } = useTheme(); // Error: used outside provider
+}
+```
+
+❌ **Don't** hardcode theme-specific values:
+```tsx
+// ❌ BAD - breaks in light theme
+<div style={{ backgroundColor: '#1e293b' }}>Content</div>
+```
+
+❌ **Don't** forget to register Monaco themes:
+```tsx
+// ❌ BAD - custom themes won't work
+const handleEditorDidMount = (editor, monaco) => {
+  // Missing: registerCustomThemes(monaco);
+};
+```
+
+❌ **Don't** use `theme` when you need `effectiveTheme`:
+```tsx
+// ❌ BAD - theme could be "auto"
+if (theme === 'dark') { /* won't match when theme is "auto" */ }
+
+// ✅ GOOD
+if (effectiveTheme === 'dark') { /* works correctly */ }
+```
+
+## Related Files
+
+- `frontend/src/themes.css` - Theme definitions
+- `frontend/src/contexts/ThemeContext.tsx` - Theme orchestration
+- `frontend/src/hooks/useTheme.ts` - Theme hook
+- `frontend/src/types/theme.ts` - TypeScript types
+- `frontend/src/utils/monacoThemes.ts` - Monaco themes
+- `internal/models/connection.go` - Backend config model
+- `app.go` - Backend validation and events
+- `frontend/src/components/ConfigEditorDialog.tsx` - Example usage
+- `frontend/src/components/JsonEditor.tsx` - Example usage

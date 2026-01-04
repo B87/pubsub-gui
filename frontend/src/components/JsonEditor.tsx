@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
+import { useTheme } from '../hooks/useTheme';
+import { registerCustomThemes } from '../utils/monacoThemes';
 
 interface JsonEditorProps {
   value: string;
@@ -10,9 +12,14 @@ interface JsonEditorProps {
 }
 
 export default function JsonEditor({ value, onChange, label = 'Payload', disabled = false, height = '300px' }: JsonEditorProps) {
+  const { monacoTheme, fontSize } = useTheme();
   const [jsonError, setJsonError] = useState<string>('');
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
+
+  // Map font size to Monaco editor font size
+  const fontSizeMap = { small: 12, medium: 14, large: 16 };
+  const editorFontSize = fontSizeMap[fontSize];
 
   const validateJSON = (text: string): boolean => {
     if (!text.trim()) {
@@ -57,6 +64,9 @@ export default function JsonEditor({ value, onChange, label = 'Payload', disable
     editorRef.current = editor;
     monacoRef.current = monaco;
 
+    // Register custom Monaco themes (Dracula, Monokai)
+    registerCustomThemes(monaco);
+
     monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
       validate: true,
       allowComments: false,
@@ -89,13 +99,13 @@ export default function JsonEditor({ value, onChange, label = 'Payload', disable
         <Editor
           height={height}
           language="json"
-          theme="vs-dark"
+          theme={monacoTheme}
           value={value}
           onChange={handleChange}
           onMount={handleEditorDidMount}
           options={{
             minimap: { enabled: false },
-            fontSize: 14,
+            fontSize: editorFontSize,
             lineNumbers: 'on',
             roundedSelection: false,
             scrollBeyondLastLine: false,

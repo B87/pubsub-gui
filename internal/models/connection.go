@@ -25,7 +25,8 @@ type AppConfig struct {
 	ActiveProfileID   string              `json:"activeProfileId,omitempty"`
 	MessageBufferSize int                 `json:"messageBufferSize"`
 	AutoAck           bool                `json:"autoAck"`
-	Theme             string              `json:"theme"`     // "light" | "dark" | "auto"
+	Theme             string              `json:"theme"`     // "light" | "dark" | "auto" | "dracula" | "monokai"
+	FontSize          string              `json:"fontSize"`  // "small" | "medium" | "large"
 	Templates         []MessageTemplate   `json:"templates"` // Message templates
 }
 
@@ -57,6 +58,7 @@ func NewDefaultConfig() *AppConfig {
 		MessageBufferSize: 500,
 		AutoAck:           true,
 		Theme:             "auto",
+		FontSize:          "medium",
 		Templates:         []MessageTemplate{},
 	}
 }

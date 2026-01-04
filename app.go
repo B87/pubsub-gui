@@ -367,27 +367,54 @@ func (a *App) syncResources() {
 
 	wg.Wait()
 
-	// If either fetch failed, log error but don't update cache
+	// Handle partial failures - update what succeeded, emit errors for what failed
+	hasErrors := false
+	errorDetails := make(map[string]string)
+
 	if topicsErr != nil {
 		fmt.Printf("Error syncing topics: %v\n", topicsErr)
-		return
+		hasErrors = true
+		errorDetails["topics"] = topicsErr.Error()
+		// Don't update topics on error - keep existing cache or leave empty
 	}
+
 	if subsErr != nil {
 		fmt.Printf("Error syncing subscriptions: %v\n", subsErr)
-		return
+		hasErrors = true
+		errorDetails["subscriptions"] = subsErr.Error()
+		// Don't update subscriptions on error - keep existing cache or leave empty
 	}
 
-	// Update local store
+	// Update local store with successful fetches only
 	a.resourceMu.Lock()
-	a.topics = topics
-	a.subscriptions = subscriptions
+	if topicsErr == nil {
+		a.topics = topics
+	}
+	if subsErr == nil {
+		a.subscriptions = subscriptions
+	}
 	a.resourceMu.Unlock()
 
-	// Emit event to frontend with updated resources
-	runtime.EventsEmit(a.ctx, "resources:updated", map[string]interface{}{
-		"topics":        topics,
-		"subscriptions": subscriptions,
-	})
+	// Emit event to frontend with updated resources (only include successful fetches)
+	updatePayload := make(map[string]interface{})
+	if topicsErr == nil {
+		updatePayload["topics"] = topics
+	}
+	if subsErr == nil {
+		updatePayload["subscriptions"] = subscriptions
+	}
+
+	// Only emit update event if we have at least one successful fetch
+	if len(updatePayload) > 0 {
+		runtime.EventsEmit(a.ctx, "resources:updated", updatePayload)
+	}
+
+	// Emit error event if any failures occurred
+	if hasErrors {
+		runtime.EventsEmit(a.ctx, "resources:sync-error", map[string]interface{}{
+			"errors": errorDetails,
+		})
+	}
 }
 
 // ListTopics returns all topics in the connected project (from cached store)
@@ -1175,15 +1202,21 @@ func (a *App) SaveConfigFileContent(content string) error {
 		return fmt.Errorf("messageBufferSize must be between 100 and 10000")
 	}
 
-	if tempConfig.Theme != "light" && tempConfig.Theme != "dark" && tempConfig.Theme != "auto" {
-		return fmt.Errorf("theme must be 'light', 'dark', or 'auto'")
+	if tempConfig.Theme != "light" && tempConfig.Theme != "dark" && tempConfig.Theme != "auto" && tempConfig.Theme != "dracula" && tempConfig.Theme != "monokai" {
+		return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', or 'monokai'")
+	}
+
+	if tempConfig.FontSize != "small" && tempConfig.FontSize != "medium" && tempConfig.FontSize != "large" {
+		return fmt.Errorf("fontSize must be 'small', 'medium', or 'large'")
 	}
 
 	// Store old values to detect changes
 	oldTheme := ""
+	oldFontSize := ""
 	oldAutoAck := false
 	if a.config != nil {
 		oldTheme = a.config.Theme
+		oldFontSize = a.config.FontSize
 		oldAutoAck = a.config.AutoAck
 	}
 
@@ -1200,6 +1233,12 @@ func (a *App) SaveConfigFileContent(content string) error {
 		// Emit event to frontend to apply theme change
 		// Frontend will handle theme application using Wails runtime methods
 		runtime.EventsEmit(a.ctx, "config:theme-changed", tempConfig.Theme)
+	}
+
+	// Apply font size changes if font size was modified
+	if oldFontSize != tempConfig.FontSize {
+		// Emit event to frontend to apply font size change
+		runtime.EventsEmit(a.ctx, "config:font-size-changed", tempConfig.FontSize)
 	}
 
 	// Update auto-ack for all active monitors if it changed
