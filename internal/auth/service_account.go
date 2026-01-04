@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"cloud.google.com/go/pubsub/v2"
+	"google.golang.org/api/internal/credentialstype"
 	"google.golang.org/api/option"
 
 	"myproject/internal/models"
@@ -27,7 +28,7 @@ func ConnectWithServiceAccount(ctx context.Context, projectID, keyPath string) (
 	}
 
 	// Create Pub/Sub client with service account credentials
-	client, err := pubsub.NewClient(ctx, projectID, option.WithCredentialsFile(keyPath))
+	client, err := pubsub.NewClient(ctx, projectID, option.WithAuthCredentialsFile(credentialstype.ServiceAccount, keyPath))
 	if err != nil {
 		return nil, err
 	}
