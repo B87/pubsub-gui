@@ -1,36 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Topic, Subscription, MessageTemplate, PublishResult, PubSubMessage } from '../types';
 import { GetTemplates, PublishMessage, SaveTemplate, StartTopicMonitor, StopTopicMonitor, GetBufferedMessages, ClearMessageBuffer, GetAutoAck, SetAutoAck } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
-
-// Helper functions to access Wails methods via window object (works even if bindings aren't generated yet)
-// Wails populates window.go.main.App with all Go methods at runtime
-const getTopicSubscriptions = async (topicID: string): Promise<Subscription[]> => {
-  const wailsApp = (window as any)?.go?.main?.App;
-  if (!wailsApp || !wailsApp.GetTopicSubscriptions) {
-    throw new Error('GetTopicSubscriptions is not available. Please run "wails dev" to generate bindings.');
-  }
-  const result = await wailsApp.GetTopicSubscriptions(topicID);
-  return Array.isArray(result) ? result : [];
-};
-
-const getSubscriptionsUsingTopicAsDeadLetter = async (topicID: string): Promise<Subscription[]> => {
-  const wailsApp = (window as any)?.go?.main?.App;
-  if (!wailsApp || !wailsApp.GetSubscriptionsUsingTopicAsDeadLetter) {
-    throw new Error('GetSubscriptionsUsingTopicAsDeadLetter is not available. Please run "wails dev" to generate bindings.');
-  }
-  const result = await wailsApp.GetSubscriptionsUsingTopicAsDeadLetter(topicID);
-  return Array.isArray(result) ? result : [];
-};
-
-const getDeadLetterTopicsForTopic = async (topicID: string): Promise<Topic[]> => {
-  const wailsApp = (window as any)?.go?.main?.App;
-  if (!wailsApp || !wailsApp.GetDeadLetterTopicsForTopic) {
-    throw new Error('GetDeadLetterTopicsForTopic is not available. Please run "wails dev" to generate bindings.');
-  }
-  const result = await wailsApp.GetDeadLetterTopicsForTopic(topicID);
-  return Array.isArray(result) ? result : [];
-};
 import TemplateManager from './TemplateManager';
 import TopicMonitor from './TopicMonitor';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
@@ -38,6 +9,8 @@ import JsonEditor from './JsonEditor';
 
 interface TopicDetailsProps {
   topic: Topic;
+  allSubscriptions: Subscription[];
+  allTopics: Topic[];
   onDelete?: (topic: Topic) => void;
   onSelectSubscription?: (subscription: Subscription) => void;
   onSelectTopic?: (topic: Topic) => void;
@@ -50,7 +23,7 @@ interface Attribute {
   value: string;
 }
 
-export default function TopicDetails({ topic, onDelete, onSelectSubscription, onSelectTopic }: TopicDetailsProps) {
+export default function TopicDetails({ topic, allSubscriptions, allTopics, onDelete, onSelectSubscription, onSelectTopic }: TopicDetailsProps) {
   const [activeTab, setActiveTab] = useState<Tab>('metadata');
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -72,13 +45,36 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
   const [monitoringError, setMonitoringError] = useState<string>('');
   const monitoringRef = useRef<{ started: boolean, starting: boolean }>({ started: false, starting: false });
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedSubscriptionForMonitoring, setSelectedSubscriptionForMonitoring] = useState<string | null>(null);
+  const [monitorSubscriptions, setMonitorSubscriptions] = useState<Subscription[]>([]);
+  const [loadingMonitorSubscriptions, setLoadingMonitorSubscriptions] = useState(false);
 
-  // Relations state
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [deadLetterSubscriptions, setDeadLetterSubscriptions] = useState<Subscription[]>([]);
-  const [deadLetterTopics, setDeadLetterTopics] = useState<Topic[]>([]);
-  const [loadingRelations, setLoadingRelations] = useState(false);
-  const [relationsError, setRelationsError] = useState<string>('');
+  // Local filtering using useMemo for instant updates
+  const subscriptions = useMemo(() => {
+    return allSubscriptions.filter(sub => sub.topic === topic.name);
+  }, [allSubscriptions, topic.name]);
+
+  const deadLetterSubscriptions = useMemo(() => {
+    return allSubscriptions.filter(sub =>
+      sub.deadLetterPolicy?.deadLetterTopic === topic.name
+    );
+  }, [allSubscriptions, topic.name]);
+
+  const deadLetterTopics = useMemo(() => {
+    // Collect unique dead letter topics from subscriptions subscribed to this topic
+    const deadLetterTopicSet = new Set<string>();
+    subscriptions.forEach(sub => {
+      if (sub.deadLetterPolicy?.deadLetterTopic) {
+        deadLetterTopicSet.add(sub.deadLetterPolicy.deadLetterTopic);
+      }
+    });
+
+    // Filter topics that are in the dead letter topic set
+    return allTopics.filter(t => deadLetterTopicSet.has(t.name));
+  }, [subscriptions, allTopics]);
+
+  const [loadingRelations] = useState(false);
+  const [relationsError] = useState<string>('');
 
   // Load templates when topic changes
   useEffect(() => {
@@ -94,6 +90,7 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
     setIsMonitoring(false);
     setTempSubId(null);
     setMonitoringError('');
+    setSelectedSubscriptionForMonitoring(null);
     monitoringRef.current = { started: false, starting: false };
   }, [topic.name]);
 
@@ -133,31 +130,29 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
     });
 
     const unsubscribeStarted = EventsOn('monitor:started', (data: { subscriptionID: string }) => {
-      // Check if this is our temporary subscription
-      if (data.subscriptionID.startsWith('ps-gui-mon-')) {
-        setTempSubId(data.subscriptionID);
-        setIsMonitoring(true);
-        setMonitoringError(''); // Clear any errors when monitoring starts successfully
-        monitoringRef.current.started = true;
-        monitoringRef.current.starting = false;
+      // Set tempSubId for both auto-created and existing subscriptions
+      setTempSubId(data.subscriptionID);
+      setIsMonitoring(true);
+      setMonitoringError(''); // Clear any errors when monitoring starts successfully
+      monitoringRef.current.started = true;
+      monitoringRef.current.starting = false;
 
-        // Load buffered messages
-        GetBufferedMessages(data.subscriptionID)
-          .then((bufferedMessages: PubSubMessage[]) => {
-            // Deduplicate buffered messages against existing ones
-            setMonitoringMessages((prev) => {
-              const existingKeys = new Set(prev.map(m => `${m.id}-${m.receiveTime}`));
-              const newMessages = bufferedMessages.filter(m => {
-                const key = `${m.id}-${m.receiveTime}`;
-                return !existingKeys.has(key);
-              });
-              return [...newMessages, ...prev].slice(0, 1000);
+      // Load buffered messages
+      GetBufferedMessages(data.subscriptionID)
+        .then((bufferedMessages: PubSubMessage[]) => {
+          // Deduplicate buffered messages against existing ones
+          setMonitoringMessages((prev) => {
+            const existingKeys = new Set(prev.map(m => `${m.id}-${m.receiveTime}`));
+            const newMessages = bufferedMessages.filter(m => {
+              const key = `${m.id}-${m.receiveTime}`;
+              return !existingKeys.has(key);
             });
-          })
-          .catch((err: unknown) => {
-            console.error('Failed to load buffered messages:', err);
+            return [...newMessages, ...prev].slice(0, 1000);
           });
-      }
+        })
+        .catch((err: unknown) => {
+          console.error('Failed to load buffered messages:', err);
+        });
     });
 
     const unsubscribeStopped = EventsOn('monitor:stopped', (data: { subscriptionID: string }) => {
@@ -200,57 +195,18 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
     }
   };
 
-  const loadTopicRelations = useCallback(async () => {
-    setLoadingRelations(true);
-    setRelationsError('');
+  // Relations are now computed locally via useMemo - no need to load them
 
-    try {
-      const [subs, deadLetterSubs, deadLetterTopics] = await Promise.all([
-        getTopicSubscriptions(topic.name).catch((err: unknown) => {
-          console.error('Failed to load topic subscriptions:', err);
-          return [] as Subscription[];
-        }),
-        getSubscriptionsUsingTopicAsDeadLetter(topic.name).catch((err: unknown) => {
-          console.error('Failed to load dead letter subscriptions:', err);
-          return [] as Subscription[];
-        }),
-        getDeadLetterTopicsForTopic(topic.name).catch((err: unknown) => {
-          console.error('Failed to load dead letter topics:', err);
-          return [] as Topic[];
-        }),
-      ]);
-
-      // Ensure we always have arrays, even if methods return null
-      setSubscriptions(Array.isArray(subs) ? subs : []);
-      setDeadLetterSubscriptions(Array.isArray(deadLetterSubs) ? deadLetterSubs : []);
-      setDeadLetterTopics(Array.isArray(deadLetterTopics) ? deadLetterTopics : []);
-
-      // Debug logging
-      console.log('Topic relations loaded:', {
-        topic: topic.name,
-        subscriptionsCount: Array.isArray(subs) ? subs.length : 0,
-        deadLetterSubscriptionsCount: Array.isArray(deadLetterSubs) ? deadLetterSubs.length : 0,
-        deadLetterTopicsCount: Array.isArray(deadLetterTopics) ? deadLetterTopics.length : 0,
-        deadLetterTopics: Array.isArray(deadLetterTopics) ? deadLetterTopics.map(t => t.name) : []
-      });
-    } catch (e: unknown) {
-      setRelationsError(e instanceof Error ? e.toString() : String(e));
-      console.error('Failed to load topic relations:', e);
-      // Ensure arrays are set even on error
-      setSubscriptions([]);
-      setDeadLetterSubscriptions([]);
-      setDeadLetterTopics([]);
-    } finally {
-      setLoadingRelations(false);
-    }
-  }, [topic.name]);
-
-  // Load relations when topic changes or when switching to relations tabs
+  // Load subscriptions for monitoring when monitor tab becomes active (using local filtering)
   useEffect(() => {
-    if (activeTab === 'subscriptions' || activeTab === 'deadLetter') {
-      loadTopicRelations();
+    if (activeTab === 'monitor') {
+      setLoadingMonitorSubscriptions(true);
+      // Filter subscriptions locally - only pull subscriptions can be monitored
+      const pullSubs = subscriptions.filter(sub => sub.subscriptionType === 'pull');
+      setMonitorSubscriptions(pullSubs);
+      setLoadingMonitorSubscriptions(false);
     }
-  }, [activeTab, loadTopicRelations]);
+  }, [activeTab, subscriptions]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -382,7 +338,9 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
     setMonitoringError(''); // Clear any previous errors
 
     try {
-      await StartTopicMonitor(topic.name);
+      // Pass selected subscription ID (or empty string for auto-create)
+      const subscriptionID = selectedSubscriptionForMonitoring || '';
+      await StartTopicMonitor(topic.name, subscriptionID);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       // Extract a user-friendly error message
@@ -393,6 +351,10 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
         friendlyError = 'Resource not found: The topic or project may not exist or you may not have access to it.';
       } else if (errorMessage.includes('failed to create temporary subscription')) {
         friendlyError = `Failed to create monitoring subscription: ${errorMessage.split('failed to create temporary subscription:')[1]?.trim() || errorMessage}`;
+      } else if (errorMessage.includes('is not subscribed to topic')) {
+        friendlyError = `Selected subscription is not subscribed to this topic. Please select a different subscription or use auto-create.`;
+      } else if (errorMessage.includes('monitoring is not supported for push subscriptions')) {
+        friendlyError = 'Push subscriptions cannot be monitored. Please select a pull subscription or use auto-create.';
       }
       setMonitoringError(friendlyError);
       monitoringRef.current.starting = false;
@@ -726,6 +688,9 @@ export default function TopicDetails({ topic, onDelete, onSelectSubscription, on
             tempSubId={tempSubId}
             autoAck={autoAck}
             monitoringError={monitoringError}
+            subscriptions={monitorSubscriptions}
+            selectedSubscription={selectedSubscriptionForMonitoring}
+            onSubscriptionChange={setSelectedSubscriptionForMonitoring}
             onStartMonitoring={handleStartMonitoring}
             onClearBuffer={handleClearMonitoringBuffer}
             onToggleAutoAck={handleToggleAutoAck}

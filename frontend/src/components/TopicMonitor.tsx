@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMessageSearch } from '../hooks/useMessageSearch';
 import MessageCard from './MessageCard';
-import type { PubSubMessage, Topic } from '../types';
+import type { PubSubMessage, Topic, Subscription } from '../types';
 
 interface TopicMonitorProps {
   topic: Topic;
@@ -11,6 +11,9 @@ interface TopicMonitorProps {
   tempSubId: string | null;
   autoAck: boolean;
   monitoringError?: string;
+  subscriptions?: Subscription[];
+  selectedSubscription: string | null;
+  onSubscriptionChange: (subscriptionId: string | null) => void;
   onStartMonitoring: () => void;
   onClearBuffer: () => void;
   onToggleAutoAck: (enabled: boolean) => void;
@@ -23,6 +26,9 @@ export default function TopicMonitor({
   tempSubId,
   autoAck,
   monitoringError,
+  subscriptions = [],
+  selectedSubscription,
+  onSubscriptionChange,
   onStartMonitoring,
   onClearBuffer,
   onToggleAutoAck,
@@ -77,55 +83,88 @@ export default function TopicMonitor({
       )}
 
       {/* Toolbar */}
-      <div className="p-4 border-b border-slate-700 bg-slate-800/50 flex items-center justify-between gap-4">
-        <div className="flex-1 max-w-md">
-          <input
-            type="text"
-            placeholder="Search messages..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      <div className="p-4 border-b border-slate-700 bg-slate-800/50">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex-1 max-w-md">
+            <input
+              type="text"
+              placeholder="Search messages..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-xs text-slate-400">
+              {messages.length} messages
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoAck}
+                onChange={(e) => onToggleAutoAck(e.target.checked)}
+                className="w-3.5 h-3.5 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-xs text-slate-300">Auto-ack</span>
+            </label>
+
+            <button
+              onClick={onClearBuffer}
+              disabled={messages.length === 0}
+              className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded transition-colors"
+            >
+              Clear
+            </button>
+
+            <div className="flex items-center gap-2">
+              {isMonitoring ? (
+                <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  Monitoring
+                </span>
+              ) : (
+                <button
+                  onClick={onStartMonitoring}
+                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 rounded transition-colors font-medium"
+                >
+                  Start Monitoring
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-xs text-slate-400">
-            {messages.length} messages
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoAck}
-              onChange={(e) => onToggleAutoAck(e.target.checked)}
-              className="w-3.5 h-3.5 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
-            />
-            <span className="text-xs text-slate-300">Auto-ack</span>
-          </label>
-
-          <button
-            onClick={onClearBuffer}
-            disabled={messages.length === 0}
-            className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded transition-colors"
+        {/* Subscription Selector */}
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-slate-400 whitespace-nowrap">Subscription:</label>
+          <select
+            value={selectedSubscription || ''}
+            onChange={(e) => onSubscriptionChange(e.target.value || null)}
+            disabled={isMonitoring}
+            className="flex-1 max-w-xs px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isMonitoring ? 'Stop monitoring to change subscription' : 'Select a subscription to monitor or use auto-create'}
           >
-            Clear
-          </button>
-
-          <div className="flex items-center gap-2">
-            {isMonitoring ? (
-              <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                Monitoring
+            <option value="">Auto-create subscription</option>
+            {subscriptions.map((sub) => (
+              <option key={sub.name} value={sub.name}>
+                {sub.displayName}
+              </option>
+            ))}
+          </select>
+          {isMonitoring && tempSubId && (
+            <div className="text-xs text-slate-500 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>
+                {tempSubId.startsWith('ps-gui-mon-')
+                  ? 'Using temporary subscription'
+                  : `Using: ${subscriptions.find(s => s.name.split('/').pop() === tempSubId)?.displayName || tempSubId}`}
               </span>
-            ) : (
-              <button
-                onClick={onStartMonitoring}
-                className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 rounded transition-colors font-medium"
-              >
-                Start Monitoring
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

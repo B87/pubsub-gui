@@ -1,0 +1,977 @@
+---
+description: Wails v2 Application Development Guide
+alwaysApply: true
+---
+
+# Wails v2 Application Development Guide
+
+This guide covers Wails v2 architecture patterns, backend-frontend communication, and coding conventions for the Pub/Sub GUI desktop application.
+
+## Architecture Overview
+
+This is a **Wails v2** desktop application combining:
+
+- **Go backend** (`app.go`, `main.go`) - Handles GCP Pub/Sub API interactions
+- **React + TypeScript frontend** (`frontend/src/`) - UI layer with hot reload
+- **Wails bindings** (`frontend/wailsjs/`) - Auto-generated TypeScript bindings for Go methods
+
+### Key Wails Concepts
+
+1. **Method Binding**: Go struct methods are exposed to frontend via `Bind` in `main.go`
+2. **Events**: Backend emits events to frontend using `runtime.EventsEmit()`
+3. **Context**: Go backend uses `context.Context` for lifecycle and cancellation
+4. **Asset Embedding**: Frontend build is embedded via `//go:embed` directive
+
+## Backend (Go) Patterns
+
+### App Struct Structure
+
+The main `App` struct in `app.go` holds application state and is bound to the frontend:
+
+```go
+type App struct {
+    ctx            context.Context
+    config         *models.AppConfig
+    configManager  *config.Manager
+    clientManager  *auth.ClientManager
+    activeMonitors map[string]*subscriber.MessageStreamer
+    topicMonitors  map[string]string
+    monitorsMu     sync.RWMutex
+
+    // Resource store for synchronized state
+    resourceMu    sync.RWMutex
+    topics        []admin.TopicInfo
+    subscriptions []admin.SubscriptionInfo
+}
+```
+
+**Key Principles:**
+
+- Store `context.Context` as a field (set in `startup()`)
+- Use `sync.RWMutex` for concurrent map access
+- Initialize managers in `startup()` lifecycle hook
+- Clean up resources in `Disconnect()` and `OnShutdown`
+- Maintain synchronized resource store for performance (see Resource Synchronization Pattern below)
+
+### Method Exposure Rules
+
+**All public methods on `App` struct are automatically exposed to frontend.**
+
+```go
+// ✅ Exposed to frontend - public method on App struct
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    // Implementation
+}
+
+// ❌ NOT exposed - private method
+func (a *App) connectWithProfile(profile *models.ConnectionProfile) error {
+    // Implementation
+}
+```
+
+**Method Naming:**
+
+- Use **PascalCase** for exported methods (e.g., `GetConnectionStatus`, `PublishMessage`)
+- Use **camelCase** for private helpers (e.g., `connectWithProfile`, `findExistingMonitoringSubscription`)
+
+### Return Types and Error Handling
+
+**Always return errors from Go methods:**
+
+```go
+// ✅ Good - returns error
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    client := a.clientManager.GetClient()
+    if client == nil {
+        return nil, models.ErrNotConnected
+    }
+    // ...
+}
+
+// ❌ Bad - no error handling
+func (a *App) ListTopics() []admin.TopicInfo {
+    // Missing error handling
+}
+```
+
+**Error Patterns:**
+
+- Use custom errors from `internal/models/errors.go` for domain errors
+- Wrap errors with context: `fmt.Errorf("failed to connect: %w", err)`
+- Return `nil` for empty slices on success: `return []admin.TopicInfo{}, nil`
+
+### JSON Serialization
+
+**All return types must be JSON-serializable:**
+
+```go
+// ✅ Good - struct with JSON tags
+type ConnectionStatus struct {
+    IsConnected  bool   `json:"isConnected"`
+    ProjectID    string `json:"projectId"`
+    AuthMethod   string `json:"authMethod,omitempty"`
+}
+
+// ✅ Good - primitive types
+func (a *App) GetAutoAck() (bool, error) {
+    return a.config.AutoAck, nil
+}
+```
+
+**JSON Tag Rules:**
+
+- Use `camelCase` for JSON field names (matches TypeScript conventions)
+- Use `omitempty` for optional fields
+- Use `json:"-"` to exclude fields from serialization
+
+### Context Usage
+
+**Always use the stored context for API calls:**
+
+```go
+// ✅ Good - uses stored context
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    client := a.clientManager.GetClient()
+    projectID := a.clientManager.GetProjectID()
+    return admin.ListTopicsAdmin(a.ctx, client, projectID)
+}
+
+// ❌ Bad - creates new context
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    ctx := context.Background() // Wrong!
+    // ...
+}
+```
+
+**Context Lifecycle:**
+
+- `a.ctx` is set in `startup(ctx context.Context)` hook
+- Use `a.ctx` for all GCP API calls
+- Context is automatically cancelled on app shutdown
+
+### Event Emission
+
+**Emit events to notify frontend of state changes:**
+
+```go
+import "github.com/wailsapp/wails/v2/pkg/runtime"
+
+// Emit event after resource creation
+func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error {
+    // ... create topic ...
+
+    // Emit event for frontend refresh
+    runtime.EventsEmit(a.ctx, "topic:created", map[string]interface{}{
+        "topicID": topicID,
+    })
+
+    return nil
+}
+```
+
+**Event Naming Convention:**
+
+- Use `resource:action` format (e.g., `topic:created`, `subscription:deleted`)
+- Use `kebab-case` for event names
+- Include relevant data in the event payload
+
+**Common Events:**
+
+- `topic:created`, `topic:deleted`
+- `subscription:created`, `subscription:updated`, `subscription:deleted`
+- `monitor:started`, `monitor:stopped`
+- `config:theme-changed`
+- `resources:updated` - Emitted when resource store is synchronized (see Resource Synchronization Pattern)
+
+### Lifecycle Hooks
+
+**Use Wails lifecycle hooks for initialization and cleanup:**
+
+```go
+// In main.go
+err := wails.Run(&options.App{
+    OnStartup:  app.startup,        // Called when app starts
+    OnShutdown: func(_ context.Context) { app.Disconnect() },
+    Bind: []interface{}{app},
+})
+
+// In app.go
+func (a *App) startup(ctx context.Context) {
+    a.ctx = ctx
+    // Initialize managers, load config, auto-connect
+}
+```
+
+**Startup Responsibilities:**
+
+- Store context: `a.ctx = ctx`
+- Initialize managers (config, auth)
+- Load persisted configuration
+- Auto-connect to active profile if set
+
+**Shutdown Responsibilities:**
+
+- Stop all active monitors
+- Close GCP client connections
+- Clean up temporary resources
+
+### Concurrency and Thread Safety
+
+**Use mutexes for shared state:**
+
+```go
+type App struct {
+    activeMonitors map[string]*subscriber.MessageStreamer
+    monitorsMu     sync.RWMutex
+}
+
+func (a *App) StartMonitor(subscriptionID string) error {
+    // Check existing monitors
+    a.monitorsMu.Lock()
+    if _, exists := a.activeMonitors[subscriptionID]; exists {
+        a.monitorsMu.Unlock()
+        return fmt.Errorf("already monitoring")
+    }
+    a.monitorsMu.Unlock()
+
+    // ... start monitor ...
+
+    // Store monitor
+    a.monitorsMu.Lock()
+    a.activeMonitors[subscriptionID] = streamer
+    a.monitorsMu.Unlock()
+}
+```
+
+**Mutex Guidelines:**
+
+- Use `sync.RWMutex` for read-heavy operations
+- Use `RLock()` for read operations
+- Use `Lock()` for write operations
+- Minimize lock duration (unlock before expensive operations)
+
+## Frontend (React/TypeScript) Patterns
+
+### Wails Bindings Usage
+
+**Import methods from auto-generated bindings:**
+
+```typescript
+// ✅ Good - import from wailsjs
+import {
+  GetConnectionStatus,
+  ListTopics,
+  PublishMessage,
+} from "../wailsjs/go/main/App";
+
+// Call methods as async functions
+const status = await GetConnectionStatus();
+const topics = await ListTopics();
+```
+
+**Binding Generation:**
+
+- Bindings are auto-generated when running `wails dev` or `wails build`
+- Located in `frontend/wailsjs/go/main/App.js` and `App.d.ts`
+- **DO NOT EDIT** files in `frontend/wailsjs/` - they are overwritten
+
+**Type Safety:**
+
+- TypeScript types are generated in `App.d.ts`
+- Use `as any` only when necessary (e.g., complex nested types)
+- Prefer proper type definitions in `frontend/src/types/index.ts`
+
+### Event Listening
+
+**Listen to backend events using `EventsOn`:**
+
+```typescript
+import { EventsOn } from "../wailsjs/runtime/runtime";
+
+useEffect(() => {
+  // Set up event listeners once on mount
+  const unsubscribeTopicCreated = EventsOn('topic:created', () => {
+    loadResources();
+  });
+
+  const unsubscribeSubscriptionDeleted = EventsOn('subscription:deleted', () => {
+    loadResources();
+    // Clear selection if deleted subscription was selected
+    if (selectedResourceRef.current?.type === 'subscription') {
+      setSelectedResource(null);
+    }
+  });
+
+  // Cleanup on unmount
+  return () => {
+    unsubscribeTopicCreated();
+    unsubscribeSubscriptionDeleted();
+  };
+}, []); // Empty dependency array - only set up once
+```
+
+**Event Listener Patterns:**
+
+- Set up listeners in `useEffect` with empty dependency array
+- Store unsubscribe functions and call them in cleanup
+- Use refs (`useRef`) to access latest state in event handlers without re-renders
+- Handle resource cleanup (clear selections, reset state) in event handlers
+
+### Error Handling
+
+**Handle errors from Go method calls:**
+
+```typescript
+const loadResources = async () => {
+  setLoadingResources(true);
+  setError('');
+
+  try {
+    const [topicsData, subsData] = await Promise.all([
+      ListTopics(),
+      ListSubscriptions()
+    ]);
+
+    setTopics(topicsData as any || []);
+    setSubscriptions(subsData as any || []);
+  } catch (e: any) {
+    setError('Failed to load resources: ' + e.toString());
+    // Clear resources on error to prevent showing stale data
+    setTopics([]);
+    setSubscriptions([]);
+  } finally {
+    setLoadingResources(false);
+  }
+};
+```
+
+**Error Handling Best Practices:**
+
+- Always use try/catch for async Wails method calls
+- Clear state on error to prevent stale data
+- Display user-friendly error messages
+- Log errors to console for debugging
+
+### Wails Runtime Methods
+
+**Use Wails runtime for window/system operations:**
+
+```typescript
+import {
+  WindowSetLightTheme,
+  WindowSetDarkTheme,
+  WindowSetSystemDefaultTheme,
+} from "../wailsjs/runtime/runtime";
+
+// Apply theme change
+EventsOn('config:theme-changed', (theme: string) => {
+  if (theme === 'light') {
+    WindowSetLightTheme();
+  } else if (theme === 'dark') {
+    WindowSetDarkTheme();
+  } else if (theme === 'auto') {
+    WindowSetSystemDefaultTheme();
+  }
+});
+```
+
+**Available Runtime Methods:**
+
+- `WindowSetLightTheme()`, `WindowSetDarkTheme()`, `WindowSetSystemDefaultTheme()`
+- See `frontend/wailsjs/runtime/runtime.d.ts` for full API
+
+### Complex Type Handling
+
+**Handle Wails-generated complex types:**
+
+```typescript
+import { main } from "../wailsjs/go/models";
+
+// Convert plain object to Wails-generated class instance
+const wailsParams = main.SubscriptionUpdateParams.createFrom({
+  ackDeadline: 60,
+  retentionDuration: "7d",
+});
+
+await UpdateSubscription(subID, wailsParams);
+```
+
+**Type Conversion Patterns:**
+
+- Use `createFrom()` static method for complex types
+- Import from `wailsjs/go/models` for shared types
+- Use `as any` sparingly when types don't match exactly
+
+### Resource ID Normalization Pattern
+
+**Frontend-Backend ID Passing:**
+
+The frontend typically uses full resource names (e.g., `subscription.name` = `"projects/my-project/subscriptions/my-sub"`), but backend methods may need normalization. Follow these patterns:
+
+**Pattern 1: Backend Handles Normalization**
+
+When backend methods accept both formats and normalize internally:
+
+```typescript
+// Frontend: Pass full resource name
+await StartMonitor(subscription.name); // "projects/my-project/subscriptions/my-sub"
+```
+
+```go
+// Backend: Normalize if needed
+func (a *App) StartMonitor(subscriptionID string) error {
+    // client.Subscriber() accepts both formats, but GetSubscriptionMetadataAdmin needs short ID
+    // Normalize if full path provided
+    shortSubID := subscriptionID
+    if strings.HasPrefix(subscriptionID, "projects/") {
+        parts := strings.Split(subscriptionID, "/")
+        if len(parts) >= 4 && parts[2] == "subscriptions" {
+            shortSubID = parts[3]
+        }
+    }
+    // Use shortSubID for admin operations
+    subInfo, err := admin.GetSubscriptionMetadataAdmin(a.ctx, client, projectID, shortSubID)
+    // ...
+    // Use original subscriptionID for client.Subscriber() (accepts both formats)
+    sub := client.Subscriber(subscriptionID)
+}
+```
+
+**Important:** Always normalize before calling admin functions that construct full paths internally. `GetSubscriptionMetadataAdmin` expects a short ID and constructs the full path - passing a full path will result in an invalid resource name.
+
+**Pattern 2: Frontend Extracts Short ID**
+
+When backend methods require short IDs:
+
+```typescript
+// Frontend: Extract short ID before calling
+const topicID = topic.name.split('/').pop() || topic.name;
+await DeleteTopic(topicID);
+```
+
+**Pattern 3: Optional Parameters with Normalization**
+
+When adding optional resource parameters to existing methods:
+
+```go
+// Backend: Accept optional subscription ID, normalize if provided
+func (a *App) StartTopicMonitor(topicID string, subscriptionID string) error {
+    // Empty string = auto-create mode
+    if subscriptionID != "" {
+        // Normalize subscription ID (extract short name if full path provided)
+        shortSubID := subscriptionID
+        if strings.HasPrefix(subscriptionID, "projects/") {
+            parts := strings.Split(subscriptionID, "/")
+            if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "subscriptions" {
+                shortSubID = parts[3]
+            }
+        }
+        // Validate and use shortSubID
+    } else {
+        // Auto-create logic
+    }
+}
+```
+
+```typescript
+// Frontend: Pass full resource name or empty string
+const subscriptionID = selectedSubscription || ''; // Full path or empty
+await StartTopicMonitor(topic.name, subscriptionID);
+```
+
+**Best Practices:**
+
+- **Backend methods should normalize** - Accept both formats and normalize internally for consistency
+- **Document normalization behavior** - Comment in code when methods handle normalization
+- **Use full paths in frontend** - Frontend components work with full resource names from API responses
+- **Extract short IDs only when required** - Some admin operations require short IDs (see `pubsub.mdc` for details)
+
+**When to Normalize:**
+
+- ✅ **Normalize in backend** when method calls admin APIs that require short IDs
+- ✅ **Normalize in backend** when storing IDs in maps or comparing with other normalized IDs
+- ❌ **Don't normalize** when passing to client methods (`Publisher()`, `Subscriber()`) - they accept both formats
+- ❌ **Don't normalize unnecessarily** - If admin API accepts full paths, use them directly
+
+## Project Structure
+
+### Backend Organization
+
+```text
+app.go                    # Main App struct with all exposed methods
+main.go                   # Wails initialization and entry point
+internal/
+├── auth/                 # GCP authentication (ADC, service account)
+├── config/               # Configuration persistence
+├── models/               # Shared data structures and errors
+└── pubsub/
+    ├── admin/            # Topic/subscription management
+    ├── publisher/        # Message publishing
+    └── subscriber/       # Message streaming and monitoring
+```
+
+**File Organization Rules:**
+
+- Keep `app.go` focused on Wails bindings and orchestration
+- Delegate business logic to `internal/` packages
+- Use `internal/models/` for shared types and errors
+- Separate concerns: auth, config, pubsub operations
+
+### Frontend Organization
+
+```text
+frontend/src/
+├── components/           # React components
+├── types/                # TypeScript type definitions
+├── hooks/                # Custom React hooks
+├── wailsjs/              # Auto-generated (DO NOT EDIT)
+├── App.tsx               # Root component
+└── main.tsx              # React entry point
+```
+
+## Development Workflow
+
+### Adding New Go Methods
+
+1. **Add method to `App` struct in `app.go`:**
+
+   ```go
+   func (a *App) NewMethod(param string) (string, error) {
+       // Implementation
+   }
+   ```
+
+2. **Run `wails dev`** to generate TypeScript bindings
+
+3. **Import and use in frontend:**
+
+   ```typescript
+   import { NewMethod } from "../wailsjs/go/main/App";
+   const result = await NewMethod("value");
+   ```
+
+### Adding New Events
+
+1. **Emit event from Go backend:**
+
+   ```go
+   runtime.EventsEmit(a.ctx, "resource:action", map[string]interface{}{
+       "key": "value",
+   });
+   ```
+
+2. **Listen to event in frontend:**
+
+   ```typescript
+   EventsOn('resource:action', (data) => {
+       // Handle event
+   });
+   ```
+
+### Testing Changes
+
+**Development Mode:**
+
+```bash
+wails dev  # Hot reload frontend, run Go backend
+```
+
+**Build for Testing:**
+
+```bash
+wails build  # Build production binary
+```
+
+**Frontend Only (for UI development):**
+
+```bash
+cd frontend
+npm run dev  # Vite dev server on http://localhost:34115
+```
+
+## Common Patterns
+
+### Connection State Management
+
+```go
+// Backend: Check connection before operations
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    client := a.clientManager.GetClient()
+    if client == nil {
+        return nil, models.ErrNotConnected
+    }
+    // ...
+}
+```
+
+```typescript
+// Frontend: Handle connection state
+const loadResources = async () => {
+  if (!status.isConnected) {
+    return;
+  }
+  // Load resources...
+};
+```
+
+### Resource Refresh Pattern
+
+**Old Pattern (Deprecated):** Frontend calls `loadResources()` which fetches from backend.
+
+**New Pattern (Current):** Backend triggers `syncResources()` which emits `resources:updated` event.
+
+```go
+// Backend: Trigger sync after mutation
+func (a *App) CreateTopic(topicID string, ...) error {
+    // ... create topic ...
+
+    // Trigger background sync to update local store
+    go a.syncResources()
+
+    // Emit event for UI cleanup (optional)
+    runtime.EventsEmit(a.ctx, "topic:created", map[string]interface{}{
+        "topicID": topicID,
+    });
+    return nil
+}
+```
+
+```typescript
+// Frontend: Listen for synchronized updates
+useEffect(() => {
+  const unsubscribeResourcesUpdated = EventsOn('resources:updated', (data: any) => {
+    // Update state directly from synchronized data
+    if (data?.topics) {
+      setTopics(data.topics as Topic[] || []);
+    }
+    if (data?.subscriptions) {
+      setSubscriptions(data.subscriptions as Subscription[] || []);
+    }
+  });
+
+  // Also listen for mutation events for UI cleanup
+  const unsubscribeTopicCreated = EventsOn('topic:created', () => {
+    // Resources already updated via resources:updated event
+    // Just handle UI-specific cleanup if needed
+  });
+
+  return () => {
+    unsubscribeResourcesUpdated();
+    unsubscribeTopicCreated();
+  };
+}, []);
+```
+
+**Key Differences:**
+
+- ✅ **New**: Backend syncs automatically, frontend receives `resources:updated` event
+- ✅ **New**: Frontend doesn't need to call `loadResources()` - updates come via events
+- ✅ **New**: Filtering happens locally in frontend (see Local Filtering Pattern)
+- ❌ **Old**: Frontend had to manually call `ListTopics()` and `ListSubscriptions()` after each mutation
+
+### Async Operation with Loading States
+
+```typescript
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState('');
+
+const handleAction = async () => {
+  setLoading(true);
+  setError('');
+  try {
+    await SomeWailsMethod();
+    await loadResources(); // Refresh after success
+  } catch (e: any) {
+    setError(e.toString());
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+### Resource Synchronization Pattern
+
+**Background Sync with Event-Driven Updates**
+
+To optimize performance and reduce API calls, the app uses a **background synchronization model** where resources are fetched once and cached locally, then filtered in the frontend for instant UI updates.
+
+**Backend Implementation:**
+
+```go
+// Resource store in App struct
+type App struct {
+    // ... other fields ...
+    resourceMu    sync.RWMutex
+    topics        []admin.TopicInfo
+    subscriptions []admin.SubscriptionInfo
+}
+
+// syncResources fetches topics and subscriptions in parallel and updates the local store
+func (a *App) syncResources() {
+    client := a.clientManager.GetClient()
+    if client == nil {
+        return
+    }
+
+    projectID := a.clientManager.GetProjectID()
+
+    // Fetch topics and subscriptions in parallel
+    var topics []admin.TopicInfo
+    var subscriptions []admin.SubscriptionInfo
+    var topicsErr, subsErr error
+
+    var wg sync.WaitGroup
+    wg.Add(2)
+
+    go func() {
+        defer wg.Done()
+        topics, topicsErr = admin.ListTopicsAdmin(a.ctx, client, projectID)
+    }()
+
+    go func() {
+        defer wg.Done()
+        subscriptions, subsErr = admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
+    }()
+
+    wg.Wait()
+
+    // Update local store
+    a.resourceMu.Lock()
+    a.topics = topics
+    a.subscriptions = subscriptions
+    a.resourceMu.Unlock()
+
+    // Emit event to frontend with updated resources
+    runtime.EventsEmit(a.ctx, "resources:updated", map[string]interface{}{
+        "topics":        topics,
+        "subscriptions": subscriptions,
+    })
+}
+
+// List methods return cached data
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+    a.resourceMu.RLock()
+    defer a.resourceMu.RUnlock()
+
+    if a.topics != nil {
+        result := make([]admin.TopicInfo, len(a.topics))
+        copy(result, a.topics)
+        return result, nil
+    }
+    return []admin.TopicInfo{}, nil
+}
+```
+
+**When to Sync:**
+
+- **On connection**: After `ConnectWithADC` or `ConnectWithServiceAccount` succeeds
+- **After mutations**: After `CreateTopic`, `DeleteTopic`, `CreateSubscription`, `UpdateSubscription`, `DeleteSubscription`
+- **Manual refresh**: Via `SyncResources()` method (exposed for frontend refresh button)
+
+**Frontend Implementation:**
+
+```typescript
+// Listen for synchronized resource updates
+useEffect(() => {
+  const unsubscribeResourcesUpdated = EventsOn('resources:updated', (data: any) => {
+    // Update state directly from synchronized data
+    if (data?.topics) {
+      setTopics(data.topics as Topic[] || []);
+    }
+    if (data?.subscriptions) {
+      setSubscriptions(data.subscriptions as Subscription[] || []);
+    }
+    setLoadingResources(false);
+  });
+
+  return () => {
+    unsubscribeResourcesUpdated();
+  };
+}, []);
+
+// Pass full resource lists to child components
+<TopicDetails
+  topic={topic}
+  allSubscriptions={subscriptions}
+  allTopics={topics}
+  // ... other props
+/>
+```
+
+**Benefits:**
+
+- **Instant UI**: Navigation between resources is immediate (no API roundtrips)
+- **Reduced API calls**: Only syncs once on connect and after mutations
+- **Parallel fetching**: Topics and subscriptions fetched simultaneously
+- **Automatic updates**: Frontend receives updates via events when resources change
+
+**See Implementation:**
+
+- Backend: `app.go:328-391` for `syncResources()` and `SyncResources()` methods
+- Backend: `app.go:393-425` for cached `ListTopics()` and `ListSubscriptions()` methods
+- Frontend: `frontend/src/App.tsx:73-84` for `resources:updated` event listener
+
+### Local Filtering Pattern
+
+**Frontend Filtering Instead of Backend API Calls**
+
+Instead of making backend API calls to filter relationships (e.g., "get subscriptions for topic X"), filter locally in the frontend using `useMemo` hooks for instant updates.
+
+**Frontend Implementation:**
+
+```typescript
+interface TopicDetailsProps {
+  topic: Topic;
+  allSubscriptions: Subscription[];  // Full list from synchronized store
+  allTopics: Topic[];                // Full list from synchronized store
+  // ... other props
+}
+
+export default function TopicDetails({ topic, allSubscriptions, allTopics, ... }: TopicDetailsProps) {
+  // Filter subscriptions for this topic locally
+  const subscriptions = useMemo(() => {
+    return allSubscriptions.filter(sub => sub.topic === topic.name);
+  }, [allSubscriptions, topic.name]);
+
+  // Filter dead letter subscriptions locally
+  const deadLetterSubscriptions = useMemo(() => {
+    return allSubscriptions.filter(sub =>
+      sub.deadLetterPolicy?.deadLetterTopic === topic.name
+    );
+  }, [allSubscriptions, topic.name]);
+
+  // Filter dead letter topics locally
+  const deadLetterTopics = useMemo(() => {
+    const deadLetterTopicSet = new Set<string>();
+    subscriptions.forEach(sub => {
+      if (sub.deadLetterPolicy?.deadLetterTopic) {
+        deadLetterTopicSet.add(sub.deadLetterPolicy.deadLetterTopic);
+      }
+    });
+    return allTopics.filter(t => deadLetterTopicSet.has(t.name));
+  }, [subscriptions, allTopics]);
+
+  // Use filtered data directly in UI - no loading states needed!
+  return (
+    <div>
+      {subscriptions.map(sub => (
+        <SubscriptionCard key={sub.name} subscription={sub} />
+      ))}
+    </div>
+  );
+}
+```
+
+**Key Principles:**
+
+- **Pass full lists as props**: Child components receive `allSubscriptions` and `allTopics`
+- **Use `useMemo` for filtering**: Memoize filtered results to avoid unnecessary recalculations
+- **No loading states**: Filtering is instant, no async operations needed
+- **Automatic updates**: When `resources:updated` event fires, `useMemo` automatically recalculates
+
+**Benefits:**
+
+- **Zero latency**: Filtering happens instantly in memory
+- **Reduced backend load**: No API calls for relationship queries
+- **Simpler code**: No async loading states or error handling for filtering
+- **Better UX**: Instant updates when navigating between resources
+
+**See Implementation:**
+
+- Frontend: `frontend/src/components/TopicDetails.tsx:79-95` for local filtering with `useMemo`
+- Frontend: `frontend/src/App.tsx:377-388` for passing full lists as props
+
+### Topic Monitoring with Subscription Selection
+
+**Pattern: Optional Subscription Parameter**
+
+When implementing features that allow selecting existing resources or auto-creating:
+
+**Backend Implementation:**
+
+```go
+// StartTopicMonitor accepts optional subscriptionID parameter
+// Empty string = auto-create mode, non-empty = use existing subscription
+func (a *App) StartTopicMonitor(topicID string, subscriptionID string) error {
+    if subscriptionID != "" {
+        // Normalize and validate existing subscription
+        // Check it's pull type and subscribed to topic
+        // Use it directly
+    } else {
+        // Auto-create temporary subscription
+    }
+}
+```
+
+**Frontend Implementation:**
+
+```typescript
+// State for selected subscription (null = auto-create)
+const [selectedSubscription, setSelectedSubscription] = useState<string | null>(null);
+
+// Filter subscriptions locally when tab becomes active
+useEffect(() => {
+  if (activeTab === 'monitor') {
+    // Filter to pull subscriptions only (using local filtering pattern)
+    const pullSubs = subscriptions.filter(sub => sub.subscriptionType === 'pull');
+    setMonitorSubscriptions(pullSubs);
+  }
+}, [activeTab, subscriptions]);
+
+// Pass selected subscription or empty string for auto-create
+const handleStartMonitoring = async () => {
+  const subscriptionID = selectedSubscription || '';
+  await StartTopicMonitor(topic.name, subscriptionID);
+};
+```
+
+**UI Pattern:**
+
+- Show dropdown with "Auto-create subscription" as default option
+- List available resources (filtered appropriately, e.g., only pull subscriptions)
+- Disable dropdown when operation is active
+- Show which resource is currently being used
+
+**See Implementation:**
+
+- Backend: `app.go:908-1025` for `StartTopicMonitor` with optional subscription parameter
+- Frontend: `frontend/src/components/TopicDetails.tsx` for state management and `TopicMonitor.tsx` for UI
+
+## Best Practices
+
+### DO ✅
+
+- **Always return errors** from Go methods
+- **Use context** from `startup()` for all API calls
+- **Emit events** after state-changing operations
+- **Trigger sync** after mutations (`go a.syncResources()`)
+- **Handle errors** in frontend with try/catch
+- **Clean up resources** in `Disconnect()` and `OnShutdown`
+- **Use mutexes** for concurrent map access
+- **Set up event listeners** once in `useEffect` with cleanup
+- **Clear state on errors** to prevent stale data
+- **Use refs** for accessing latest state in event handlers
+- **Filter locally** in frontend using `useMemo` for relationships
+- **Pass full lists** as props to child components for local filtering
+
+### DON'T ❌
+
+- **Don't edit** `frontend/wailsjs/` files (auto-generated)
+- **Don't create new contexts** - use stored `a.ctx`
+- **Don't forget** to emit events after mutations
+- **Don't forget** to trigger `syncResources()` after mutations
+- **Don't skip** error handling in async operations
+- **Don't access** shared state without mutex protection
+- **Don't set up** event listeners in render (use `useEffect`)
+- **Don't forget** to unsubscribe from events on cleanup
+- **Don't use** `context.Background()` - use stored context
+- **Don't make backend API calls** for filtering relationships - filter locally in frontend
+- **Don't call `loadResources()`** after mutations - rely on `resources:updated` event instead
+
+## References
+
+- [Wails v2 Documentation](https://wails.io/docs/introduction)
+- [Wails v2 API Reference](https://pkg.go.dev/github.com/wailsapp/wails/v2)
+- [Go Context Package](https://pkg.go.dev/context)
+- Project PRD: `PRD.md`
+- Project Architecture: `CLAUDE.md`

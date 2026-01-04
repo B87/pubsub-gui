@@ -46,7 +46,8 @@ Read and analyze all relevant documentation files:
 - `.cursor/rules/pubsub/message-publishing.mdc` - Message publishing patterns
 - `.cursor/rules/pubsub/topics-and-subs.mdc` - Topic/subscription management
 - `.cursor/rules/codacy.mdc` - Code quality rules
-- `.cursor/rules/golang.mdc` - Go language guidelines
+- `.cursor/rules/wails.mdc` - Go language guidelines
+- `.cursor/rules/react-tailwind.mdc` - React Tailwind language guidelines for UI dev
 - `.cursor/rules/goreleaser.mdc` - Release configuration
 
 **Project Documentation:**

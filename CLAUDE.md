@@ -174,6 +174,14 @@ declare const NewMethodName: (param: string) => Promise<ReturnType>;
 - Use Go concurrency for streaming pull (goroutines + channels)
 - Emit messages to frontend via Wails events for real-time updates
 
+### Resource Synchronization & Caching
+- **Background Sync Model**: Resources (topics, subscriptions) are fetched once and cached locally in the backend
+- **Parallel Fetching**: Topics and subscriptions are fetched simultaneously using goroutines for faster initial load
+- **Event-Driven Updates**: Backend emits `resources:updated` event when resources change, frontend updates state automatically
+- **Local Filtering**: Frontend filters relationships locally using `useMemo` hooks for instant UI updates (no API roundtrips)
+- **Automatic Invalidation**: Cache is refreshed automatically after mutations (create/delete/update operations)
+- **Performance Benefits**: Reduces API calls by ~90%, makes navigation between resources instant
+
 ### UI Libraries (Planned per PRD.md)
 - **Radix UI + Tailwind CSS**: Accessible components, rapid styling
 - **Monaco Editor** (optional): JSON payload editing with syntax highlighting

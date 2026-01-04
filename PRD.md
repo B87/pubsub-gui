@@ -36,10 +36,10 @@ A cross-platform desktop application for **Google Cloud Pub/Sub** that enables d
 ## 3. Non-Goals (Out of Scope for MVP)
 
 - Multi-broker support (Kafka, RabbitMQ, NATS)
-- Full CRUD operations for topics/subscriptions (create/delete) — read-only focus
+- ~~Full CRUD operations for topics/subscriptions (create/delete) — read-only focus~~ **Note:** Implemented beyond MVP scope
 - Schema Registry integration and validation
 - Advanced replay tooling (snapshots, seek operations)
-- Push subscription configuration
+- ~~Push subscription configuration~~ **Note:** View-only support implemented
 - IAM role management
 - Cloud monitoring/metrics integration
 - Custom plugin system
@@ -472,9 +472,14 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 - [x] Display topic/subscription metadata in detail panel
 - [x] Refresh button
 - [x] Client-side search/filter
+- [x] **BONUS:** Create/Delete topics (beyond MVP scope)
+- [x] **BONUS:** Create/Update/Delete subscriptions (beyond MVP scope)
+- [x] **BONUS:** Advanced subscription metadata (dead letter policy, push endpoints, filters)
+- [x] **BONUS:** Topic-subscription relationship views (subscriptions for topic, dead letter relationships)
 
 **Acceptance:**
 - ✅ User can browse all topics and subscriptions in their project
+- ✅ User can create and manage topics/subscriptions (beyond original MVP scope)
 
 ---
 
@@ -485,25 +490,30 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 - [x] Publish result display (message ID)
 - [x] Message template CRUD
 - [x] Template quick-load
+- [x] **BONUS:** JSON editor with syntax highlighting
+- [x] **BONUS:** Template manager with topic-linked templates
 
 **Acceptance:**
 - ✅ User can publish a message and receive confirmation message ID
+- ✅ Templates can be linked to specific topics or be global
 
 ---
 
-### Milestone 4: Subscription Monitor (Week 5-6) ⏳ **IN PROGRESS**
+### Milestone 4: Subscription Monitor (Week 5-6) ✅ **COMPLETE**
 **Deliverables:**
-- [ ] Streaming pull implementation (Go backend)
-- [ ] Message list UI with virtual scrolling
-- [ ] Auto-ack toggle
-- [ ] Buffer size limiting
-- [ ] Search within messages
-- [ ] Copy payload/ID buttons
-- [ ] Clear buffer button
+- [x] Streaming pull implementation (Go backend)
+- [x] Message list UI with virtual scrolling
+- [x] Auto-ack toggle
+- [x] Buffer size limiting
+- [x] Search within messages
+- [x] Copy payload/ID buttons
+- [x] Clear buffer button
+- [x] **BONUS:** Topic monitoring (creates temporary subscriptions for topics without existing subscriptions)
 
 **Acceptance:**
-- User can monitor a subscription and see messages in real-time
-- UI remains responsive with 500 messages
+- ✅ User can monitor a subscription and see messages in real-time
+- ✅ UI remains responsive with 500 messages
+- ✅ Topic monitoring works by creating temporary subscriptions
 
 ---
 
@@ -518,20 +528,58 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 
 ---
 
-### Milestone 6: Polish (Week 8) 📋 **NOT STARTED**
+### Milestone 6: Polish (Week 8) ⏳ **PARTIALLY COMPLETE**
 **Deliverables:**
-- [ ] Error handling and user-facing messages
+- [x] Error handling and user-facing messages (basic implementation)
 - [ ] Keyboard shortcuts & command bar
-- [ ] Dark mode
-- [ ] Application icon and branding
+- [x] Dark mode (theme support with light/dark/auto modes)
+- [ ] Application icon and branding (needs verification)
 - [ ] Add template variables/placeholders ({{timestamp}}, {{uuid}}, {{date}})
 
 **Acceptance:**
-- All core user flows work end-to-end without errors
+- ✅ Core user flows work end-to-end
+- ⏳ Some polish features remain (keyboard shortcuts, template variables)
 
 ---
 
-## 13. Open Questions & Decisions
+## 13. Features Beyond MVP Scope (Implemented)
+
+The following features have been implemented beyond the original MVP requirements:
+
+1. **Topic/Subscription CRUD Operations**
+   - Create topics with message retention duration
+   - Delete topics
+   - Create subscriptions with full configuration (ack deadline, retention, filters, dead letter policy, push endpoints)
+   - Update subscription configurations
+   - Delete subscriptions
+
+2. **Topic Monitoring**
+   - Monitor topics directly by creating temporary subscriptions
+   - Automatic cleanup of temporary subscriptions
+   - Reuse existing monitoring subscriptions when available
+
+3. **Advanced Subscription Features**
+   - Dead letter topic configuration and viewing
+   - Push subscription support (view-only, monitoring not supported)
+   - Filter expression display and editing
+   - Subscription type detection (pull vs push)
+
+4. **Enhanced UI Features**
+   - Config file editor dialog for advanced users
+   - JSON editor with syntax highlighting for message payloads
+   - Template manager with topic-linked templates
+   - Virtual scrolling for large message lists
+   - Real-time message search with debouncing
+
+5. **Configuration Management**
+   - Configurable message buffer size
+   - Auto-ack toggle with persistence
+   - Theme support (light/dark/auto) with system preference detection
+   - Active profile persistence across app restarts
+
+---
+
+## 14. Open Questions & Decisions
 
 ### Resolved Decisions
 | Question | Decision | Rationale |
@@ -552,7 +600,7 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 
 ---
 
-## 14. Success Metrics (Post-Launch)
+## 15. Success Metrics (Post-Launch)
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -563,7 +611,7 @@ Recommended combined role for full GUI access: `roles/pubsub.editor` (for dev en
 
 ---
 
-## 15. Future Enhancements (Post-MVP)
+## 16. Future Enhancements (Post-MVP)
 
 Potential features for v2.0+:
 
@@ -595,7 +643,7 @@ Potential features for v2.0+:
 
 ---
 
-## 16. References
+## 17. References
 
 - [Google Cloud Pub/Sub Documentation](https://cloud.google.com/pubsub/docs)
 - [Wails Framework Docs](https://wails.io/docs/introduction)
@@ -613,3 +661,4 @@ Potential features for v2.0+:
 **Change Log:**
 - 2026-01-04: Initial draft (v1.0)
 - 2026-01-04: Updated milestone status - Milestones 1-3 marked as complete
+- 2026-01-XX: Updated milestone status - Milestone 4 (Subscription Monitor) marked as complete, Milestone 6 partially complete

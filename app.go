@@ -29,6 +29,11 @@ type App struct {
 	activeMonitors map[string]*subscriber.MessageStreamer
 	topicMonitors  map[string]string // topicID -> temp subscriptionID
 	monitorsMu     sync.RWMutex
+
+	// Resource store for synchronized state
+	resourceMu    sync.RWMutex
+	topics        []admin.TopicInfo
+	subscriptions []admin.SubscriptionInfo
 }
 
 // NewApp creates a new App application struct
@@ -72,6 +77,9 @@ func (a *App) startup(ctx context.Context) {
 				// Attempt to connect (errors are logged but don't prevent startup)
 				if err := a.connectWithProfile(&profile); err != nil {
 					fmt.Printf("Failed to auto-connect to active profile '%s': %v\n", profile.Name, err)
+				} else {
+					// Sync resources after successful connection
+					go a.syncResources()
 				}
 				break
 			}
@@ -113,6 +121,9 @@ func (a *App) ConnectWithADC(projectID string) error {
 		return fmt.Errorf("failed to set client: %w", err)
 	}
 
+	// Sync resources after successful connection
+	go a.syncResources()
+
 	return nil
 }
 
@@ -134,6 +145,9 @@ func (a *App) ConnectWithServiceAccount(projectID, keyPath string) error {
 	if err := a.clientManager.SetClient(client, projectID); err != nil {
 		return fmt.Errorf("failed to set client: %w", err)
 	}
+
+	// Sync resources after successful connection
+	go a.syncResources()
 
 	return nil
 }
@@ -158,6 +172,12 @@ func (a *App) Disconnect() error {
 		}
 	}
 	a.monitorsMu.Unlock()
+
+	// Clear resource store
+	a.resourceMu.Lock()
+	a.topics = nil
+	a.subscriptions = nil
+	a.resourceMu.Unlock()
 
 	return a.clientManager.Close()
 }
@@ -278,6 +298,9 @@ func (a *App) SwitchProfile(profileID string) error {
 		return fmt.Errorf("failed to connect to profile: %w", err)
 	}
 
+	// Sync resources after profile switch (connectWithProfile already triggers sync, but ensure it happens)
+	go a.syncResources()
+
 	// Update active profile ID
 	a.config.ActiveProfileID = profileID
 
@@ -302,26 +325,103 @@ func (a *App) connectWithProfile(profile *models.ConnectionProfile) error {
 	}
 }
 
-// ListTopics returns all topics in the connected project
-func (a *App) ListTopics() ([]admin.TopicInfo, error) {
-	client := a.clientManager.GetClient()
-	if client == nil {
-		return nil, models.ErrNotConnected
+// SyncResources manually triggers a resource sync (exposed for frontend refresh button)
+func (a *App) SyncResources() error {
+	if !a.clientManager.IsConnected() {
+		return models.ErrNotConnected
 	}
-
-	projectID := a.clientManager.GetProjectID()
-	return admin.ListTopicsAdmin(a.ctx, client, projectID)
+	go a.syncResources()
+	return nil
 }
 
-// ListSubscriptions returns all subscriptions in the connected project
-func (a *App) ListSubscriptions() ([]admin.SubscriptionInfo, error) {
+// syncResources fetches topics and subscriptions from GCP in parallel and updates the local store
+// Emits a resources:updated event to notify the frontend
+func (a *App) syncResources() {
 	client := a.clientManager.GetClient()
 	if client == nil {
-		return nil, models.ErrNotConnected
+		return
 	}
 
 	projectID := a.clientManager.GetProjectID()
-	return admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
+	if projectID == "" {
+		return
+	}
+
+	// Fetch topics and subscriptions in parallel
+	var topics []admin.TopicInfo
+	var subscriptions []admin.SubscriptionInfo
+	var topicsErr, subsErr error
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		topics, topicsErr = admin.ListTopicsAdmin(a.ctx, client, projectID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		subscriptions, subsErr = admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
+	}()
+
+	wg.Wait()
+
+	// If either fetch failed, log error but don't update cache
+	if topicsErr != nil {
+		fmt.Printf("Error syncing topics: %v\n", topicsErr)
+		return
+	}
+	if subsErr != nil {
+		fmt.Printf("Error syncing subscriptions: %v\n", subsErr)
+		return
+	}
+
+	// Update local store
+	a.resourceMu.Lock()
+	a.topics = topics
+	a.subscriptions = subscriptions
+	a.resourceMu.Unlock()
+
+	// Emit event to frontend with updated resources
+	runtime.EventsEmit(a.ctx, "resources:updated", map[string]interface{}{
+		"topics":        topics,
+		"subscriptions": subscriptions,
+	})
+}
+
+// ListTopics returns all topics in the connected project (from cached store)
+func (a *App) ListTopics() ([]admin.TopicInfo, error) {
+	a.resourceMu.RLock()
+	defer a.resourceMu.RUnlock()
+
+	// Return cached topics if available
+	if a.topics != nil {
+		// Return a copy to prevent external modification
+		result := make([]admin.TopicInfo, len(a.topics))
+		copy(result, a.topics)
+		return result, nil
+	}
+
+	// Fallback to empty array if not synced yet
+	return []admin.TopicInfo{}, nil
+}
+
+// ListSubscriptions returns all subscriptions in the connected project (from cached store)
+func (a *App) ListSubscriptions() ([]admin.SubscriptionInfo, error) {
+	a.resourceMu.RLock()
+	defer a.resourceMu.RUnlock()
+
+	// Return cached subscriptions if available
+	if a.subscriptions != nil {
+		// Return a copy to prevent external modification
+		result := make([]admin.SubscriptionInfo, len(a.subscriptions))
+		copy(result, a.subscriptions)
+		return result, nil
+	}
+
+	// Fallback to empty array if not synced yet
+	return []admin.SubscriptionInfo{}, nil
 }
 
 // GetTopicMetadata retrieves metadata for a specific topic
@@ -346,120 +446,9 @@ func (a *App) GetSubscriptionMetadata(subID string) (admin.SubscriptionInfo, err
 	return admin.GetSubscriptionMetadataAdmin(a.ctx, client, projectID, subID)
 }
 
-// GetTopicSubscriptions returns all subscriptions subscribed to the given topic
-func (a *App) GetTopicSubscriptions(topicID string) ([]admin.SubscriptionInfo, error) {
-	client := a.clientManager.GetClient()
-	if client == nil {
-		return nil, models.ErrNotConnected
-	}
-
-	projectID := a.clientManager.GetProjectID()
-
-	// Normalize topic ID (handle both full path and short name)
-	normalizedTopicID := topicID
-	if !strings.HasPrefix(topicID, "projects/") {
-		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
-	}
-
-	// List all subscriptions
-	allSubscriptions, err := admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
-	}
-
-	// Filter subscriptions that subscribe to this topic
-	var topicSubscriptions []admin.SubscriptionInfo
-	for _, sub := range allSubscriptions {
-		if sub.Topic == normalizedTopicID {
-			topicSubscriptions = append(topicSubscriptions, sub)
-		}
-	}
-
-	return topicSubscriptions, nil
-}
-
-// GetSubscriptionsUsingTopicAsDeadLetter returns all subscriptions that use the given topic as their dead letter topic
-func (a *App) GetSubscriptionsUsingTopicAsDeadLetter(topicID string) ([]admin.SubscriptionInfo, error) {
-	client := a.clientManager.GetClient()
-	if client == nil {
-		return nil, models.ErrNotConnected
-	}
-
-	projectID := a.clientManager.GetProjectID()
-
-	// Normalize topic ID (handle both full path and short name)
-	normalizedTopicID := topicID
-	if !strings.HasPrefix(topicID, "projects/") {
-		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
-	}
-
-	// List all subscriptions
-	allSubscriptions, err := admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
-	}
-
-	// Filter subscriptions that use this topic as dead letter topic
-	var deadLetterSubscriptions []admin.SubscriptionInfo
-	for _, sub := range allSubscriptions {
-		if sub.DeadLetterPolicy != nil && sub.DeadLetterPolicy.DeadLetterTopic == normalizedTopicID {
-			deadLetterSubscriptions = append(deadLetterSubscriptions, sub)
-		}
-	}
-
-	return deadLetterSubscriptions, nil
-}
-
-// GetDeadLetterTopicsForTopic returns all dead letter topics used by subscriptions subscribed to the given topic
-func (a *App) GetDeadLetterTopicsForTopic(topicID string) ([]admin.TopicInfo, error) {
-	client := a.clientManager.GetClient()
-	if client == nil {
-		return nil, models.ErrNotConnected
-	}
-
-	projectID := a.clientManager.GetProjectID()
-
-	// Normalize topic ID (handle both full path and short name)
-	normalizedTopicID := topicID
-	if !strings.HasPrefix(topicID, "projects/") {
-		normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
-	}
-
-	// List all subscriptions
-	allSubscriptions, err := admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
-	}
-
-	// Collect unique dead letter topics from subscriptions subscribed to this topic
-	deadLetterTopicMap := make(map[string]bool)
-	for _, sub := range allSubscriptions {
-		if sub.Topic == normalizedTopicID && sub.DeadLetterPolicy != nil && sub.DeadLetterPolicy.DeadLetterTopic != "" {
-			deadLetterTopicMap[sub.DeadLetterPolicy.DeadLetterTopic] = true
-		}
-	}
-
-	// If no dead letter topics found, return empty array
-	if len(deadLetterTopicMap) == 0 {
-		return []admin.TopicInfo{}, nil
-	}
-
-	// List all topics to get metadata
-	allTopics, err := admin.ListTopicsAdmin(a.ctx, client, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list topics: %w", err)
-	}
-
-	// Filter topics that are in the dead letter topic map
-	var deadLetterTopics []admin.TopicInfo
-	for _, topic := range allTopics {
-		if deadLetterTopicMap[topic.Name] {
-			deadLetterTopics = append(deadLetterTopics, topic)
-		}
-	}
-
-	return deadLetterTopics, nil
-}
+// Note: GetTopicSubscriptions, GetSubscriptionsUsingTopicAsDeadLetter, and GetDeadLetterTopicsForTopic
+// have been removed. The frontend now filters relationships locally from the synchronized resource store
+// for instant updates without API roundtrips.
 
 // CreateTopic creates a new topic with optional message retention duration
 func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error {
@@ -473,6 +462,9 @@ func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error
 	if err != nil {
 		return err
 	}
+
+	// Trigger background sync to update local store
+	go a.syncResources()
 
 	// Emit event for frontend to refresh
 	runtime.EventsEmit(a.ctx, "topic:created", map[string]interface{}{
@@ -494,6 +486,9 @@ func (a *App) DeleteTopic(topicID string) error {
 	if err != nil {
 		return err
 	}
+
+	// Trigger background sync to update local store
+	go a.syncResources()
 
 	// Emit event for frontend to refresh
 	runtime.EventsEmit(a.ctx, "topic:deleted", map[string]interface{}{
@@ -527,6 +522,9 @@ func (a *App) CreateSubscription(topicID string, subID string, ttlSeconds int64)
 		return err
 	}
 
+	// Trigger background sync to update local store
+	go a.syncResources()
+
 	// Emit event for frontend to refresh
 	runtime.EventsEmit(a.ctx, "subscription:created", map[string]interface{}{
 		"subscriptionID": subID,
@@ -547,6 +545,9 @@ func (a *App) DeleteSubscription(subID string) error {
 	if err != nil {
 		return err
 	}
+
+	// Trigger background sync to update local store
+	go a.syncResources()
 
 	// Emit event for frontend to refresh
 	runtime.EventsEmit(a.ctx, "subscription:deleted", map[string]interface{}{
@@ -581,6 +582,9 @@ func (a *App) UpdateSubscription(subID string, params SubscriptionUpdateParams) 
 	if err != nil {
 		return err
 	}
+
+	// Trigger background sync to update local store
+	go a.syncResources()
 
 	// Emit event for frontend to refresh
 	runtime.EventsEmit(a.ctx, "subscription:updated", map[string]interface{}{
@@ -847,10 +851,13 @@ func (a *App) StopMonitor(subscriptionID string) error {
 // findExistingMonitoringSubscription searches for an existing subscription
 // that matches the monitoring pattern for the given topic
 func (a *App) findExistingMonitoringSubscription(topicID string) (string, error) {
-	// List all subscriptions
-	subscriptions, err := a.ListSubscriptions()
-	if err != nil {
-		return "", fmt.Errorf("failed to list subscriptions: %w", err)
+	// Get subscriptions from cached store
+	a.resourceMu.RLock()
+	subscriptions := a.subscriptions
+	a.resourceMu.RUnlock()
+
+	if subscriptions == nil {
+		return "", fmt.Errorf("subscriptions not yet synced")
 	}
 
 	// Extract short topic name
@@ -897,7 +904,8 @@ func (a *App) findExistingMonitoringSubscription(topicID string) (string, error)
 }
 
 // StartTopicMonitor creates a temporary subscription and starts monitoring a topic
-func (a *App) StartTopicMonitor(topicID string) error {
+// If subscriptionID is provided and not empty, it uses that existing subscription instead of creating a new one
+func (a *App) StartTopicMonitor(topicID string, subscriptionID string) error {
 	// Check connection status
 	client := a.clientManager.GetClient()
 	if client == nil {
@@ -916,47 +924,94 @@ func (a *App) StartTopicMonitor(topicID string) error {
 	}
 	a.monitorsMu.Unlock()
 
-	// Check for existing monitoring subscription
-	existingSubID, err := a.findExistingMonitoringSubscription(topicID)
-	if err != nil {
-		return fmt.Errorf("failed to search for existing subscription: %w", err)
-	}
-
 	var subID string
 	var isNewSubscription bool
 
-	if existingSubID != "" {
-		// Check if the existing subscription is already being monitored
+	// If subscriptionID is provided, validate and use it
+	if subscriptionID != "" {
+		// Normalize subscription ID (extract short name if full path provided)
+		shortSubID := subscriptionID
+		if strings.HasPrefix(subscriptionID, "projects/") {
+			// Extract subscription ID from full path: projects/{project}/subscriptions/{sub-id}
+			parts := strings.Split(subscriptionID, "/")
+			if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "subscriptions" {
+				shortSubID = parts[3]
+			}
+		}
+
+		// Validate subscription exists and is a pull subscription
+		subInfo, err := admin.GetSubscriptionMetadataAdmin(a.ctx, client, projectID, shortSubID)
+		if err != nil {
+			return fmt.Errorf("failed to get subscription metadata: %w", err)
+		}
+
+		// Check subscription type - only pull subscriptions can be monitored
+		if subInfo.SubscriptionType == "push" {
+			return fmt.Errorf("monitoring is not supported for push subscriptions. Push subscriptions deliver messages via HTTP POST to an endpoint")
+		}
+
+		// Normalize topic ID for comparison
+		normalizedTopicID := topicID
+		if !strings.HasPrefix(topicID, "projects/") {
+			normalizedTopicID = fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+		}
+
+		// Verify subscription is subscribed to the target topic
+		if subInfo.Topic != normalizedTopicID {
+			return fmt.Errorf("subscription %s is not subscribed to topic %s", shortSubID, topicID)
+		}
+
+		// Check if the subscription is already being monitored
 		a.monitorsMu.RLock()
-		if _, alreadyMonitored := a.activeMonitors[existingSubID]; alreadyMonitored {
+		if _, alreadyMonitored := a.activeMonitors[shortSubID]; alreadyMonitored {
 			a.monitorsMu.RUnlock()
-			return fmt.Errorf("subscription %s is already being monitored", existingSubID)
+			return fmt.Errorf("subscription %s is already being monitored", shortSubID)
 		}
 		a.monitorsMu.RUnlock()
 
-		// Reuse existing subscription
-		subID = existingSubID
+		// Use the provided subscription
+		subID = shortSubID
 		isNewSubscription = false
 	} else {
-		// Generate a unique subscription ID for monitoring
-		// Format: ps-gui-mon-{short-topic}-{random}
-		// Extract the actual topic name from the full resource path if necessary
-		topicName := topicID
-		if parts := strings.Split(topicID, "/"); len(parts) > 0 {
-			topicName = parts[len(parts)-1]
+		// Auto-create mode: Check for existing monitoring subscription
+		existingSubID, err := a.findExistingMonitoringSubscription(topicID)
+		if err != nil {
+			return fmt.Errorf("failed to search for existing subscription: %w", err)
 		}
 
-		shortTopic := topicName
-		if len(shortTopic) > 20 {
-			shortTopic = shortTopic[:20]
-		}
-		subID = fmt.Sprintf("ps-gui-mon-%s-%d", shortTopic, time.Now().UnixNano()%1000000)
+		if existingSubID != "" {
+			// Check if the existing subscription is already being monitored
+			a.monitorsMu.RLock()
+			if _, alreadyMonitored := a.activeMonitors[existingSubID]; alreadyMonitored {
+				a.monitorsMu.RUnlock()
+				return fmt.Errorf("subscription %s is already being monitored", existingSubID)
+			}
+			a.monitorsMu.RUnlock()
 
-		// Create temporary subscription with 24h TTL
-		if err := admin.CreateSubscriptionAdmin(a.ctx, client, projectID, topicID, subID, 24*time.Hour); err != nil {
-			return fmt.Errorf("failed to create temporary subscription: %w", err)
+			// Reuse existing subscription
+			subID = existingSubID
+			isNewSubscription = false
+		} else {
+			// Generate a unique subscription ID for monitoring
+			// Format: ps-gui-mon-{short-topic}-{random}
+			// Extract the actual topic name from the full resource path if necessary
+			topicName := topicID
+			if parts := strings.Split(topicID, "/"); len(parts) > 0 {
+				topicName = parts[len(parts)-1]
+			}
+
+			shortTopic := topicName
+			if len(shortTopic) > 20 {
+				shortTopic = shortTopic[:20]
+			}
+			subID = fmt.Sprintf("ps-gui-mon-%s-%d", shortTopic, time.Now().UnixNano()%1000000)
+
+			// Create temporary subscription with 24h TTL
+			if err := admin.CreateSubscriptionAdmin(a.ctx, client, projectID, topicID, subID, 24*time.Hour); err != nil {
+				return fmt.Errorf("failed to create temporary subscription: %w", err)
+			}
+			isNewSubscription = true
 		}
-		isNewSubscription = true
 	}
 
 	// Start monitoring the subscription

@@ -58,10 +58,6 @@ export function GetConnectionStatus() {
   return window['go']['main']['App']['GetConnectionStatus']();
 }
 
-export function GetDeadLetterTopicsForTopic(arg1) {
-  return window['go']['main']['App']['GetDeadLetterTopicsForTopic'](arg1);
-}
-
 export function GetProfiles() {
   return window['go']['main']['App']['GetProfiles']();
 }
@@ -70,20 +66,12 @@ export function GetSubscriptionMetadata(arg1) {
   return window['go']['main']['App']['GetSubscriptionMetadata'](arg1);
 }
 
-export function GetSubscriptionsUsingTopicAsDeadLetter(arg1) {
-  return window['go']['main']['App']['GetSubscriptionsUsingTopicAsDeadLetter'](arg1);
-}
-
 export function GetTemplates(arg1) {
   return window['go']['main']['App']['GetTemplates'](arg1);
 }
 
 export function GetTopicMetadata(arg1) {
   return window['go']['main']['App']['GetTopicMetadata'](arg1);
-}
-
-export function GetTopicSubscriptions(arg1) {
-  return window['go']['main']['App']['GetTopicSubscriptions'](arg1);
 }
 
 export function ListSubscriptions() {
@@ -118,8 +106,8 @@ export function StartMonitor(arg1) {
   return window['go']['main']['App']['StartMonitor'](arg1);
 }
 
-export function StartTopicMonitor(arg1) {
-  return window['go']['main']['App']['StartTopicMonitor'](arg1);
+export function StartTopicMonitor(arg1, arg2) {
+  return window['go']['main']['App']['StartTopicMonitor'](arg1, arg2);
 }
 
 export function StopMonitor(arg1) {
@@ -132,6 +120,10 @@ export function StopTopicMonitor(arg1) {
 
 export function SwitchProfile(arg1) {
   return window['go']['main']['App']['SwitchProfile'](arg1);
+}
+
+export function SyncResources() {
+  return window['go']['main']['App']['SyncResources']();
 }
 
 export function UpdateSubscription(arg1, arg2) {

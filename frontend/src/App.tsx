@@ -13,7 +13,8 @@ import {
   DeleteTopic,
   CreateSubscription,
   UpdateSubscription,
-  DeleteSubscription
+  DeleteSubscription,
+  SyncResources
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { WindowSetLightTheme, WindowSetDarkTheme, WindowSetSystemDefaultTheme } from "../wailsjs/runtime/runtime";
@@ -70,25 +71,36 @@ function App() {
 
   // Set up event listeners once on mount
   useEffect(() => {
-    // Listen for resource change events from backend
+    // Listen for synchronized resource updates from backend
+    const unsubscribeResourcesUpdated = EventsOn('resources:updated', (data: any) => {
+      // Update state directly from synchronized data
+      if (data?.topics) {
+        setTopics(data.topics as Topic[] || []);
+      }
+      if (data?.subscriptions) {
+        setSubscriptions(data.subscriptions as Subscription[] || []);
+      }
+      setLoadingResources(false);
+    });
+
+    // Listen for resource change events from backend (for cleanup/UI updates)
     const unsubscribeTopicCreated = EventsOn('topic:created', () => {
-      loadResources();
+      // Resources will be updated via resources:updated event
+      // Just clear selection if needed
     });
     const unsubscribeTopicDeleted = EventsOn('topic:deleted', () => {
-      loadResources();
       // Clear selection if deleted topic was selected
       if (selectedResourceRef.current?.type === 'topic') {
         setSelectedResource(null);
       }
     });
     const unsubscribeSubscriptionUpdated = EventsOn('subscription:updated', () => {
-      loadResources();
+      // Resources will be updated via resources:updated event
     });
     const unsubscribeSubscriptionCreated = EventsOn('subscription:created', () => {
-      loadResources();
+      // Resources will be updated via resources:updated event
     });
     const unsubscribeSubscriptionDeleted = EventsOn('subscription:deleted', () => {
-      loadResources();
       // Clear selection if deleted subscription was selected
       if (selectedResourceRef.current?.type === 'subscription') {
         setSelectedResource(null);
@@ -106,6 +118,7 @@ function App() {
     });
 
     return () => {
+      unsubscribeResourcesUpdated();
       unsubscribeTopicCreated();
       unsubscribeTopicDeleted();
       unsubscribeSubscriptionUpdated();
@@ -151,9 +164,11 @@ function App() {
     setError('');
 
     try {
-      // Clear resources first to prevent showing stale data
-      setTopics([]);
-      setSubscriptions([]);
+      // Trigger sync and then get cached resources
+      await SyncResources();
+
+      // Small delay to allow sync to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const [topicsData, subsData] = await Promise.all([
         ListTopics(),
@@ -381,6 +396,8 @@ function App() {
           return (
             <TopicDetails
               topic={topic}
+              allSubscriptions={subscriptions}
+              allTopics={topics}
               onDelete={handleDeleteTopic}
               onSelectSubscription={handleSelectSubscription}
               onSelectTopic={handleSelectTopic}
