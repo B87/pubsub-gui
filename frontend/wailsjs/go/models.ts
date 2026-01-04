@@ -113,6 +113,46 @@ export namespace main {
 	        this.timestamp = source["timestamp"];
 	    }
 	}
+	export class SubscriptionUpdateParams {
+	    ackDeadline?: number;
+	    retentionDuration?: string;
+	    filter?: string;
+	    deadLetterPolicy?: admin.DeadLetterPolicyInfo;
+	    pushEndpoint?: string;
+	    subscriptionType?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionUpdateParams(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ackDeadline = source["ackDeadline"];
+	        this.retentionDuration = source["retentionDuration"];
+	        this.filter = source["filter"];
+	        this.deadLetterPolicy = this.convertValues(source["deadLetterPolicy"], admin.DeadLetterPolicyInfo);
+	        this.pushEndpoint = source["pushEndpoint"];
+	        this.subscriptionType = source["subscriptionType"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 

@@ -345,6 +345,135 @@ func (a *App) GetSubscriptionMetadata(subID string) (admin.SubscriptionInfo, err
 	return admin.GetSubscriptionMetadataAdmin(a.ctx, client, projectID, subID)
 }
 
+// CreateTopic creates a new topic with optional message retention duration
+func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+	err := admin.CreateTopicAdmin(a.ctx, client, projectID, topicID, messageRetentionDuration)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for frontend to refresh
+	runtime.EventsEmit(a.ctx, "topic:created", map[string]interface{}{
+		"topicID": topicID,
+	})
+
+	return nil
+}
+
+// DeleteTopic deletes a topic
+func (a *App) DeleteTopic(topicID string) error {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+	err := admin.DeleteTopicAdmin(a.ctx, client, projectID, topicID)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for frontend to refresh
+	runtime.EventsEmit(a.ctx, "topic:deleted", map[string]interface{}{
+		"topicID": topicID,
+	})
+
+	return nil
+}
+
+// SubscriptionUpdateParams represents parameters for updating a subscription
+type SubscriptionUpdateParams struct {
+	AckDeadline       *int                        `json:"ackDeadline,omitempty"`
+	RetentionDuration *string                     `json:"retentionDuration,omitempty"`
+	Filter            *string                     `json:"filter,omitempty"`
+	DeadLetterPolicy  *admin.DeadLetterPolicyInfo `json:"deadLetterPolicy,omitempty"`
+	PushEndpoint      *string                     `json:"pushEndpoint,omitempty"`
+	SubscriptionType  *string                     `json:"subscriptionType,omitempty"`
+}
+
+// CreateSubscription creates a new subscription for a topic
+func (a *App) CreateSubscription(topicID string, subID string, ttlSeconds int64) error {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+	ttl := time.Duration(ttlSeconds) * time.Second
+	err := admin.CreateSubscriptionAdmin(a.ctx, client, projectID, topicID, subID, ttl)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for frontend to refresh
+	runtime.EventsEmit(a.ctx, "subscription:created", map[string]interface{}{
+		"subscriptionID": subID,
+	})
+
+	return nil
+}
+
+// DeleteSubscription deletes a subscription
+func (a *App) DeleteSubscription(subID string) error {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+	err := admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, subID)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for frontend to refresh
+	runtime.EventsEmit(a.ctx, "subscription:deleted", map[string]interface{}{
+		"subscriptionID": subID,
+	})
+
+	return nil
+}
+
+// UpdateSubscription updates a subscription's configuration
+func (a *App) UpdateSubscription(subID string, params SubscriptionUpdateParams) error {
+	client := a.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	projectID := a.clientManager.GetProjectID()
+
+	// Convert to admin.SubscriptionUpdateParams
+	adminParams := admin.SubscriptionUpdateParams{
+		AckDeadline:       params.AckDeadline,
+		RetentionDuration: params.RetentionDuration,
+		Filter:            params.Filter,
+		PushEndpoint:      params.PushEndpoint,
+		SubscriptionType:  params.SubscriptionType,
+	}
+	if params.DeadLetterPolicy != nil {
+		adminParams.DeadLetterPolicy = params.DeadLetterPolicy
+	}
+
+	err := admin.UpdateSubscriptionAdmin(a.ctx, client, projectID, subID, adminParams)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for frontend to refresh
+	runtime.EventsEmit(a.ctx, "subscription:updated", map[string]interface{}{
+		"subscriptionID": subID,
+	})
+
+	return nil
+}
+
 // GetTemplates returns all templates, optionally filtered by topicID
 // If topicID is empty, returns all templates
 // If topicID is provided, returns templates linked to that topic + global templates (no topicID)

@@ -3,11 +3,14 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/pubsub/v2"
 	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"google.golang.org/api/iterator"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // TopicInfo represents topic metadata
@@ -76,6 +79,63 @@ func GetTopicMetadataAdmin(ctx context.Context, client *pubsub.Client, projectID
 	}
 
 	return topicInfo, nil
+}
+
+// CreateTopicAdmin creates a new topic with optional message retention duration
+func CreateTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, topicID string, messageRetentionDuration string) error {
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		// Extract topic ID from full path: projects/{project}/topics/{topic-id}
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
+
+	// Build full resource name
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Create topic using Topic object directly (v2 API pattern)
+	req := &pubsubpb.Topic{
+		Name: topicName,
+	}
+
+	// Set message retention duration if provided
+	if messageRetentionDuration != "" {
+		duration, err := time.ParseDuration(messageRetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid message retention duration format: %w", err)
+		}
+		req.MessageRetentionDuration = durationpb.New(duration)
+	}
+
+	_, err := client.TopicAdminClient.CreateTopic(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to create topic %s: %w. Ensure you have 'pubsub.topics.create' permission", topicName, err)
+	}
+
+	return nil
+}
+
+// DeleteTopicAdmin deletes a topic
+func DeleteTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, topicID string) error {
+	// Normalize topic ID
+	topicName := topicID
+	if !strings.HasPrefix(topicID, "projects/") {
+		topicName = "projects/" + projectID + "/topics/" + topicID
+	}
+
+	deleteReq := &pubsubpb.DeleteTopicRequest{
+		Topic: topicName,
+	}
+
+	err := client.TopicAdminClient.DeleteTopic(ctx, deleteReq)
+	if err != nil {
+		return fmt.Errorf("failed to delete topic: %w", err)
+	}
+
+	return nil
 }
 
 // extractDisplayName extracts the topic/subscription name from the full resource path

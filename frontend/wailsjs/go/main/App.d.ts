@@ -11,9 +11,17 @@ export function ConnectWithADC(arg1:string):Promise<void>;
 
 export function ConnectWithServiceAccount(arg1:string,arg2:string):Promise<void>;
 
+export function CreateSubscription(arg1:string,arg2:string,arg3:number):Promise<void>;
+
+export function CreateTopic(arg1:string,arg2:string):Promise<void>;
+
 export function DeleteProfile(arg1:string):Promise<void>;
 
+export function DeleteSubscription(arg1:string):Promise<void>;
+
 export function DeleteTemplate(arg1:string):Promise<void>;
+
+export function DeleteTopic(arg1:string):Promise<void>;
 
 export function Disconnect():Promise<void>;
 
@@ -52,5 +60,7 @@ export function StopMonitor(arg1:string):Promise<void>;
 export function StopTopicMonitor(arg1:string):Promise<void>;
 
 export function SwitchProfile(arg1:string):Promise<void>;
+
+export function UpdateSubscription(arg1:string,arg2:main.SubscriptionUpdateParams):Promise<void>;
 
 export function UpdateTemplate(arg1:string,arg2:models.MessageTemplate):Promise<void>;

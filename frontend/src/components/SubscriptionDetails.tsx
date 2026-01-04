@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import SubscriptionMonitor from './SubscriptionMonitor';
+import DeleteConfirmDialog from './DeleteConfirmDialog';
 import type { Subscription } from '../types';
 
 interface SubscriptionDetailsProps {
   subscription: Subscription;
+  onEdit?: (subscription: Subscription) => void;
+  onDelete?: (subscription: Subscription) => void;
 }
 
-export default function SubscriptionDetails({ subscription }: SubscriptionDetailsProps) {
+export default function SubscriptionDetails({ subscription, onEdit, onDelete }: SubscriptionDetailsProps) {
   const [activeTab, setActiveTab] = useState('metadata');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -59,8 +63,26 @@ export default function SubscriptionDetails({ subscription }: SubscriptionDetail
 
         {/* Metadata Card */}
         <div className="bg-slate-800 rounded-lg border border-slate-700">
-          <div className="px-6 py-4 border-b border-slate-700">
+          <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
             <h3 className="text-lg font-semibold">Metadata</h3>
+            <div className="flex gap-2">
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(subscription)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
+                >
+                  Edit
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="p-6 space-y-4">
@@ -192,6 +214,20 @@ export default function SubscriptionDetails({ subscription }: SubscriptionDetail
           </Tabs.Content>
         )}
       </Tabs.Root>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && onDelete && (
+        <DeleteConfirmDialog
+          open={showDeleteDialog}
+          resourceType="subscription"
+          resourceName={subscription.name}
+          onConfirm={() => {
+            onDelete(subscription);
+            setShowDeleteDialog(false);
+          }}
+          onCancel={() => setShowDeleteDialog(false)}
+        />
+      )}
     </div>
   );
 }

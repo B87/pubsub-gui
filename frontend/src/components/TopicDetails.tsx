@@ -4,9 +4,11 @@ import { GetTemplates, PublishMessage, SaveTemplate, StartTopicMonitor, StopTopi
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import TemplateManager from './TemplateManager';
 import TopicMonitor from './TopicMonitor';
+import DeleteConfirmDialog from './DeleteConfirmDialog';
 
 interface TopicDetailsProps {
   topic: Topic;
+  onDelete?: (topic: Topic) => void;
 }
 
 type Tab = 'metadata' | 'publish' | 'monitor';
@@ -16,7 +18,7 @@ interface Attribute {
   value: string;
 }
 
-export default function TopicDetails({ topic }: TopicDetailsProps) {
+export default function TopicDetails({ topic, onDelete }: TopicDetailsProps) {
   const [activeTab, setActiveTab] = useState<Tab>('metadata');
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -37,6 +39,7 @@ export default function TopicDetails({ topic }: TopicDetailsProps) {
   const [tempSubId, setTempSubId] = useState<string | null>(null);
   const [autoAck, setAutoAck] = useState(true);
   const monitoringRef = useRef<{ started: boolean, starting: boolean }>({ started: false, starting: false });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Load templates when topic changes
   useEffect(() => {
@@ -358,8 +361,16 @@ export default function TopicDetails({ topic }: TopicDetailsProps) {
         {/* Metadata Tab */}
         {activeTab === 'metadata' && (
           <div className="bg-slate-800 rounded-lg border border-slate-700">
-            <div className="px-6 py-4 border-b border-slate-700">
+            <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Metadata</h3>
+              {onDelete && (
+                <button
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                >
+                  Delete Topic
+                </button>
+              )}
             </div>
 
             <div className="p-6 space-y-4">
@@ -605,6 +616,20 @@ export default function TopicDetails({ topic }: TopicDetailsProps) {
             autoAck={autoAck}
             onClearBuffer={handleClearMonitoringBuffer}
             onToggleAutoAck={handleToggleAutoAck}
+          />
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteDialog && onDelete && (
+          <DeleteConfirmDialog
+            open={showDeleteDialog}
+            resourceType="topic"
+            resourceName={topic.name}
+            onConfirm={() => {
+              onDelete(topic);
+              setShowDeleteDialog(false);
+            }}
+            onCancel={() => setShowDeleteDialog(false)}
           />
         )}
       </div>

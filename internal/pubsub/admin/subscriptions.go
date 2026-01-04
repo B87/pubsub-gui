@@ -10,7 +10,9 @@ import (
 	"cloud.google.com/go/pubsub/v2"
 	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"google.golang.org/api/iterator"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
+	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 // SubscriptionInfo represents subscription metadata
@@ -196,6 +198,111 @@ func DeleteSubscriptionAdmin(ctx context.Context, client *pubsub.Client, project
 	err := client.SubscriptionAdminClient.DeleteSubscription(ctx, deleteReq)
 	if err != nil {
 		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	return nil
+}
+
+// SubscriptionUpdateParams represents parameters for updating a subscription
+type SubscriptionUpdateParams struct {
+	AckDeadline       *int                  `json:"ackDeadline,omitempty"`
+	RetentionDuration *string               `json:"retentionDuration,omitempty"`
+	Filter            *string               `json:"filter,omitempty"`
+	DeadLetterPolicy  *DeadLetterPolicyInfo `json:"deadLetterPolicy,omitempty"`
+	PushEndpoint      *string               `json:"pushEndpoint,omitempty"`
+	SubscriptionType  *string               `json:"subscriptionType,omitempty"` // "pull" or "push"
+}
+
+// UpdateSubscriptionAdmin updates a subscription's configuration
+func UpdateSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, subID string, params SubscriptionUpdateParams) error {
+	// Normalize subscription ID
+	subName := subID
+	if !strings.HasPrefix(subID, "projects/") {
+		subName = "projects/" + projectID + "/subscriptions/" + subID
+	}
+
+	// Get current subscription to merge updates
+	getReq := &pubsubpb.GetSubscriptionRequest{
+		Subscription: subName,
+	}
+	currentSub, err := client.SubscriptionAdminClient.GetSubscription(ctx, getReq)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Create updated subscription (copy current)
+	updatedSub := proto.Clone(currentSub).(*pubsubpb.Subscription)
+	var updateMask []string
+
+	// Update ack deadline if provided
+	if params.AckDeadline != nil {
+		updatedSub.AckDeadlineSeconds = int32(*params.AckDeadline)
+		updateMask = append(updateMask, "ack_deadline_seconds")
+	}
+
+	// Update retention duration if provided
+	if params.RetentionDuration != nil {
+		duration, err := time.ParseDuration(*params.RetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid retention duration format: %w", err)
+		}
+		updatedSub.MessageRetentionDuration = durationpb.New(duration)
+		updateMask = append(updateMask, "message_retention_duration")
+	}
+
+	// Update filter if provided
+	if params.Filter != nil {
+		updatedSub.Filter = *params.Filter
+		updateMask = append(updateMask, "filter")
+	}
+
+	// Update dead letter policy if provided
+	if params.DeadLetterPolicy != nil {
+		if updatedSub.DeadLetterPolicy == nil {
+			updatedSub.DeadLetterPolicy = &pubsubpb.DeadLetterPolicy{}
+		}
+		if params.DeadLetterPolicy.DeadLetterTopic != "" {
+			updatedSub.DeadLetterPolicy.DeadLetterTopic = params.DeadLetterPolicy.DeadLetterTopic
+		}
+		if params.DeadLetterPolicy.MaxDeliveryAttempts > 0 {
+			updatedSub.DeadLetterPolicy.MaxDeliveryAttempts = int32(params.DeadLetterPolicy.MaxDeliveryAttempts)
+		}
+		updateMask = append(updateMask, "dead_letter_policy")
+	}
+
+	// Update push config if subscription type or endpoint changed
+	if params.SubscriptionType != nil || params.PushEndpoint != nil {
+		if *params.SubscriptionType == "push" {
+			if updatedSub.PushConfig == nil {
+				updatedSub.PushConfig = &pubsubpb.PushConfig{}
+			}
+			if params.PushEndpoint != nil {
+				updatedSub.PushConfig.PushEndpoint = *params.PushEndpoint
+			}
+			updateMask = append(updateMask, "push_config")
+		} else if *params.SubscriptionType == "pull" {
+			// Clear push config for pull subscriptions
+			updatedSub.PushConfig = nil
+			updateMask = append(updateMask, "push_config")
+		}
+	}
+
+	// If no fields to update, return early
+	if len(updateMask) == 0 {
+		return fmt.Errorf("no fields specified for update")
+	}
+
+	// Create update request with field mask
+	updateReq := &pubsubpb.UpdateSubscriptionRequest{
+		Subscription: updatedSub,
+		UpdateMask: &fieldmaskpb.FieldMask{
+			Paths: updateMask,
+		},
+	}
+
+	_, err = client.SubscriptionAdminClient.UpdateSubscription(ctx, updateReq)
+	if err != nil {
+		return fmt.Errorf("failed to update subscription: %w", err)
 	}
 
 	return nil

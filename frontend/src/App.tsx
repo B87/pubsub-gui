@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import {
   ConnectWithADC,
@@ -8,14 +8,23 @@ import {
   ListTopics,
   ListSubscriptions,
   SwitchProfile,
-  SaveProfile
+  SaveProfile,
+  CreateTopic,
+  DeleteTopic,
+  CreateSubscription,
+  UpdateSubscription,
+  DeleteSubscription
 } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime/runtime";
+import { main } from "../wailsjs/go/models";
 import type { ConnectionProfile, ConnectionStatus, Topic, Subscription } from './types';
 import Layout from './components/Layout';
 import Sidebar from './components/Sidebar';
 import ConnectionDialog from './components/ConnectionDialog';
 import TopicDetails from './components/TopicDetails';
 import SubscriptionDetails from './components/SubscriptionDetails';
+import TopicCreateDialog from './components/TopicCreateDialog';
+import SubscriptionDialog from './components/SubscriptionDialog';
 import EmptyState from './components/EmptyState';
 
 function App() {
@@ -29,7 +38,20 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [loadingResources, setLoadingResources] = useState(false);
   const [profileRefreshTrigger, setProfileRefreshTrigger] = useState(0);
+  const [showTopicCreateDialog, setShowTopicCreateDialog] = useState(false);
+  const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
+  const [subscriptionDialogMode, setSubscriptionDialogMode] = useState<'create' | 'edit'>('create');
+  const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
 
+  // Use ref to track selectedResource in event listeners without causing re-renders
+  const selectedResourceRef = useRef(selectedResource);
+
+  // Update ref when selectedResource changes
+  useEffect(() => {
+    selectedResourceRef.current = selectedResource;
+  }, [selectedResource]);
+
+  // Initialize on mount only
   useEffect(() => {
     const initialize = async () => {
       const s = await loadStatus();
@@ -42,6 +64,42 @@ function App() {
     };
     initialize();
   }, []);
+
+  // Set up event listeners once on mount
+  useEffect(() => {
+    // Listen for resource change events from backend
+    const unsubscribeTopicCreated = EventsOn('topic:created', () => {
+      loadResources();
+    });
+    const unsubscribeTopicDeleted = EventsOn('topic:deleted', () => {
+      loadResources();
+      // Clear selection if deleted topic was selected
+      if (selectedResourceRef.current?.type === 'topic') {
+        setSelectedResource(null);
+      }
+    });
+    const unsubscribeSubscriptionUpdated = EventsOn('subscription:updated', () => {
+      loadResources();
+    });
+    const unsubscribeSubscriptionCreated = EventsOn('subscription:created', () => {
+      loadResources();
+    });
+    const unsubscribeSubscriptionDeleted = EventsOn('subscription:deleted', () => {
+      loadResources();
+      // Clear selection if deleted subscription was selected
+      if (selectedResourceRef.current?.type === 'subscription') {
+        setSelectedResource(null);
+      }
+    });
+
+    return () => {
+      unsubscribeTopicCreated();
+      unsubscribeTopicDeleted();
+      unsubscribeSubscriptionUpdated();
+      unsubscribeSubscriptionCreated();
+      unsubscribeSubscriptionDeleted();
+    };
+  }, []); // Empty dependency array - only set up once
 
   const loadStatus = async () => {
     try {
@@ -201,6 +259,86 @@ function App() {
     setSelectedResource({ type: 'subscription', id: subscription.name });
   };
 
+  const handleCreateTopic = async (topicID: string, messageRetentionDuration: string) => {
+    try {
+      await CreateTopic(topicID, messageRetentionDuration);
+      await loadResources();
+    } catch (e: any) {
+      throw e;
+    }
+  };
+
+  const handleDeleteTopic = async (topic: Topic) => {
+    try {
+      // Extract short topic ID from full name
+      const topicID = topic.name.split('/').pop() || topic.name;
+      await DeleteTopic(topicID);
+      await loadResources();
+      // Clear selection if deleted topic was selected
+      if (selectedResource?.type === 'topic' && selectedResource?.id === topic.name) {
+        setSelectedResource(null);
+      }
+    } catch (e: any) {
+      setError('Failed to delete topic: ' + e.toString());
+    }
+  };
+
+  const handleCreateSubscription = async (topicID: string, subID: string, params: any) => {
+    try {
+      // Extract short IDs
+      const shortTopicID = topicID.split('/').pop() || topicID;
+      const shortSubID = subID;
+
+      // Create subscription with long TTL (10 years) for permanent subscriptions
+      const ttlSeconds = 10 * 365 * 24 * 60 * 60; // 10 years in seconds
+      await CreateSubscription(shortTopicID, shortSubID, ttlSeconds);
+
+      // Update subscription with additional params if provided
+      // Use short ID - UpdateSubscription will normalize it
+      // Convert plain object to Wails-generated class instance
+      if (Object.keys(params).length > 0) {
+        const wailsParams = main.SubscriptionUpdateParams.createFrom(params);
+        await UpdateSubscription(shortSubID, wailsParams);
+      }
+
+      await loadResources();
+    } catch (e: any) {
+      throw e;
+    }
+  };
+
+  const handleUpdateSubscription = async (subID: string, params: any) => {
+    try {
+      // Convert plain object to Wails-generated class instance
+      const wailsParams = main.SubscriptionUpdateParams.createFrom(params);
+      await UpdateSubscription(subID, wailsParams);
+      await loadResources();
+    } catch (e: any) {
+      throw e;
+    }
+  };
+
+  const handleDeleteSubscription = async (subscription: Subscription) => {
+    try {
+      // Extract short subscription ID from full name
+      const subID = subscription.name.split('/').pop() || subscription.name;
+      await DeleteSubscription(subID);
+      await loadResources();
+      // Clear selection if deleted subscription was selected
+      if (selectedResource?.type === 'subscription' && selectedResource?.id === subscription.name) {
+        setSelectedResource(null);
+      }
+    } catch (e: any) {
+      setError('Failed to delete subscription: ' + e.toString());
+    }
+  };
+
+  const handleEditSubscription = (subscription: Subscription) => {
+    setEditingSubscription(subscription);
+    setSubscriptionDialogMode('edit');
+    setShowSubscriptionDialog(true);
+  };
+
   const renderMainContent = () => {
     // Show connection dialog if not connected
     if (!status.isConnected) {
@@ -226,12 +364,18 @@ function App() {
       if (selectedResource.type === 'topic') {
         const topic = topics.find(t => t.name === selectedResource.id);
         if (topic) {
-          return <TopicDetails topic={topic} />;
+          return <TopicDetails topic={topic} onDelete={handleDeleteTopic} />;
         }
       } else {
         const subscription = subscriptions.find(s => s.name === selectedResource.id);
         if (subscription) {
-          return <SubscriptionDetails subscription={subscription} />;
+          return (
+            <SubscriptionDetails
+              subscription={subscription}
+              onEdit={handleEditSubscription}
+              onDelete={handleDeleteSubscription}
+            />
+          );
         }
       }
     }
@@ -265,6 +409,13 @@ function App() {
             onDisconnect={handleDisconnect}
             onProfileSwitch={handleProfileSwitch}
             onCreateConnection={() => setDialogOpen(true)}
+            onCreateTopic={() => setShowTopicCreateDialog(true)}
+            onCreateSubscription={() => {
+              setEditingSubscription(null);
+              setSubscriptionDialogMode('create');
+              setShowSubscriptionDialog(true);
+            }}
+            onEditSubscription={handleEditSubscription}
             profileRefreshTrigger={profileRefreshTrigger}
             loading={loadingResources}
           />
@@ -280,6 +431,31 @@ function App() {
           setDialogOpen(false);
           setError('');
         }}
+        error={error}
+      />
+
+      <TopicCreateDialog
+        open={showTopicCreateDialog}
+        onClose={() => {
+          setShowTopicCreateDialog(false);
+          setError('');
+        }}
+        onCreate={handleCreateTopic}
+        error={error}
+      />
+
+      <SubscriptionDialog
+        open={showSubscriptionDialog}
+        mode={subscriptionDialogMode}
+        topics={topics}
+        subscription={editingSubscription || undefined}
+        onClose={() => {
+          setShowSubscriptionDialog(false);
+          setEditingSubscription(null);
+          setError('');
+        }}
+        onCreate={handleCreateSubscription}
+        onUpdate={handleUpdateSubscription}
         error={error}
       />
     </>

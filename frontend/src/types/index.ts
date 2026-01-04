@@ -41,6 +41,15 @@ export interface DeadLetterPolicy {
   maxDeliveryAttempts: number;
 }
 
+export interface SubscriptionUpdateParams {
+  ackDeadline?: number;
+  retentionDuration?: string;
+  filter?: string;
+  deadLetterPolicy?: DeadLetterPolicy;
+  pushEndpoint?: string;
+  subscriptionType?: 'pull' | 'push';
+}
+
 export type ResourceType = 'topic' | 'subscription';
 
 export interface SelectedResource {

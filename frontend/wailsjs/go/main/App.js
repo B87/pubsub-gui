@@ -14,12 +14,28 @@ export function ConnectWithServiceAccount(arg1, arg2) {
   return window['go']['main']['App']['ConnectWithServiceAccount'](arg1, arg2);
 }
 
+export function CreateSubscription(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateSubscription'](arg1, arg2, arg3);
+}
+
+export function CreateTopic(arg1, arg2) {
+  return window['go']['main']['App']['CreateTopic'](arg1, arg2);
+}
+
 export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
 
+export function DeleteSubscription(arg1) {
+  return window['go']['main']['App']['DeleteSubscription'](arg1);
+}
+
 export function DeleteTemplate(arg1) {
   return window['go']['main']['App']['DeleteTemplate'](arg1);
+}
+
+export function DeleteTopic(arg1) {
+  return window['go']['main']['App']['DeleteTopic'](arg1);
 }
 
 export function Disconnect() {
@@ -96,6 +112,10 @@ export function StopTopicMonitor(arg1) {
 
 export function SwitchProfile(arg1) {
   return window['go']['main']['App']['SwitchProfile'](arg1);
+}
+
+export function UpdateSubscription(arg1, arg2) {
+  return window['go']['main']['App']['UpdateSubscription'](arg1, arg2);
 }
 
 export function UpdateTemplate(arg1, arg2) {
