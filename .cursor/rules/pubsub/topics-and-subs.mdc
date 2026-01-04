@@ -1,8 +1,10 @@
 ---
-alwaysApply: true
+description: Guidelines for working with Topics and Subscriptions in GCP Pub/Sub
+alwaysApply: false
 ---
-
 # Topics and Subscriptions Guidelines
+
+> **Note:** This rule complements `pubsub.mdc` with specific patterns for resource name handling and CRUD operations.
 
 ## Resource Name Handling
 
@@ -18,26 +20,69 @@ alwaysApply: true
 - **When Generating IDs**: Always extract the topic name (last segment after `/`) before using it in subscription ID generation
 
 ### Example: Creating Temporary Subscriptions
-```go
-// Extract topic name from full resource path
-topicName := topicID
-if parts := strings.Split(topicID, "/"); len(parts) > 0 {
-    topicName = parts[len(parts)-1]
-}
 
-// Generate valid subscription ID (no slashes!)
-subID := fmt.Sprintf("ps-gui-mon-%s-%d", topicName, timestamp)
+See implementation in `app.go:732-764` for `StartTopicMonitor` which demonstrates:
+- Extracting topic name from full resource path
+- Generating valid subscription ID (no slashes!) with format `ps-gui-mon-{short-topic}-{random}`
+
+```go 755:764:app.go
+	// Extract the actual topic name from the full resource path if necessary
+	topicName := topicID
+	if parts := strings.Split(topicID, "/"); len(parts) > 0 {
+		topicName = parts[len(parts)-1]
+	}
+
+	shortTopic := topicName
+	if len(shortTopic) > 20 {
+		shortTopic = shortTopic[:20]
+	}
+	subID := fmt.Sprintf("ps-gui-mon-%s-%d", shortTopic, time.Now().UnixNano()%1000000)
 ```
 
 ## Resource Name Normalization Pattern
 
-When working with GCP Pub/Sub resources, always handle both formats:
+When working with GCP Pub/Sub resources, always handle both formats. See actual implementations:
 
-```go
-func normalizeTopicName(projectID, topicID string) string {
-    if strings.HasPrefix(topicID, "projects/") {
-        return topicID // Already a full resource name
-    }
-    return fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
-}
-```
+**For Create Operations (extract short name first):**
+- Topic creation: See `internal/pubsub/admin/topics.go:86-94` for normalization logic
+- Subscription creation: See `internal/pubsub/admin/subscriptions.go:135-153` for normalization logic
+
+**For Delete Operations (accept both formats):**
+- Topic deletion: See `internal/pubsub/admin/topics.go:123-127` for normalization logic
+- Subscription deletion: See `internal/pubsub/admin/subscriptions.go:189-192` for normalization logic
+
+## CRUD Operation Patterns
+
+### Creating Resources
+
+**Topics:**
+- Topics are immutable in GCP - only Create and Delete operations are supported
+- Message retention duration can be set at creation time only
+- Topic IDs must be valid: lowercase letters, numbers, hyphens, underscores
+
+**Subscriptions:**
+- Full CRUD support: Create, Read, Update, Delete
+- Must specify a topic when creating
+- Can update: ack deadline, retention duration, filter, dead letter policy, push config
+- Use field masks when updating to only change specified fields
+
+### Validating Resource IDs
+
+**Note:** The codebase relies on GCP API validation for resource ID format. When generating subscription IDs programmatically (e.g., for temporary subscriptions), ensure:
+- Only lowercase letters, numbers, hyphens, and underscores (NO slashes)
+- Length between 3 and 255 characters
+- Extract topic name from full resource path before using in subscription ID generation
+
+See `app.go:755-764` for an example of extracting topic name and generating a valid subscription ID.
+
+### Error Handling for CRUD Operations
+
+Always provide user-friendly error messages with permission hints. See actual implementations:
+
+**Topic Operations:**
+- Create: See `internal/pubsub/admin/topics.go:115` for error message with permission hint
+- Delete: See `internal/pubsub/admin/topics.go:135` for error handling
+
+**Subscription Operations:**
+- Create: See `internal/pubsub/admin/subscriptions.go:164-165` for topic existence check and `internal/pubsub/admin/subscriptions.go:181` for error message with permission hint
+- Delete: See `internal/pubsub/admin/subscriptions.go:200` for error handling

@@ -153,28 +153,55 @@ ring-blue-500   // Focus indicators
 
 Radix UI provides accessible, unstyled primitives. Always style them with Tailwind classes.
 
-**Common Radix Components Used:**
-- `@radix-ui/react-dialog` - Modal dialogs
-- `@radix-ui/react-dropdown-menu` - Dropdown menus
-- `@radix-ui/react-tabs` - Tabbed interfaces
-- `@radix-ui/react-select` - Select dropdowns
-- `@radix-ui/react-label` - Form labels
-- `@radix-ui/react-separator` - Visual separators
+**Radix Components Available:**
+- `@radix-ui/react-tabs` - ✅ **Used** in `SubscriptionDetails.tsx` for tabbed interfaces
+- `@radix-ui/react-dialog` - Available but not currently used (codebase uses custom modals)
+- `@radix-ui/react-dropdown-menu` - Available for dropdown menus
+- `@radix-ui/react-select` - Available for select dropdowns
+- `@radix-ui/react-label` - Available for form labels
+- `@radix-ui/react-separator` - Available for visual separators
 
-**Example - Dialog:**
+**Note:** The codebase currently uses custom div-based modals instead of Radix Dialog. Radix Dialog is available if you want to use it for better accessibility features.
+
+**Example - Custom Modal (Current Pattern):**
 ```tsx
-import * as Dialog from '@radix-ui/react-dialog';
+interface DialogProps {
+  open: boolean;
+  onClose: () => void;
+}
 
-<Dialog.Root open={open} onOpenChange={setOpen}>
-  <Dialog.Trigger className="...">Open</Dialog.Trigger>
-  <Dialog.Portal>
-    <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-    <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 rounded-lg p-6 w-full max-w-md">
-      <Dialog.Title className="text-lg font-bold mb-4">Title</Dialog.Title>
-      {/* Content */}
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>
+export default function CustomDialog({ open, onClose }: DialogProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 className="text-lg font-semibold mb-4">Title</h3>
+        {/* Content */}
+        <div className="flex gap-3 justify-end mt-4">
+          <button onClick={onClose}>Cancel</button>
+          <button onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**Example - Radix Tabs (Used in Codebase):**
+```tsx
+import * as Tabs from '@radix-ui/react-tabs';
+
+<Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+  <Tabs.List className="flex border-b border-slate-700">
+    <Tabs.Trigger value="tab1" className="px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+      Tab 1
+    </Tabs.Trigger>
+  </Tabs.List>
+  <Tabs.Content value="tab1">
+    {/* Content */}
+  </Tabs.Content>
+</Tabs.Root>
 ```
 
 ## Wails Integration
@@ -189,12 +216,54 @@ const result = await MethodName(param1, param2);
 ```
 
 **Available Methods** (from `wailsjs/go/main/App.d.ts`):
-- `ConnectWithADC(projectID: string)`
-- `GetConnectionStatus()`
-- `ListTopics()`, `ListSubscriptions()`
-- `PublishMessage(...)`
-- `GetTemplates(...)`, `SaveTemplate(...)`
-- etc.
+
+**Connection Management:**
+- `ConnectWithADC(projectID: string)` - Connect using Application Default Credentials
+- `ConnectWithServiceAccount(projectID: string, keyPath: string)` - Connect using service account JSON
+- `GetConnectionStatus()` - Get current connection status
+- `Disconnect()` - Disconnect from current project
+- `SwitchProfile(profileId: string)` - Switch to a different connection profile
+
+**Profiles:**
+- `GetProfiles()` - Get all connection profiles
+- `SaveProfile(profile: ConnectionProfile)` - Save a connection profile
+- `DeleteProfile(profileId: string)` - Delete a connection profile
+
+**Topics:**
+- `ListTopics()` - List all topics in the project
+- `GetTopicMetadata(topicID: string)` - Get topic metadata
+- `CreateTopic(topicID: string, messageRetentionDuration: string)` - Create a new topic
+- `DeleteTopic(topicID: string)` - Delete a topic
+
+**Subscriptions:**
+- `ListSubscriptions()` - List all subscriptions in the project
+- `GetSubscriptionMetadata(subID: string)` - Get subscription metadata
+- `CreateSubscription(topicID: string, subID: string, ttlSeconds: number)` - Create a subscription
+- `UpdateSubscription(subID: string, params: SubscriptionUpdateParams)` - Update subscription settings
+- `DeleteSubscription(subID: string)` - Delete a subscription
+
+**Publishing:**
+- `PublishMessage(topicID: string, payload: string, attributes: Record<string, string>)` - Publish a message
+
+**Monitoring:**
+- `StartMonitor(subID: string)` - Start monitoring a subscription
+- `StopMonitor(subID: string)` - Stop monitoring a subscription
+- `StartTopicMonitor(topicID: string)` - Start monitoring a topic (creates temp subscription)
+- `StopTopicMonitor(topicID: string)` - Stop topic monitoring
+- `GetBufferedMessages(subID: string)` - Get buffered messages for a subscription
+- `ClearMessageBuffer(subID: string)` - Clear message buffer
+- `GetAutoAck()` - Get auto-acknowledge setting
+- `SetAutoAck(enabled: boolean)` - Set auto-acknowledge setting
+
+**Templates:**
+- `GetTemplates(topicID: string)` - Get message templates (optionally filtered by topic)
+- `SaveTemplate(template: MessageTemplate)` - Save a message template
+- `UpdateTemplate(templateID: string, template: MessageTemplate)` - Update a template
+- `DeleteTemplate(templateID: string)` - Delete a template
+
+**Configuration:**
+- `GetConfigFileContent()` - Get raw config file content
+- `SaveConfigFileContent(content: string)` - Save config file content
 
 ### Listening to Go Events
 
@@ -459,18 +528,26 @@ Use the `EmptyState` component for empty/initial states:
 )}
 ```
 
-### Tabs
+### Tabs (Radix UI)
+
+The codebase uses Radix UI Tabs in `SubscriptionDetails.tsx`:
 
 ```tsx
 import * as Tabs from '@radix-ui/react-tabs';
 
-<Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-  <Tabs.List className="flex border-b border-slate-700">
-    <Tabs.Trigger value="tab1" className="px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
-      Tab 1
+<Tabs.Root value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
+  <Tabs.List className="flex gap-2 border-b border-slate-700">
+    <Tabs.Trigger
+      value="metadata"
+      className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+    >
+      Metadata
+    </Tabs.Trigger>
+    <Tabs.Trigger value="monitor" className="...">
+      Monitor
     </Tabs.Trigger>
   </Tabs.List>
-  <Tabs.Content value="tab1">
+  <Tabs.Content value="metadata" className="flex-1 overflow-auto">
     {/* Content */}
   </Tabs.Content>
 </Tabs.Root>
@@ -552,6 +629,207 @@ npm run dev
    - Verify new connection status
    - Only then load new resources
    - Clear resources on any error
+8. **useEffect Dependencies**: Avoid including frequently changing state (like `selectedResource`) in dependency arrays that trigger expensive operations:
+   - Use `useRef` to track values needed in event listeners without causing re-renders
+   - Split initialization effects from event listener effects
+   - Only include dependencies that should trigger the effect
+9. **Wails Type Conversion**: When passing complex objects to Wails methods:
+   - Use `main.TypeName.createFrom(plainObject)` to convert plain objects to Wails-generated class instances
+   - Wails-generated types have `convertValues` method - plain interfaces don't
+   - Import Wails models: `import { main } from "../wailsjs/go/models"`
+
+   **Example:**
+   ```tsx
+   import { main } from "../wailsjs/go/models";
+   import { UpdateSubscription } from "../wailsjs/go/main/App";
+
+   // Plain TypeScript interface
+   const params = {
+     ackDeadline: 30,
+     retentionDuration: "7d",
+     filter: "attributes.eventType = 'user.signup'"
+   };
+
+   // Convert to Wails-generated class instance
+   const wailsParams = main.SubscriptionUpdateParams.createFrom(params);
+
+   // Now can be passed to Wails method
+   await UpdateSubscription(subID, wailsParams);
+   ```
+
+## CRUD Dialog Patterns
+
+### Create/Edit Dialog Structure
+
+```tsx
+interface ResourceDialogProps {
+  open: boolean;
+  mode: 'create' | 'edit';
+  resource?: Resource; // For edit mode
+  onClose: () => void;
+  onCreate?: (params: CreateParams) => Promise<void>;
+  onUpdate?: (id: string, params: UpdateParams) => Promise<void>;
+  error?: string;
+}
+
+export default function ResourceDialog({
+  open,
+  mode,
+  resource,
+  onClose,
+  onCreate,
+  onUpdate,
+  error: externalError,
+}: ResourceDialogProps) {
+  const [formData, setFormData] = useState({});
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Populate form when editing
+  useEffect(() => {
+    if (mode === 'edit' && resource) {
+      setFormData({ /* populate from resource */ });
+    } else {
+      setFormData({ /* reset for create */ });
+    }
+    setError('');
+  }, [mode, resource, open]);
+
+  const handleSave = async () => {
+    setError('');
+    // Validate
+    if (!isValid()) {
+      setError('Validation error');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (mode === 'create' && onCreate) {
+        await onCreate(formData);
+      } else if (mode === 'edit' && onUpdate && resource) {
+        await onUpdate(resource.id, formData);
+      }
+      onClose();
+    } catch (e: any) {
+      setError(e.toString());
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 className="text-lg font-semibold mb-4">
+          {mode === 'create' ? 'Create Resource' : 'Edit Resource'}
+        </h3>
+        {/* Form fields */}
+        {(error || externalError) && (
+          <div className="p-3 bg-red-900/20 border border-red-700 rounded text-red-400 text-sm">
+            {error || externalError}
+          </div>
+        )}
+        <div className="flex gap-3 justify-end mt-4">
+          <button onClick={onClose} disabled={isSaving}>Cancel</button>
+          <button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Saving...' : mode === 'create' ? 'Create' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### Delete Confirmation Dialog Pattern
+
+```tsx
+interface DeleteConfirmDialogProps {
+  open: boolean;
+  resourceType: 'topic' | 'subscription';
+  resourceName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export default function DeleteConfirmDialog({
+  open,
+  resourceType,
+  resourceName,
+  onConfirm,
+  onCancel,
+}: DeleteConfirmDialogProps) {
+  if (!open) return null;
+
+  const displayName = resourceName.split('/').pop() || resourceName;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 className="text-lg font-semibold mb-4 text-red-400">
+          Delete {resourceType === 'topic' ? 'Topic' : 'Subscription'}
+        </h3>
+        <p className="text-slate-300 mb-2">
+          Are you sure you want to delete this {resourceType}?
+        </p>
+        <code className="block bg-slate-900 rounded p-3 text-sm mb-3 break-all">
+          {displayName}
+        </code>
+        <p className="text-sm text-red-400 mb-4">
+          This action cannot be undone.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onCancel}>Cancel</button>
+          <button onClick={onConfirm} className="bg-red-600 hover:bg-red-700">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### Event-Driven UI Updates
+
+Use Wails events to refresh UI after CRUD operations:
+
+```tsx
+useEffect(() => {
+  // Set up event listeners once on mount
+  const unsubscribeTopicCreated = EventsOn('topic:created', () => {
+    loadResources(); // Refresh list
+  });
+
+  const unsubscribeTopicDeleted = EventsOn('topic:deleted', () => {
+    loadResources();
+    // Clear selection if deleted resource was selected
+    if (selectedResourceRef.current?.type === 'topic') {
+      setSelectedResource(null);
+    }
+  });
+
+  return () => {
+    unsubscribeTopicCreated();
+    unsubscribeTopicDeleted();
+  };
+}, []); // Empty dependency array - only set up once
+
+// Use ref to track selectedResource without causing re-renders
+const selectedResourceRef = useRef(selectedResource);
+useEffect(() => {
+  selectedResourceRef.current = selectedResource;
+}, [selectedResource]);
+```
+
+**Key Pattern:**
+- Set up event listeners once in `useEffect` with empty dependency array
+- Use `useRef` to track state values needed in event callbacks
+- Update ref in separate `useEffect` when state changes
+- This prevents unnecessary re-initialization of event listeners
 
 ## Resources
 

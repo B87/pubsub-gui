@@ -5,6 +5,8 @@ description: Guidelines for working with Message Templates in the Pub/Sub GUI ap
 
 # Message Templates System
 
+> **Note:** This rule covers message templates used for publishing. For actual message publishing implementation details, see `pubsub.mdc`.
+
 The Message Templates feature allows users to save, manage, and quickly reuse common message patterns when publishing to Pub/Sub topics. Templates store both payload content and message attributes for easy reuse.
 
 ## Overview
@@ -20,17 +22,20 @@ Templates persist across app restarts and are stored in `~/.pubsub-gui/config.js
 
 ### Backend (`internal/models/template.go`)
 
-```go
+```go 11:19:internal/models/template.go
+// MessageTemplate represents a saved message template
 type MessageTemplate struct {
-    ID         string            `json:"id"`                // Timestamp-based unique ID
-    Name       string            `json:"name"`              // User-defined name
-    TopicID    string            `json:"topicId,omitempty"` // Optional: linked topic
-    Payload    string            `json:"payload"`           // Message payload (string)
-    Attributes map[string]string `json:"attributes"`        // Key-value attributes
-    CreatedAt  string            `json:"createdAt"`         // ISO 8601 timestamp
-    UpdatedAt  string            `json:"updatedAt"`         // ISO 8601 timestamp
+	ID         string            `json:"id"`                // UUID v7 or timestamp-based ID
+	Name       string            `json:"name"`              // User-defined name
+	TopicID    string            `json:"topicId,omitempty"` // Optional: linked topic
+	Payload    string            `json:"payload"`           // Message payload (string)
+	Attributes map[string]string `json:"attributes"`        // Key-value attributes
+	CreatedAt  string            `json:"createdAt"`         // ISO 8601 timestamp
+	UpdatedAt  string            `json:"updatedAt"`         // ISO 8601 timestamp
 }
 ```
+
+**ID Generation:** See `internal/models/connection.go:76-79` for `GenerateID()` which creates timestamp-based IDs in format `"20060102150405"`.
 
 ### Frontend (`frontend/src/types/index.ts`)
 
@@ -59,8 +64,30 @@ export interface MessageTemplate {
 
 #### GetTemplates
 
-```go
-func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error)
+```go 478:500:app.go
+// GetTemplates returns all templates, optionally filtered by topicID
+// If topicID is empty, returns all templates
+// If topicID is provided, returns templates linked to that topic + global templates (no topicID)
+func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
+	if a.config == nil {
+		return []models.MessageTemplate{}, nil
+	}
+
+	if topicID == "" {
+		// Return all templates
+		return a.config.Templates, nil
+	}
+
+	// Filter templates: include if no topicID (global) or matches current topic
+	filtered := []models.MessageTemplate{}
+	for _, t := range a.config.Templates {
+		if t.TopicID == "" || t.TopicID == topicID {
+			filtered = append(filtered, t)
+		}
+	}
+
+	return filtered, nil
+}
 ```
 
 - If `topicID` is empty: returns all templates
@@ -69,12 +96,54 @@ func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error)
 
 #### SaveTemplate
 
-```go
-func (a *App) SaveTemplate(template models.MessageTemplate) error
+```go 502:544:app.go
+// SaveTemplate saves a message template to the configuration
+func (a *App) SaveTemplate(template models.MessageTemplate) error {
+	// Generate ID if not provided
+	if template.ID == "" {
+		template.ID = models.GenerateID()
+	}
+
+	// Set timestamps if not provided
+	now := time.Now().Format(time.RFC3339)
+	if template.CreatedAt == "" {
+		template.CreatedAt = now
+	}
+	template.UpdatedAt = now
+
+	// Validate template
+	if err := template.Validate(); err != nil {
+		return fmt.Errorf("invalid template: %w", err)
+	}
+
+	// Check for duplicate names (excluding the template itself if updating)
+	for _, t := range a.config.Templates {
+		if t.Name == template.Name && t.ID != template.ID {
+			return models.ErrDuplicateTemplate
+		}
+	}
+
+	// Find and update existing template, or add new one
+	found := false
+	for i, t := range a.config.Templates {
+		if t.ID == template.ID {
+			a.config.Templates[i] = template
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		a.config.Templates = append(a.config.Templates, template)
+	}
+
+	// Save configuration
+	return a.configManager.SaveConfig(a.config)
+}
 ```
 
-- Validates template (name and payload required)
-- Generates ID if not provided (timestamp-based)
+- Validates template (name and payload required) - see `internal/models/template.go:22-33` for validation logic
+- Generates ID if not provided (timestamp-based) using `models.GenerateID()`
 - Sets `CreatedAt` and `UpdatedAt` timestamps
 - Checks for duplicate names (returns `ErrDuplicateTemplate` if found)
 - Adds new template or updates existing one (if ID matches)
@@ -82,8 +151,48 @@ func (a *App) SaveTemplate(template models.MessageTemplate) error
 
 #### UpdateTemplate
 
-```go
-func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate) error
+```go 546:586:app.go
+// UpdateTemplate updates an existing template
+func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate) error {
+	if templateID == "" {
+		return fmt.Errorf("template ID cannot be empty")
+	}
+
+	// Set the ID to match
+	template.ID = templateID
+	template.UpdatedAt = time.Now().Format(time.RFC3339)
+
+	// Validate template
+	if err := template.Validate(); err != nil {
+		return fmt.Errorf("invalid template: %w", err)
+	}
+
+	// Find and update existing template
+	found := false
+	for i, t := range a.config.Templates {
+		if t.ID == templateID {
+			// Preserve CreatedAt
+			template.CreatedAt = t.CreatedAt
+			a.config.Templates[i] = template
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return models.ErrTemplateNotFound
+	}
+
+	// Check for duplicate names (excluding the template itself)
+	for _, t := range a.config.Templates {
+		if t.Name == template.Name && t.ID != templateID {
+			return models.ErrDuplicateTemplate
+		}
+	}
+
+	// Save configuration
+	return a.configManager.SaveConfig(a.config)
+}
 ```
 
 - Updates existing template by ID
@@ -94,8 +203,33 @@ func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate)
 
 #### DeleteTemplate
 
-```go
-func (a *App) DeleteTemplate(templateID string) error
+```go 588:613:app.go
+// DeleteTemplate removes a template from the configuration
+func (a *App) DeleteTemplate(templateID string) error {
+	if templateID == "" {
+		return fmt.Errorf("template ID cannot be empty")
+	}
+
+	// Find and remove the template
+	newTemplates := make([]models.MessageTemplate, 0)
+	found := false
+	for _, t := range a.config.Templates {
+		if t.ID == templateID {
+			found = true
+		} else {
+			newTemplates = append(newTemplates, t)
+		}
+	}
+
+	if !found {
+		return models.ErrTemplateNotFound
+	}
+
+	a.config.Templates = newTemplates
+
+	// Save configuration
+	return a.configManager.SaveConfig(a.config)
+}
 ```
 
 - Removes template from config
@@ -198,14 +332,31 @@ await DeleteTemplate(templateId);
 
 ## Template Filtering Logic
 
-Templates are filtered based on the selected topic:
+Templates are filtered based on the selected topic. See implementation in `app.go`:
 
-```go
-// Include template if:
-// 1. Template has no TopicID (global template), OR
-// 2. Template's TopicID matches the current topic
-if t.TopicID == "" || t.TopicID == topicID {
-    filtered = append(filtered, t)
+```go 478:500:app.go
+// GetTemplates returns all templates, optionally filtered by topicID
+// If topicID is empty, returns all templates
+// If topicID is provided, returns templates linked to that topic + global templates (no topicID)
+func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
+	if a.config == nil {
+		return []models.MessageTemplate{}, nil
+	}
+
+	if topicID == "" {
+		// Return all templates
+		return a.config.Templates, nil
+	}
+
+	// Filter templates: include if no topicID (global) or matches current topic
+	filtered := []models.MessageTemplate{}
+	for _, t := range a.config.Templates {
+		if t.TopicID == "" || t.TopicID == topicID {
+			filtered = append(filtered, t)
+		}
+	}
+
+	return filtered, nil
 }
 ```
 
@@ -221,6 +372,24 @@ if t.TopicID == "" || t.TopicID == topicID {
 ## Validation Rules
 
 ### Template Validation (`MessageTemplate.Validate()`)
+
+See implementation in `internal/models/template.go:22-33`:
+
+```go 22:33:internal/models/template.go
+// Validate ensures the template has required fields
+func (mt *MessageTemplate) Validate() error {
+	if strings.TrimSpace(mt.ID) == "" {
+		return errors.New("template ID cannot be empty")
+	}
+	if strings.TrimSpace(mt.Name) == "" {
+		return errors.New("template name cannot be empty")
+	}
+	if strings.TrimSpace(mt.Payload) == "" {
+		return errors.New("template payload cannot be empty")
+	}
+	return nil
+}
+```
 
 - `ID` cannot be empty
 - `Name` cannot be empty (after trimming whitespace)

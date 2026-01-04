@@ -47,16 +47,29 @@ client, err := pubsub.NewClient(ctx, projectID, opts...)
 
 **Service Account JSON Key:**
 
+The recommended approach is to set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable:
+
 ```go
 import (
     "cloud.google.com/go/pubsub/v2"
-    "google.golang.org/api/internal/credentialstype"
-    "google.golang.org/api/option"
+    "os"
 )
 
-client, err := pubsub.NewClient(ctx, projectID,
-    option.WithAuthCredentialsFile(credentialstype.ServiceAccount, keyPath))
+// Set GOOGLE_APPLICATION_CREDENTIALS before creating client
+originalCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", keyPath)
+defer func() {
+    if originalCreds != "" {
+        os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", originalCreds)
+    } else {
+        os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
+    }
+}()
+
+client, err := pubsub.NewClient(ctx, projectID)
 ```
+
+**Important:** Always check for `PUBSUB_EMULATOR_HOST` first - if set, use ADC with `option.WithoutAuthentication()` instead of service account credentials.
 
 ## Admin Operations
 
@@ -101,43 +114,70 @@ topic, err := client.TopicAdminClient.GetTopic(ctx, req)
 
 **Create Topic:**
 
-```go
-// Use Topic object directly (v2 API pattern)
-topicName := "projects/" + projectID + "/topics/" + topicID
-req := &pubsubpb.Topic{
-    Name: topicName,
-}
+Always normalize the topic ID first (extract short name if full path provided). See implementation in `internal/pubsub/admin/topics.go`:
 
-// Optional: Set message retention duration
-if messageRetentionDuration != "" {
-    duration, err := time.ParseDuration(messageRetentionDuration)
-    if err != nil {
-        return fmt.Errorf("invalid message retention duration: %w", err)
-    }
-    req.MessageRetentionDuration = durationpb.New(duration)
-}
+```go 84:119:internal/pubsub/admin/topics.go
+// CreateTopicAdmin creates a new topic with optional message retention duration
+func CreateTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, topicID string, messageRetentionDuration string) error {
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		// Extract topic ID from full path: projects/{project}/topics/{topic-id}
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
 
-_, err := client.TopicAdminClient.CreateTopic(ctx, req)
-if err != nil {
-    return fmt.Errorf("failed to create topic: %w", err)
+	// Build full resource name
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Create topic using Topic object directly (v2 API pattern)
+	req := &pubsubpb.Topic{
+		Name: topicName,
+	}
+
+	// Set message retention duration if provided
+	if messageRetentionDuration != "" {
+		duration, err := time.ParseDuration(messageRetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid message retention duration format: %w", err)
+		}
+		req.MessageRetentionDuration = durationpb.New(duration)
+	}
+
+	_, err := client.TopicAdminClient.CreateTopic(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to create topic %s: %w. Ensure you have 'pubsub.topics.create' permission", topicName, err)
+	}
+
+	return nil
 }
 ```
 
 **Delete Topic:**
 
-```go
-topicName := topicID
-if !strings.HasPrefix(topicID, "projects/") {
-    topicName = "projects/" + projectID + "/topics/" + topicID
-}
+See implementation in `internal/pubsub/admin/topics.go`:
 
-req := &pubsubpb.DeleteTopicRequest{
-    Topic: topicName,
-}
+```go 121:139:internal/pubsub/admin/topics.go
+// DeleteTopicAdmin deletes a topic
+func DeleteTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, topicID string) error {
+	// Normalize topic ID
+	topicName := topicID
+	if !strings.HasPrefix(topicID, "projects/") {
+		topicName = "projects/" + projectID + "/topics/" + topicID
+	}
 
-err := client.TopicAdminClient.DeleteTopic(ctx, req)
-if err != nil {
-    return fmt.Errorf("failed to delete topic: %w", err)
+	deleteReq := &pubsubpb.DeleteTopicRequest{
+		Topic: topicName,
+	}
+
+	err := client.TopicAdminClient.DeleteTopic(ctx, deleteReq)
+	if err != nil {
+		return fmt.Errorf("failed to delete topic: %w", err)
+	}
+
+	return nil
 }
 ```
 
@@ -177,123 +217,193 @@ sub, err := client.SubscriptionAdminClient.GetSubscription(ctx, req)
 
 **Create Subscription:**
 
-```go
-// Use Subscription object directly (v2 API pattern)
-subName := "projects/" + projectID + "/subscriptions/" + subID
-topicName := "projects/" + projectID + "/topics/" + topicID
+Always normalize both subscription ID and topic ID first (extract short names if full paths provided). See implementation in `internal/pubsub/admin/subscriptions.go`:
 
-req := &pubsubpb.Subscription{
-    Name:  subName,
-    Topic: topicName,
-    // Optional: Set expiration policy (TTL)
-    ExpirationPolicy: &pubsubpb.ExpirationPolicy{
-        Ttl: durationpb.New(ttl),
-    },
-}
+```go 133:185:internal/pubsub/admin/subscriptions.go
+// CreateSubscriptionAdmin creates a new subscription for a topic
+func CreateSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, topicID, subID string, ttl time.Duration) error {
+	// Normalize subscription ID (extract short name if full path provided)
+	shortSubID := subID
+	if strings.HasPrefix(subID, "projects/") {
+		// Extract subscription ID from full path: projects/{project}/subscriptions/{sub-id}
+		parts := strings.Split(subID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "subscriptions" {
+			shortSubID = parts[3]
+		}
+	}
 
-_, err := client.SubscriptionAdminClient.CreateSubscription(ctx, req)
-if err != nil {
-    return fmt.Errorf("failed to create subscription: %w", err)
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		// Extract topic ID from full path: projects/{project}/topics/{topic-id}
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
+
+	// Build full resource names
+	subName := "projects/" + projectID + "/subscriptions/" + shortSubID
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Verify topic exists before creating subscription
+	topicReq := &pubsubpb.GetTopicRequest{
+		Topic: topicName,
+	}
+	_, err := client.TopicAdminClient.GetTopic(ctx, topicReq)
+	if err != nil {
+		return fmt.Errorf("topic %s does not exist or you don't have permission to access it: %w", topicName, err)
+	}
+
+	// Create subscription using Subscription object directly (v2 API pattern)
+	req := &pubsubpb.Subscription{
+		Name:  subName,
+		Topic: topicName,
+		// Set expiration policy to automatically delete the subscription after it's been idle for ttl
+		ExpirationPolicy: &pubsubpb.ExpirationPolicy{
+			Ttl: durationpb.New(ttl),
+		},
+	}
+
+	_, err = client.SubscriptionAdminClient.CreateSubscription(ctx, req)
+	if err != nil {
+		// Provide more helpful error message
+		return fmt.Errorf("failed to create subscription %s for topic %s: %w. Ensure you have 'pubsub.subscriptions.create' permission", subName, topicName, err)
+	}
+
+	return nil
 }
 ```
 
 **Update Subscription:**
 
-```go
-import (
-    "google.golang.org/protobuf/proto"
-    fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
-)
+See implementation in `internal/pubsub/admin/subscriptions.go`:
 
-// Get current subscription first
-getReq := &pubsubpb.GetSubscriptionRequest{
-    Subscription: subName,
-}
-currentSub, err := client.SubscriptionAdminClient.GetSubscription(ctx, getReq)
-if err != nil {
-    return fmt.Errorf("failed to get subscription: %w", err)
-}
+```go 216:309:internal/pubsub/admin/subscriptions.go
+// UpdateSubscriptionAdmin updates a subscription's configuration
+func UpdateSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, subID string, params SubscriptionUpdateParams) error {
+	// Normalize subscription ID
+	subName := subID
+	if !strings.HasPrefix(subID, "projects/") {
+		subName = "projects/" + projectID + "/subscriptions/" + subID
+	}
 
-// Clone and update fields
-updatedSub := proto.Clone(currentSub).(*pubsubpb.Subscription)
-var updateMask []string
+	// Get current subscription to merge updates
+	getReq := &pubsubpb.GetSubscriptionRequest{
+		Subscription: subName,
+	}
+	currentSub, err := client.SubscriptionAdminClient.GetSubscription(ctx, getReq)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
 
-// Update ack deadline if provided
-if ackDeadline != nil {
-    updatedSub.AckDeadlineSeconds = int32(*ackDeadline)
-    updateMask = append(updateMask, "ack_deadline_seconds")
-}
+	// Create updated subscription (copy current)
+	updatedSub := proto.Clone(currentSub).(*pubsubpb.Subscription)
+	var updateMask []string
 
-// Update retention duration if provided
-if retentionDuration != nil {
-    duration, err := time.ParseDuration(*retentionDuration)
-    if err != nil {
-        return fmt.Errorf("invalid retention duration: %w", err)
-    }
-    updatedSub.MessageRetentionDuration = durationpb.New(duration)
-    updateMask = append(updateMask, "message_retention_duration")
-}
+	// Update ack deadline if provided
+	if params.AckDeadline != nil {
+		updatedSub.AckDeadlineSeconds = int32(*params.AckDeadline)
+		updateMask = append(updateMask, "ack_deadline_seconds")
+	}
 
-// Update filter if provided
-if filter != nil {
-    updatedSub.Filter = *filter
-    updateMask = append(updateMask, "filter")
-}
+	// Update retention duration if provided
+	if params.RetentionDuration != nil {
+		duration, err := time.ParseDuration(*params.RetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid retention duration format: %w", err)
+		}
+		updatedSub.MessageRetentionDuration = durationpb.New(duration)
+		updateMask = append(updateMask, "message_retention_duration")
+	}
 
-// Update dead letter policy if provided
-if deadLetterPolicy != nil {
-    if updatedSub.DeadLetterPolicy == nil {
-        updatedSub.DeadLetterPolicy = &pubsubpb.DeadLetterPolicy{}
-    }
-    updatedSub.DeadLetterPolicy.DeadLetterTopic = deadLetterPolicy.DeadLetterTopic
-    updatedSub.DeadLetterPolicy.MaxDeliveryAttempts = int32(deadLetterPolicy.MaxDeliveryAttempts)
-    updateMask = append(updateMask, "dead_letter_policy")
-}
+	// Update filter if provided
+	if params.Filter != nil {
+		updatedSub.Filter = *params.Filter
+		updateMask = append(updateMask, "filter")
+	}
 
-// Update push config if subscription type changed
-if subscriptionType != nil && *subscriptionType == "push" {
-    if updatedSub.PushConfig == nil {
-        updatedSub.PushConfig = &pubsubpb.PushConfig{}
-    }
-    if pushEndpoint != nil {
-        updatedSub.PushConfig.PushEndpoint = *pushEndpoint
-    }
-    updateMask = append(updateMask, "push_config")
-}
+	// Update dead letter policy if provided
+	if params.DeadLetterPolicy != nil {
+		if updatedSub.DeadLetterPolicy == nil {
+			updatedSub.DeadLetterPolicy = &pubsubpb.DeadLetterPolicy{}
+		}
+		if params.DeadLetterPolicy.DeadLetterTopic != "" {
+			updatedSub.DeadLetterPolicy.DeadLetterTopic = params.DeadLetterPolicy.DeadLetterTopic
+		}
+		if params.DeadLetterPolicy.MaxDeliveryAttempts > 0 {
+			updatedSub.DeadLetterPolicy.MaxDeliveryAttempts = int32(params.DeadLetterPolicy.MaxDeliveryAttempts)
+		}
+		updateMask = append(updateMask, "dead_letter_policy")
+	}
 
-// Create update request with field mask
-updateReq := &pubsubpb.UpdateSubscriptionRequest{
-    Subscription: updatedSub,
-    UpdateMask: &fieldmaskpb.FieldMask{
-        Paths: updateMask,
-    },
-}
+	// Update push config if subscription type or endpoint changed
+	if params.SubscriptionType != nil || params.PushEndpoint != nil {
+		if *params.SubscriptionType == "push" {
+			if updatedSub.PushConfig == nil {
+				updatedSub.PushConfig = &pubsubpb.PushConfig{}
+			}
+			if params.PushEndpoint != nil {
+				updatedSub.PushConfig.PushEndpoint = *params.PushEndpoint
+			}
+			updateMask = append(updateMask, "push_config")
+		} else if *params.SubscriptionType == "pull" {
+			// Clear push config for pull subscriptions
+			updatedSub.PushConfig = nil
+			updateMask = append(updateMask, "push_config")
+		}
+	}
 
-_, err = client.SubscriptionAdminClient.UpdateSubscription(ctx, updateReq)
-if err != nil {
-    return fmt.Errorf("failed to update subscription: %w", err)
+	// If no fields to update, return early
+	if len(updateMask) == 0 {
+		return fmt.Errorf("no fields specified for update")
+	}
+
+	// Create update request with field mask
+	updateReq := &pubsubpb.UpdateSubscriptionRequest{
+		Subscription: updatedSub,
+		UpdateMask: &fieldmaskpb.FieldMask{
+			Paths: updateMask,
+		},
+	}
+
+	_, err = client.SubscriptionAdminClient.UpdateSubscription(ctx, updateReq)
+	if err != nil {
+		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	return nil
 }
 ```
 
 **Delete Subscription:**
 
-```go
-subName := subID
-if !strings.HasPrefix(subID, "projects/") {
-    subName = "projects/" + projectID + "/subscriptions/" + subID
-}
+See implementation in `internal/pubsub/admin/subscriptions.go`:
 
-req := &pubsubpb.DeleteSubscriptionRequest{
-    Subscription: subName,
-}
+```go 187:204:internal/pubsub/admin/subscriptions.go
+// DeleteSubscriptionAdmin deletes a subscription
+func DeleteSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, subID string) error {
+	subName := subID
+	if !strings.HasPrefix(subID, "projects/") {
+		subName = "projects/" + projectID + "/subscriptions/" + subID
+	}
 
-err := client.SubscriptionAdminClient.DeleteSubscription(ctx, req)
-if err != nil {
-    return fmt.Errorf("failed to delete subscription: %w", err)
+	deleteReq := &pubsubpb.DeleteSubscriptionRequest{
+		Subscription: subName,
+	}
+
+	err := client.SubscriptionAdminClient.DeleteSubscription(ctx, deleteReq)
+	if err != nil {
+		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	return nil
 }
 ```
 
 ## Publishing Messages
+
+> **Note:** For saving and reusing message patterns, see the Message Templates system in `message-publishing.mdc`.
 
 ### Basic Publishing
 
@@ -450,6 +560,48 @@ if err != nil && !errors.Is(err, context.Canceled) {
 // Context was canceled - this is normal shutdown
 ```
 
+### User-Friendly Error Messages
+
+Always provide user-friendly error messages with helpful context:
+
+```go
+// ✅ GOOD: Include permission hints and context
+if err != nil {
+    return fmt.Errorf("failed to create topic %s: %w. Ensure you have 'pubsub.topics.create' permission", topicName, err)
+}
+
+// ✅ GOOD: Check for common error types
+errStr := err.Error()
+if strings.Contains(errStr, "PermissionDenied") || strings.Contains(errStr, "permission denied") {
+    return fmt.Errorf("permission denied: you don't have permission to publish to this topic")
+}
+if strings.Contains(errStr, "NotFound") || strings.Contains(errStr, "not found") {
+    return fmt.Errorf("topic not found: the topic '%s' does not exist", topicID)
+}
+
+// ❌ BAD: Raw error without context
+if err != nil {
+    return err
+}
+```
+
+### Subscription Monitoring Errors
+
+When monitoring subscriptions, handle NotFound errors gracefully (subscription may have been deleted):
+
+```go
+err := subscriber.Receive(ctx, callback)
+if err != nil {
+    // Check if subscription was deleted (expected during cleanup)
+    if strings.Contains(err.Error(), "NotFound") || strings.Contains(err.Error(), "not found") {
+        // Subscription was deleted - this is expected, exit gracefully
+        return nil
+    }
+    // Handle other errors
+    return err
+}
+```
+
 ## Emulator Support
 
 The client automatically detects `PUBSUB_EMULATOR_HOST` environment variable:
@@ -476,66 +628,32 @@ if os.Getenv("PUBSUB_EMULATOR_HOST") != "" {
 
 Always normalize resource names before API calls. Handle both full resource names and short names:
 
-```go
-// Normalize topic ID
-func normalizeTopicID(projectID, topicID string) string {
-    if strings.HasPrefix(topicID, "projects/") {
-        return topicID // Already full name
-    }
-    return "projects/" + projectID + "/topics/" + topicID
-}
+**For Create Operations:**
 
-// Normalize subscription ID
-func normalizeSubscriptionID(projectID, subID string) string {
-    if strings.HasPrefix(subID, "projects/") {
-        return subID // Already full name
-    }
-    return "projects/" + projectID + "/subscriptions/" + subID
-}
+When creating resources, extract the short name from full paths first, then build the full resource name:
+- Topic creation: See `internal/pubsub/admin/topics.go:86-94` for normalization logic
+- Subscription creation: See `internal/pubsub/admin/subscriptions.go:135-153` for normalization logic
 
-// Extract short name from full resource name
-func extractShortName(fullName string) string {
-    parts := strings.Split(fullName, "/")
-    if len(parts) > 0 {
-        return parts[len(parts)-1]
-    }
-    return fullName
-}
-```
+**For Delete Operations:**
+
+Normalize by checking if already a full name, otherwise build it:
+- Topic deletion: See `internal/pubsub/admin/topics.go:123-127` for normalization logic
+- Subscription deletion: See `internal/pubsub/admin/subscriptions.go:189-192` for normalization logic
+
+**For Display Names:**
+
+Extract short name from full resource name for display purposes:
+- See `internal/pubsub/admin/topics.go:141-149` for `extractDisplayName()` function
+
+**Important:** For create operations, always extract the short name first to ensure valid resource IDs (no slashes, proper format).
 
 ### Update Operations with Field Masks
 
-When updating subscriptions, use field masks to only update specified fields:
-
-```go
-import (
-    "google.golang.org/protobuf/proto"
-    fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
-)
-
-// Get current subscription
-currentSub, err := client.SubscriptionAdminClient.GetSubscription(ctx, &pubsubpb.GetSubscriptionRequest{
-    Subscription: subName,
-})
-
-// Clone and update only changed fields
-updatedSub := proto.Clone(currentSub).(*pubsubpb.Subscription)
-var updateMask []string
-
-// Only add fields to mask if they're actually being changed
-if ackDeadlineChanged {
-    updatedSub.AckDeadlineSeconds = newAckDeadline
-    updateMask = append(updateMask, "ack_deadline_seconds")
-}
-
-// Create update request
-updateReq := &pubsubpb.UpdateSubscriptionRequest{
-    Subscription: updatedSub,
-    UpdateMask: &fieldmaskpb.FieldMask{
-        Paths: updateMask,
-    },
-}
-```
+When updating subscriptions, use field masks to only update specified fields. See implementation in `internal/pubsub/admin/subscriptions.go:216-309` for the complete `UpdateSubscriptionAdmin` function which demonstrates:
+- Getting current subscription
+- Cloning with `proto.Clone()`
+- Building update mask based on provided parameters
+- Creating update request with field mask
 
 ### Emitting Events After CRUD Operations
 
@@ -558,7 +676,22 @@ runtime.EventsEmit(ctx, "topic:deleted", map[string]interface{}{
 runtime.EventsEmit(ctx, "subscription:updated", map[string]interface{}{
     "subscriptionID": subID,
 })
+
+// For message streaming (in subscriber callbacks)
+runtime.EventsEmit(ctx, "message:received", messageData)
+
+// For monitor errors
+runtime.EventsEmit(ctx, "monitor:error", map[string]interface{}{
+    "subscriptionID": subID,
+    "error":          err.Error(),
+})
 ```
+
+**Event Naming Convention:**
+
+- Use `resource:action` format (e.g., `topic:created`, `subscription:deleted`)
+- Use `message:received` for new messages
+- Use `monitor:error` for subscription monitoring errors
 
 ## Common Patterns
 
@@ -621,49 +754,26 @@ When switching between connection profiles or projects:
 3. **Clear State**: Clear all cached resources (topics, subscriptions) when disconnecting
 4. **Verify Connection**: After connecting, verify the connection is established before loading resources
 
-**Example Pattern:**
-```go
-// SwitchProfile switches to a different connection profile
-func (a *App) SwitchProfile(profileID string) error {
-    // 1. Disconnect current connection first
-    if a.clientManager.IsConnected() {
-        if err := a.Disconnect(); err != nil {
-            return fmt.Errorf("failed to disconnect current profile: %w", err)
-        }
-    }
+**Implementation:**
 
-    // 2. Find and validate profile
-    var targetProfile *models.ConnectionProfile
-    for i, p := range a.config.Profiles {
-        if p.ID == profileID {
-            targetProfile = &a.config.Profiles[i]
-            break
-        }
-    }
-    if targetProfile == nil {
-        return models.ErrProfileNotFound
-    }
-
-    // 3. Connect with new profile
-    if err := a.connectWithProfile(targetProfile); err != nil {
-        return fmt.Errorf("failed to connect to profile: %w", err)
-    }
-
-    // 4. Update active profile ID
-    a.config.ActiveProfileID = profileID
-    return a.configManager.SaveConfig(a.config)
-}
-```
+See `app.go:250-286` for the `SwitchProfile` method which demonstrates the complete pattern:
+- Disconnect current connection first
+- Find and validate profile
+- Connect with new profile
+- Update active profile ID and save config
 
 ### Client Manager Best Practices
 
-The `ClientManager` handles client lifecycle:
+The `ClientManager` handles client lifecycle and is **thread-safe**:
 
-- **SetClient**: Closes existing client before setting new one (thread-safe)
-- **Close**: Properly closes client and clears project ID
+- **SetClient**: Closes existing client before setting new one (thread-safe with mutex)
+- **Close**: Properly closes client and clears project ID (thread-safe)
 - **IsConnected**: Thread-safe check for active connection
+- **GetClient**: Thread-safe access to current client
+- **GetProjectID**: Thread-safe access to current project ID
 
 **Always use ClientManager methods** - never manipulate client directly:
+
 ```go
 // ✅ CORRECT: Use ClientManager
 client := a.clientManager.GetClient()
@@ -671,8 +781,37 @@ if client == nil {
     return models.ErrNotConnected
 }
 
-// ❌ WRONG: Direct client access
+projectID := a.clientManager.GetProjectID()
+if projectID == "" {
+    return fmt.Errorf("no project ID available")
+}
+
+// ❌ WRONG: Direct client access (not thread-safe)
 client := a.client // Don't do this
+projectID := a.projectID // Don't do this
+```
+
+**Connection Lifecycle Pattern:**
+
+```go
+// 1. Always disconnect before connecting to new profile
+if a.clientManager.IsConnected() {
+    if err := a.clientManager.Close(); err != nil {
+        return fmt.Errorf("failed to disconnect: %w", err)
+    }
+}
+
+// 2. Create new client
+client, err := pubsub.NewClient(ctx, projectID, opts...)
+if err != nil {
+    return err
+}
+
+// 3. Set client via ClientManager (closes old client if exists)
+if err := a.clientManager.SetClient(client, projectID); err != nil {
+    client.Close() // Clean up if SetClient fails
+    return err
+}
 ```
 
 ### Resource Loading After Connection Switch
@@ -683,22 +822,13 @@ When loading resources (topics, subscriptions) after a connection switch:
 2. **Get Project ID**: Use `GetProjectID()` to ensure it matches expected project
 3. **Handle Errors**: Clear resources on error to prevent stale data
 
-**Example:**
-```go
-func (a *App) ListTopics() ([]admin.TopicInfo, error) {
-    client := a.clientManager.GetClient()
-    if client == nil {
-        return nil, models.ErrNotConnected
-    }
+**Implementation:**
 
-    projectID := a.clientManager.GetProjectID()
-    if projectID == "" {
-        return nil, fmt.Errorf("no project ID available")
-    }
-
-    return admin.ListTopicsAdmin(a.ctx, client, projectID)
-}
-```
+See `app.go:305-314` for the `ListTopics` method which demonstrates:
+- Getting client via `ClientManager`
+- Checking connection status
+- Getting project ID
+- Calling admin function
 
 ## Migration from v1
 
