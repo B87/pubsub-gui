@@ -3,7 +3,7 @@ import type { PubSubMessage } from '../types';
 
 /**
  * Hook for filtering messages by search query
- * Searches in payload and attributes (keys and values)
+ * Searches in message ID, payload, and attributes (keys and values)
  */
 export function useMessageSearch(
   messages: PubSubMessage[],
@@ -17,6 +17,11 @@ export function useMessageSearch(
     const query = searchQuery.toLowerCase();
 
     return messages.filter((msg) => {
+      // Search in message ID
+      if (msg.id.toLowerCase().includes(query)) {
+        return true;
+      }
+
       // Search in payload
       if (msg.data.toLowerCase().includes(query)) {
         return true;

@@ -173,10 +173,10 @@ func (a *App) Disconnect() error {
 	}
 	a.monitorsMu.Unlock()
 
-	// Clear resource store
+	// Clear resource store (initialize to empty slices instead of nil to avoid race conditions)
 	a.resourceMu.Lock()
-	a.topics = nil
-	a.subscriptions = nil
+	a.topics = []admin.TopicInfo{}
+	a.subscriptions = []admin.SubscriptionInfo{}
 	a.resourceMu.Unlock()
 
 	return a.clientManager.Close()
@@ -883,8 +883,9 @@ func (a *App) findExistingMonitoringSubscription(topicID string) (string, error)
 	subscriptions := a.subscriptions
 	a.resourceMu.RUnlock()
 
+	// If subscriptions is nil (shouldn't happen, but defensive check), treat as empty
 	if subscriptions == nil {
-		return "", fmt.Errorf("subscriptions not yet synced")
+		subscriptions = []admin.SubscriptionInfo{}
 	}
 
 	// Extract short topic name

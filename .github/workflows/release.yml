@@ -3,86 +3,102 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' # Triggers on version tags like v1.0.0, v1.2.3, etc.
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: write # Required for creating releases
+  id-token: write # Required for OIDC authentication (if using)
 
 jobs:
-  build:
+  release:
     name: Build and Release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux/amd64
-            artifact_name: myproject-linux-amd64
-          - os: windows-latest
-            platform: windows/amd64
-            artifact_name: myproject-windows-amd64-installer.exe
-            build_flags: -nsis
-          - os: macos-latest
-            platform: darwin/universal
-            artifact_name: myproject-macos-universal.zip
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup Go
-        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          go-version: '1.23'
-          cache: true
+          fetch-depth: 0 # Required for changelog generation
 
-      - name: Setup Node
-        uses: actions/setup-node@1d32ee54547401d614ef3b0703953c8471f4961d # v4.2.2
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          node-version: 20
+          go-version: '1.24'
+          cache-dependency-path: go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
 
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Wails CLI
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Build Wails App
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'Darwin'
         run: |
-          wails build -platform ${{ matrix.platform }} ${{ matrix.build_flags }}
+          brew install webkit2gtk
 
-      - name: Package macOS App
-        if: matrix.os == 'macos-latest'
-        run: |
-          cd build/bin
-          zip -r myproject-macos-universal.zip myproject.app
-
-      - name: Rename Windows Installer
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          if (Test-Path "build/bin/myproject-installer.exe") {
-            Move-Item "build/bin/myproject-installer.exe" "build/bin/myproject-windows-amd64-installer.exe"
-          }
-
-      - name: Rename Linux Binary
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          if [ -f "build/bin/myproject" ]; then
-            mv build/bin/myproject build/bin/myproject-linux-amd64
-          fi
-
-      - name: Release
-        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8ad5bf8926083d # v2.2.1
+      - name: Install Goreleaser
+        uses: goreleaser/goreleaser-action@v5
         with:
-          files: build/bin/${{ matrix.artifact_name }}
-          draft: false
-          prerelease: false
+          version: latest
+          install-only: true
+
+      - name: Set version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Tag: $VERSION"
+
+      - name: Create tag (if workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ github.event.inputs.version }}" -m "Release ${{ github.event.inputs.version }}"
+          git push origin "${{ github.event.inputs.version }}"
+
+      - name: Run Goreleaser
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Goreleaser can auto-detect repository from GITHUB_TOKEN, but we set explicitly for clarity
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          goreleaser release --clean
+
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/*
+          retention-days: 30

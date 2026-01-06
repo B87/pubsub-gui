@@ -346,16 +346,69 @@
 .bg-slate-700 { background-color: var(--color-bg-tertiary) !important; }
 .bg-slate-600 { background-color: var(--color-bg-hover) !important; }
 
+/* Background opacity variants - use defined CSS variables for transparency */
+.bg-slate-900\/30,
+.bg-slate-900\/opacity-30 {
+  background-color: color-mix(in srgb, var(--color-bg-primary) 30%, transparent) !important;
+}
+.bg-slate-800\/50,
+.bg-slate-800\/opacity-50 {
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 50%, transparent) !important;
+}
+.bg-slate-800\/30,
+.bg-slate-800\/opacity-30 {
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 30%, transparent) !important;
+}
+.bg-slate-700\/30,
+.bg-slate-700\/opacity-30 {
+  background-color: color-mix(in srgb, var(--color-bg-tertiary) 30%, transparent) !important;
+}
+.bg-red-900\/50,
+.bg-red-900\/opacity-50 {
+  background-color: var(--color-error-bg) !important;
+}
+.bg-red-900\/20,
+.bg-red-900\/opacity-20 {
+  background-color: color-mix(in srgb, var(--color-error) 10%, transparent) !important;
+}
+.bg-green-900\/30,
+.bg-green-900\/opacity-30 {
+  background-color: var(--color-success-bg) !important;
+}
+.bg-yellow-900\/30,
+.bg-yellow-900\/opacity-30 {
+  background-color: var(--color-warning-bg) !important;
+}
+
 /* Text mappings */
 .text-slate-100 { color: var(--color-text-primary) !important; }
 .text-slate-200 { color: var(--color-text-secondary) !important; }
 .text-slate-300 { color: var(--color-text-tertiary) !important; }
 .text-slate-400 { color: var(--color-text-muted) !important; }
 .text-slate-500 { color: var(--color-text-disabled) !important; }
+.text-slate-600 { color: var(--color-text-disabled) !important; }
+
+/* Placeholder text mapping */
+.placeholder-slate-500::placeholder { color: var(--color-text-disabled) !important; }
 
 /* Border mappings */
 .border-slate-700 { border-color: var(--color-border-primary) !important; }
 .border-slate-600 { border-color: var(--color-border-secondary) !important; }
+.border-slate-800 { border-color: var(--color-border-primary) !important; }
+
+/* Border opacity variants */
+.border-red-700\/50,
+.border-red-700\/opacity-50 {
+  border-color: color-mix(in srgb, var(--color-error-border) 50%, transparent) !important;
+}
+.border-green-700\/50,
+.border-green-700\/opacity-50 {
+  border-color: color-mix(in srgb, var(--color-success-border) 50%, transparent) !important;
+}
+.border-yellow-700\/50,
+.border-yellow-700\/opacity-50 {
+  border-color: color-mix(in srgb, var(--color-warning-border) 50%, transparent) !important;
+}
 
 /* Accent mappings */
 .bg-blue-600 { background-color: var(--color-accent-hover) !important; }
@@ -370,6 +423,8 @@
 /* Success mappings */
 .text-green-400 { color: var(--color-success) !important; }
 .text-green-500 { color: var(--color-success) !important; }
+.bg-green-600 { background-color: var(--color-success) !important; }
+.bg-green-700 { background-color: var(--color-success-hover) !important; }
 .border-green-700 { border-color: var(--color-success-border) !important; }
 
 /* Error mappings */
@@ -382,6 +437,7 @@
 /* Warning mappings */
 .text-yellow-400 { color: var(--color-warning) !important; }
 .text-yellow-500 { color: var(--color-warning) !important; }
+.border-yellow-700 { border-color: var(--color-warning-border) !important; }
 
 /* Special colors */
 .text-purple-300 { color: var(--color-purple-text) !important; }
@@ -391,9 +447,22 @@
 /* Hover states */
 .hover\:bg-slate-600:hover { background-color: var(--color-bg-hover) !important; }
 .hover\:bg-slate-700:hover { background-color: var(--color-bg-tertiary) !important; }
+.hover\:bg-slate-800:hover { background-color: var(--color-bg-secondary) !important; }
 .hover\:bg-blue-700:hover { background-color: var(--color-accent-active) !important; }
 .hover\:bg-blue-600:hover { background-color: var(--color-accent-hover) !important; }
 .hover\:text-blue-300:hover { color: var(--color-accent-light) !important; }
+.hover\:bg-green-700:hover { background-color: var(--color-success-hover) !important; }
+.hover\:text-slate-300:hover { color: var(--color-text-tertiary) !important; }
+
+/* Hover opacity variants */
+.hover\:bg-slate-700\/30:hover,
+.hover\:bg-slate-700\/opacity-30:hover {
+  background-color: color-mix(in srgb, var(--color-bg-tertiary) 30%, transparent) !important;
+}
+.hover\:bg-slate-800\/30:hover,
+.hover\:bg-slate-800\/opacity-30:hover {
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 30%, transparent) !important;
+}
 
 /* ===========================
    Smooth Transitions

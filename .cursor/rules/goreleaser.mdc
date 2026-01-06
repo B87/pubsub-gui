@@ -1,4 +1,338 @@
 ---
 alwaysApply: false
 ---
-How to use Goreleaser to build the application for all platforms (local and CI/CD).
+
+# Goreleaser Guide for Pub/Sub GUI
+
+This guide explains how to use Goreleaser to build and release the Pub/Sub GUI application for all platforms (macOS, Windows, Linux) both locally and via GitHub Actions.
+
+## Overview
+
+Goreleaser automates the release process for Go applications, including:
+- Building binaries for multiple platforms (darwin, windows, linux)
+- Creating archives (tar.gz, zip)
+- Generating checksums
+- Publishing GitHub releases
+- Creating installers (optional: Homebrew, Scoop, Docker, DEB/RPM packages)
+
+## Prerequisites
+
+### Local Development
+
+1. **Install Goreleaser:**
+   ```bash
+   # macOS
+   brew install goreleaser/tap/goreleaser
+
+   # Linux
+   curl -sfL https://goreleaser.com/static/run | bash
+
+   # Or via Go
+   go install github.com/goreleaser/goreleaser@latest
+   ```
+
+2. **Install Wails CLI:**
+   ```bash
+   go install github.com/wailsapp/wails/v2/cmd/wails@latest
+   ```
+
+3. **Install system dependencies:**
+   - **macOS**: `brew install webkit2gtk`
+   - **Linux**: `sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
+   - **Windows**: Visual Studio Build Tools with C++ support
+
+### GitHub Actions
+
+The workflow (`.github/workflows/release.yml`) automatically installs all dependencies. No manual setup required.
+
+## Configuration Files
+
+### `.goreleaser.yaml`
+
+Main configuration file that defines:
+- Build targets (OS/arch combinations)
+- Build hooks (frontend build before Go build)
+- Archive formats
+- Release settings
+- Optional: Homebrew, Scoop, Docker, NFPM packages
+
+**Key sections:**
+- `builds`: Defines how to build the application
+- `archives`: Defines archive formats per platform
+- `checksum`: Generates SHA256 checksums
+- `release`: GitHub release configuration
+
+### `.github/workflows/release.yml`
+
+GitHub Actions workflow that:
+- Triggers on version tags (`v*`) or manual dispatch
+- Sets up Go, Node.js, and system dependencies
+- Runs Goreleaser to build and publish releases
+
+## Usage
+
+### Local Testing (Dry Run)
+
+Test the release process without publishing:
+
+```bash
+# Build frontend first (required for Wails applications)
+cd frontend
+npm ci
+npm run build
+cd ..
+
+# Test the configuration
+goreleaser check
+
+# Dry run (builds but doesn't publish)
+goreleaser release --snapshot --skip-publish --clean
+```
+
+This creates a `dist/` directory with all built artifacts.
+
+**Important:** For Wails applications, you must build the frontend (`frontend/dist/`) before running Goreleaser, as the Go binary embeds the frontend assets.
+
+### Local Release (Full Build)
+
+Build for all platforms locally:
+
+```bash
+# Build frontend first (required for Wails applications)
+cd frontend
+npm ci
+npm run build
+cd ..
+
+# Build snapshot (development version)
+goreleaser release --snapshot --clean
+
+# Build for a specific tag
+git tag -a v1.0.0 -m "Release v1.0.0"
+goreleaser release --clean
+```
+
+**Note:** Local releases require:
+- Frontend built (`frontend/dist/` must exist)
+- Git repository with tags
+- GitHub token (if publishing to GitHub)
+- All system dependencies for cross-compilation
+
+### GitHub Actions Release
+
+#### Automatic Release (Tag Push)
+
+1. **Create and push a version tag:**
+   ```bash
+   git tag -a v1.0.0 -m "Release v1.0.0"
+   git push origin v1.0.0
+   ```
+
+2. **GitHub Actions automatically:**
+   - Detects the tag push
+   - Builds for all platforms
+   - Creates a GitHub release
+   - Uploads binaries and checksums
+
+#### Manual Release (Workflow Dispatch)
+
+1. **Go to GitHub Actions tab**
+2. **Select "Release" workflow**
+3. **Click "Run workflow"**
+4. **Enter version tag** (e.g., `v1.0.0`)
+5. **Click "Run workflow"**
+
+The workflow will:
+- Create the tag automatically
+- Build and publish the release
+
+## Build Process
+
+### For Wails Applications
+
+The build process for Wails applications:
+
+1. **Frontend build (before Goreleaser):**
+   - **GitHub Actions**: Automatically builds frontend in workflow before running Goreleaser
+   - **Local**: You must manually build frontend:
+     ```bash
+     cd frontend
+     npm ci
+     npm run build
+     cd ..
+     ```
+   - This creates `frontend/dist/` which is embedded in the Go binary
+
+2. **Goreleaser build:**
+   - Uses standard `go build` (not Wails CLI)
+   - The `main.go` embeds `frontend/dist/` via `//go:embed`
+   - Builds Go binary for each target platform
+   - Binary includes embedded frontend assets
+
+3. **Post-build:**
+   - Creates archives (tar.gz for Unix, zip for Windows)
+   - Generates checksums
+   - Prepares release notes
+   - Publishes to GitHub (if configured)
+
+## Supported Platforms
+
+The configuration builds for:
+
+- **macOS**: `darwin/amd64`, `darwin/arm64` (Intel + Apple Silicon)
+- **Windows**: `windows/amd64`
+- **Linux**: `linux/amd64`, `linux/arm64`
+
+**Note:** Windows ARM64 is skipped as it's not commonly supported.
+
+## Output Artifacts
+
+After a successful release, you'll find in `dist/`:
+
+```
+dist/
+├── pubsub-gui_darwin_amd64_v1.0.0.tar.gz
+├── pubsub-gui_darwin_arm64_v1.0.0.tar.gz
+├── pubsub-gui_linux_amd64_v1.0.0.tar.gz
+├── pubsub-gui_linux_arm64_v1.0.0.tar.gz
+├── pubsub-gui_windows_amd64_v1.0.0.zip
+└── pubsub-gui_v1.0.0_checksums.txt
+```
+
+## Customization
+
+### Adding Installers
+
+The `.goreleaser.yaml` includes commented sections for:
+
+1. **Homebrew Tap** (macOS):
+   - Uncomment the `brews:` section
+   - Create a Homebrew tap repository
+   - Configure repository details
+
+2. **Scoop Manifest** (Windows):
+   - Uncomment the `scoops:` section
+   - Create a Scoop bucket
+   - Configure repository details
+
+3. **NFPM Packages** (DEB/RPM):
+   - Uncomment the `nfpms:` section
+   - Configure package metadata
+   - Builds `.deb` and `.rpm` packages
+
+4. **Docker Images**:
+   - Uncomment the `dockers:` section
+   - Create a `Dockerfile`
+   - Configure image templates
+
+### Modifying Build Targets
+
+To add/remove platforms, edit `.goreleaser.yaml`:
+
+```yaml
+builds:
+  - id: pubsub-gui
+    goos:
+      - linux
+      - darwin
+      - windows
+      - freebsd  # Add new OS
+    goarch:
+      - amd64
+      - arm64
+      - 386      # Add 32-bit support
+```
+
+### Custom Build Commands
+
+For Wails applications, frontend build happens before Goreleaser runs:
+
+- **GitHub Actions**: Add build steps in `.github/workflows/release.yml` before the "Run Goreleaser" step
+- **Local**: Run build commands before `goreleaser release`:
+  ```bash
+  # Custom pre-build script
+  ./scripts/pre-build.sh
+
+  # Build frontend
+  cd frontend && npm ci && npm run build && cd ..
+
+  # Run Goreleaser
+  goreleaser release --snapshot
+  ```
+
+## Troubleshooting
+
+### Build Fails: Frontend Not Built
+
+**Problem:** Goreleaser builds before frontend is ready, or `frontend/dist/` doesn't exist.
+
+**Solution:**
+- **Local**: Build frontend manually before running Goreleaser:
+  ```bash
+  cd frontend && npm ci && npm run build && cd ..
+  goreleaser release --snapshot
+  ```
+- **GitHub Actions**: Ensure the "Build frontend" step runs before "Run Goreleaser" in the workflow
+- Verify `frontend/dist/` exists and contains built assets before running Goreleaser
+
+### Build Fails: Missing System Dependencies
+
+**Problem:** Wails requires system libraries (GTK, WebKit).
+
+**Solution:** Install dependencies per platform (see Prerequisites). For GitHub Actions, the workflow installs them automatically.
+
+### Release Fails: GitHub Token
+
+**Problem:** `GITHUB_TOKEN` not set or invalid.
+
+**Solution:**
+- For GitHub Actions: Token is automatically provided
+- For local: Set `GITHUB_TOKEN` environment variable or use `--skip-publish`
+
+### Cross-Compilation Issues
+
+**Problem:** CGO dependencies fail to cross-compile.
+
+**Solution:** Wails uses CGO. Ensure:
+- `CGO_ENABLED=1` is set (already in config)
+- System dependencies are available for target platform
+- Consider using Docker for cross-compilation
+
+## Best Practices
+
+1. **Build frontend first:** For Wails applications, always build frontend before running Goreleaser
+2. **Test locally first:** Always run `goreleaser release --snapshot` before tagging
+3. **Version tags:** Use semantic versioning (`v1.0.0`, `v1.2.3-beta.1`)
+4. **Changelog:** Keep `CHANGELOG.md` updated for automatic release notes
+5. **Checksums:** Always verify checksums before distributing binaries
+6. **CI/CD:** Use GitHub Actions for consistent, automated releases (frontend build is automatic)
+
+## Workflow Integration
+
+### Pre-Release Checklist
+
+Before creating a release:
+
+- [ ] Update version in `wails.json` (if applicable)
+- [ ] Update `CHANGELOG.md`
+- [ ] Build frontend: `cd frontend && npm ci && npm run build && cd ..`
+- [ ] Test locally: `goreleaser release --snapshot` (includes frontend build verification)
+- [ ] Commit all changes (including frontend build artifacts if committing them)
+- [ ] Create and push version tag
+
+### Post-Release
+
+After release:
+
+- [ ] Verify GitHub release was created
+- [ ] Test downloaded binaries on target platforms
+- [ ] Update documentation with new version
+- [ ] Announce release (if applicable)
+
+## References
+
+- [Goreleaser Documentation](https://goreleaser.com/)
+- [Wails v2 Documentation](https://wails.io/docs/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- Project configuration: `.goreleaser.yaml`
+- Workflow: `.github/workflows/release.yml`

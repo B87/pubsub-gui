@@ -62,6 +62,31 @@ export default function Component({ topic, onAction }: ComponentProps) {
 }
 ```
 
+### Component Creation Checklist
+
+**CRITICAL**: Before creating or modifying any component, ensure:
+
+**Theme System Compliance:**
+- [ ] All colors use semantic CSS variables (`var(--color-*)`) via inline styles or custom CSS classes
+- [ ] NO hardcoded colors (`style={{ color: '#fff' }}` or `bg-[#...]`)
+- [ ] Tailwind classes only used as fallback when semantic styling isn't practical
+- [ ] Opacity variants use `color-mix()` with CSS variables (e.g., `color-mix(in srgb, var(--color-bg-primary) 30%, transparent)`)
+- [ ] All components tested with all 5 themes to ensure proper appearance
+
+**Testing:**
+- [ ] Component tested visually in Dark theme (default)
+- [ ] Component tested in Light theme (check contrast)
+- [ ] Component tested in Dracula theme (purple accent)
+- [ ] Component tested in Monokai theme (cyan accent)
+- [ ] Component works with "Auto" theme (system preference)
+
+**Common Issues to Avoid:**
+- Border/hover colors not adapting to theme
+- Text contrast too low in Light theme
+- Status colors (success/error/warning) hardcoded
+- Modal/dialog backgrounds not using theme variables
+- Accent colors hardcoded to blue (should use theme accent)
+
 ### Naming Conventions
 
 - **Components**: PascalCase, descriptive names (e.g., `TopicDetails`, `ConnectionDialog`)
@@ -71,87 +96,256 @@ export default function Component({ topic, onAction }: ComponentProps) {
 
 ## Styling Guidelines
 
+### Theme System
+
+**CRITICAL**: This application uses a comprehensive theme system with 5 themes (Auto, Dark, Light, Dracula, Monokai) and 3 font sizes. **ALL components MUST use the theme system.**
+
+**Core Requirements:**
+1. **NEVER use hardcoded colors** - Always use semantic CSS variables
+2. **PRIORITIZE semantic style format** - Use CSS custom properties directly via inline styles or custom CSS classes
+3. **Tailwind classes are fallback** - Only use Tailwind utility classes when semantic styling isn't practical
+4. **Test with multiple themes** - Components should work correctly in all 5 themes
+5. **Reference theme documentation** - See `.cursor/rules/theme-system.mdc` for complete details
+
+**Theme System Architecture:**
+- **CSS Variables**: All colors defined as CSS custom properties in `frontend/src/themes.css`
+- **Semantic Tokens**: Use semantic variable names (e.g., `--color-bg-primary`, `--color-text-primary`)
+- **Runtime Switching**: Themes can be changed without reloading the app
+- **System Integration**: "Auto" theme respects OS dark/light mode preference
+- **Backward Compatibility**: Tailwind classes are mapped to theme variables for existing code
+
+**Semantic CSS Variables (PREFERRED):**
+
+```typescript
+// ✅ PREFERRED: Use semantic CSS variables directly
+<div style={{ backgroundColor: 'var(--color-bg-primary)' }}>...</div>
+<div style={{ color: 'var(--color-text-primary)' }}>...</div>
+<div style={{ borderColor: 'var(--color-border-primary)' }}>...</div>
+
+// Or define custom CSS classes in component stylesheet:
+// .card { background-color: var(--color-bg-secondary); }
+// .card-text { color: var(--color-text-primary); }
+```
+
+**Available Semantic Tokens:**
+
+```css
+/* Backgrounds */
+--color-bg-primary        /* Main app background */
+--color-bg-secondary      /* Sidebar, cards */
+--color-bg-tertiary       /* Inputs, buttons */
+--color-bg-hover          /* Hover states */
+--color-bg-input          /* Input field backgrounds */
+--color-bg-code           /* Code block backgrounds */
+
+/* Text */
+--color-text-primary      /* Primary text */
+--color-text-secondary    /* Secondary text */
+--color-text-tertiary     /* Tertiary text */
+--color-text-muted        /* Muted/placeholder text */
+--color-text-disabled     /* Disabled text */
+
+/* Borders */
+--color-border-primary    /* Primary borders */
+--color-border-secondary   /* Secondary borders */
+
+/* Accents */
+--color-accent-primary    /* Primary actions (buttons, links) */
+--color-accent-hover      /* Accent hover state */
+--color-accent-active     /* Accent active state */
+--color-accent-light      /* Light accent variant */
+--color-accent-dark       /* Dark accent variant */
+
+/* Status Colors */
+--color-success           /* Success state */
+--color-success-hover     /* Success hover */
+--color-success-bg        /* Success background */
+--color-success-border    /* Success border */
+
+--color-error             /* Error state */
+--color-error-hover       /* Error hover */
+--color-error-bg          /* Error background */
+--color-error-border      /* Error border */
+
+--color-warning           /* Warning state */
+--color-warning-hover     /* Warning hover */
+--color-warning-bg        /* Warning background */
+--color-warning-border    /* Warning border */
+
+/* Special Colors */
+--color-purple-bg         /* Purple background */
+--color-purple-text       /* Purple text */
+--color-purple-border     /* Purple border */
+--color-orange            /* Orange color */
+```
+
+**Tailwind Classes (FALLBACK - for backward compatibility):**
+
+Tailwind utility classes are available as a fallback for existing code, but **new code should prefer semantic styling**:
+
+```typescript
+// ⚠️ FALLBACK: Use Tailwind classes only when semantic styling isn't practical
+// These are mapped to theme variables for backward compatibility
+<div className="bg-slate-800">...</div>  // Maps to var(--color-bg-secondary)
+<div className="text-slate-100">...</div> // Maps to var(--color-text-primary)
+```
+
+**Styling Patterns:**
+
+```tsx
+// ✅ PREFERRED: Semantic inline styles
+<div style={{
+  backgroundColor: 'var(--color-bg-secondary)',
+  color: 'var(--color-text-primary)',
+  borderColor: 'var(--color-border-primary)'
+}}>
+  Content
+</div>
+
+// ✅ PREFERRED: Custom CSS classes with semantic variables
+// In component stylesheet or CSS module:
+.card {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-primary);
+}
+
+// ⚠️ FALLBACK: Tailwind classes (use sparingly)
+<div className="bg-slate-800 text-slate-100 border border-slate-700">
+  Content
+</div>
+```
+
+**Anti-Patterns to Avoid:**
+```tsx
+// ❌ WRONG: Hardcoded colors (breaks theme system)
+<div style={{ backgroundColor: '#1e293b' }}>...</div>
+<div className="bg-[#1e293b]">...</div>
+
+// ❌ WRONG: Using un-mapped Tailwind classes
+<div className="bg-slate-950">...</div>  // Not mapped to theme variables
+
+// ⚠️ ACCEPTABLE BUT NOT PREFERRED: Tailwind classes
+<div className="bg-slate-800">...</div>  // Works but not semantic
+
+// ✅ PREFERRED: Semantic CSS variables
+<div style={{ backgroundColor: 'var(--color-bg-secondary)' }}>...</div>
+```
+
 ### Tailwind CSS v4 Usage
 
 This project uses **Tailwind CSS v4** with the new `@import "tailwindcss"` syntax.
 
 **Key Principles:**
-1. **Use Tailwind utility classes** for all styling (prefer over custom CSS)
-2. **Dark theme by default**: The app uses a dark color scheme (slate-800/900 backgrounds)
-3. **Consistent spacing**: Use Tailwind's spacing scale (p-4, m-2, gap-3, etc.)
-4. **Responsive design**: Not required for desktop app, but maintain consistent sizing
-
-### Color Palette
-
-The app uses a dark theme with slate colors:
-
-```typescript
-// Backgrounds
-bg-slate-900    // Main app background
-bg-slate-800    // Sidebar, cards, elevated surfaces
-bg-slate-700    // Inputs, buttons, hover states
-bg-slate-600    // Active states, borders
-
-// Text
-text-slate-100  // Primary text
-text-slate-200  // Secondary text
-text-slate-400  // Muted text, placeholders
-text-slate-500  // Disabled text
-
-// Accents
-text-blue-500   // Links, focus rings
-bg-blue-500     // Primary actions
-ring-blue-500   // Focus indicators
-```
+1. **PRIORITIZE semantic CSS variables** - Use `var(--color-*)` via inline styles or custom CSS classes
+2. **Tailwind for layout/spacing** - Use Tailwind utilities for spacing (p-4, m-2, gap-3), layout (flex, grid), and sizing (w-full, h-screen)
+3. **Tailwind classes as fallback** - Only use Tailwind color classes when semantic styling isn't practical
+4. **Theme system compliance** - All color styling must use theme variables for compatibility with all 5 themes
+5. **Consistent spacing**: Use Tailwind's spacing scale (p-4, m-2, gap-3, etc.)
+6. **Responsive design**: Not required for desktop app, but maintain consistent sizing
 
 ### Common Patterns
 
 **Buttons:**
 ```tsx
-// Primary button
-<button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors">
+// ✅ PREFERRED: Primary button with semantic styling
+<button
+  style={{
+    backgroundColor: 'var(--color-accent-primary)',
+    color: 'white',
+  }}
+  className="px-4 py-2 rounded-md transition-colors hover:opacity-90"
+  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)'}
+>
   Submit
 </button>
 
-// Secondary button
-<button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md transition-colors">
+// ✅ PREFERRED: Secondary button with semantic styling
+<button
+  style={{
+    backgroundColor: 'var(--color-bg-tertiary)',
+    color: 'var(--color-text-primary)',
+  }}
+  className="px-4 py-2 rounded-md transition-colors"
+  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'}
+  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'}
+>
   Cancel
 </button>
 
-// Text button
-<button className="text-slate-400 hover:text-slate-200 transition-colors">
+// ✅ PREFERRED: Text button with semantic styling
+<button
+  style={{ color: 'var(--color-text-muted)' }}
+  className="transition-colors"
+  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+>
   Disconnect
+</button>
+
+// ⚠️ FALLBACK: Using Tailwind classes (acceptable but not preferred)
+<button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors">
+  Submit
 </button>
 ```
 
 **Input Fields:**
 ```tsx
+// ✅ PREFERRED: Input with semantic styling
 <input
   type="text"
   value={value}
   onChange={(e) => setValue(e.target.value)}
-  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  style={{
+    backgroundColor: 'var(--color-bg-input)',
+    color: 'var(--color-text-primary)',
+    borderColor: 'var(--color-border-primary)',
+  }}
+  className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
+  onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
+  onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
   placeholder="Enter text..."
 />
+
+// Style placeholder text via CSS:
+// input::placeholder { color: var(--color-text-muted); }
 ```
 
 **Cards/Panels:**
 ```tsx
-<div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+// ✅ PREFERRED: Card with semantic styling
+<div
+  style={{
+    backgroundColor: 'var(--color-bg-secondary)',
+    borderColor: 'var(--color-border-primary)',
+  }}
+  className="border rounded-lg p-4"
+>
   {/* Card content */}
 </div>
 ```
 
 **Loading States:**
 ```tsx
-<button disabled={loading} className="... disabled:opacity-50 disabled:cursor-not-allowed">
+// ✅ PREFERRED: Button with semantic disabled state
+<button
+  disabled={loading}
+  style={{
+    backgroundColor: loading ? 'var(--color-bg-tertiary)' : 'var(--color-accent-primary)',
+    color: 'white',
+    opacity: loading ? 0.5 : 1,
+    cursor: loading ? 'not-allowed' : 'pointer',
+  }}
+  className="px-4 py-2 rounded-md transition-all"
+>
   {loading ? 'Loading...' : 'Submit'}
 </button>
 ```
 
 ## Radix UI Integration
 
-Radix UI provides accessible, unstyled primitives. Always style them with Tailwind classes.
+Radix UI provides accessible, unstyled primitives. **PREFER semantic CSS variables** for styling, with Tailwind classes as fallback.
 
 **Radix Components Available:**
 - `@radix-ui/react-tabs` - ✅ **Used** in `SubscriptionDetails.tsx` for tabbed interfaces
@@ -163,7 +357,7 @@ Radix UI provides accessible, unstyled primitives. Always style them with Tailwi
 
 **Note:** The codebase currently uses custom div-based modals instead of Radix Dialog. Radix Dialog is available if you want to use it for better accessibility features.
 
-**Example - Custom Modal (Current Pattern):**
+**Example - Custom Modal (PREFERRED Pattern):**
 ```tsx
 interface DialogProps {
   open: boolean;
@@ -174,8 +368,20 @@ export default function CustomDialog({ open, onClose }: DialogProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+    <div
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
+      }}
+      className="fixed inset-0 flex items-center justify-center z-50"
+    >
+      <div
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-primary)',
+          color: 'var(--color-text-primary)',
+        }}
+        className="border rounded-lg p-6 max-w-md w-full mx-4"
+      >
         <h3 className="text-lg font-semibold mb-4">Title</h3>
         {/* Content */}
         <div className="flex gap-3 justify-end mt-4">
@@ -188,13 +394,33 @@ export default function CustomDialog({ open, onClose }: DialogProps) {
 }
 ```
 
-**Example - Radix Tabs (Used in Codebase):**
+**Example - Radix Tabs (PREFERRED Pattern):**
 ```tsx
 import * as Tabs from '@radix-ui/react-tabs';
 
+// Use CSS for active state styling
+<style>{`
+  [data-state="active"] {
+    color: var(--color-text-primary) !important;
+    border-bottom-color: var(--color-accent-primary) !important;
+  }
+`}</style>
+
 <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-  <Tabs.List className="flex border-b border-slate-700">
-    <Tabs.Trigger value="tab1" className="px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+  <Tabs.List
+    style={{ borderBottomColor: 'var(--color-border-primary)' }}
+    className="flex border-b"
+  >
+    <Tabs.Trigger
+      value="tab1"
+      style={{
+        color: 'var(--color-text-secondary)',
+        borderBottomWidth: '2px',
+        borderBottomStyle: 'solid',
+        borderBottomColor: 'transparent',
+      }}
+      className="px-4 py-2 transition-colors"
+    >
       Tab 1
     </Tabs.Trigger>
   </Tabs.List>
@@ -365,7 +591,7 @@ The app uses a consistent layout pattern:
 **Layout Component:**
 - Fixed sidebar (320px width, `w-80`)
 - Flexible main content area
-- Dark theme (`bg-slate-900`, `bg-slate-800`)
+- Use semantic CSS variables for backgrounds (`var(--color-bg-primary)`, `var(--color-bg-secondary)`)
 
 ## State Management
 
@@ -599,7 +825,7 @@ Use the `EmptyState` component for empty/initial states:
 ```tsx
 {loading ? (
   <div className="flex items-center justify-center p-8">
-    <div className="text-slate-400">Loading...</div>
+    <div style={{ color: 'var(--color-text-muted)' }}>Loading...</div>
   </div>
 ) : (
   // Content
@@ -613,7 +839,14 @@ Use the `EmptyState` component for empty/initial states:
 **Basic Error Display:**
 ```tsx
 {error && (
-  <div className="bg-red-900/20 border border-red-700 text-red-200 rounded-md p-3 mb-4">
+  <div
+    style={{
+      backgroundColor: 'var(--color-error-bg)',
+      borderColor: 'var(--color-error-border)',
+      color: 'var(--color-error)',
+    }}
+    className="border rounded-md p-3 mb-4"
+  >
     {error}
   </div>
 )}
@@ -622,14 +855,36 @@ Use the `EmptyState` component for empty/initial states:
 **Error Banner Pattern (for prominent errors):**
 ```tsx
 {error && (
-  <div className="p-4 bg-red-900/20 border-b border-red-700/50">
+  <div
+    style={{
+      backgroundColor: 'var(--color-error-bg)',
+      borderBottomColor: 'color-mix(in srgb, var(--color-error-border) 50%, transparent)',
+    }}
+    className="p-4 border-b"
+  >
     <div className="flex items-start gap-3">
-      <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg
+        style={{ color: 'var(--color-error)' }}
+        className="w-5 h-5 shrink-0 mt-0.5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
       <div className="flex-1">
-        <h4 className="text-sm font-semibold text-red-400 mb-1">Error Title</h4>
-        <p className="text-sm text-red-300">{error}</p>
+        <h4
+          style={{ color: 'var(--color-error)' }}
+          className="text-sm font-semibold mb-1"
+        >
+          Error Title
+        </h4>
+        <p
+          style={{ color: 'var(--color-error)' }}
+          className="text-sm opacity-90"
+        >
+          {error}
+        </p>
       </div>
     </div>
   </div>
@@ -704,15 +959,32 @@ The codebase uses Radix UI Tabs in `SubscriptionDetails.tsx`:
 ```tsx
 import * as Tabs from '@radix-ui/react-tabs';
 
+// Use CSS for active state styling
+<style>{`
+  [data-state="active"] {
+    color: var(--color-text-primary) !important;
+    border-bottom-color: var(--color-accent-primary) !important;
+  }
+`}</style>
+
 <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
-  <Tabs.List className="flex gap-2 border-b border-slate-700">
+  <Tabs.List
+    style={{ borderBottomColor: 'var(--color-border-primary)' }}
+    className="flex gap-2 border-b"
+  >
     <Tabs.Trigger
       value="metadata"
-      className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+      style={{
+        color: 'var(--color-text-muted)',
+        borderBottomWidth: '2px',
+        borderBottomStyle: 'solid',
+        borderBottomColor: 'transparent',
+      }}
+      className="px-4 py-2 text-sm font-medium transition-colors hover:opacity-80"
     >
       Metadata
     </Tabs.Trigger>
-    <Tabs.Trigger value="monitor" className="...">
+    <Tabs.Trigger value="monitor" style={{ ... }}>
       Monitor
     </Tabs.Trigger>
   </Tabs.List>
@@ -741,9 +1013,10 @@ import * as Tabs from '@radix-ui/react-tabs';
    - Extract reusable logic into custom hooks
 
 4. **Styling**
-   - Prefer Tailwind utilities over custom CSS
-   - Use consistent spacing scale
-   - Maintain dark theme consistency
+   - **PRIORITIZE semantic CSS variables** (`var(--color-*)`) via inline styles or custom CSS classes
+   - Use Tailwind utilities only as fallback when semantic styling isn't practical
+   - Use consistent spacing scale (Tailwind spacing utilities are fine)
+   - All colors must use theme variables for theme compatibility
 
 5. **Error Handling**
    - **CRITICAL**: ALL user-facing errors MUST be displayed in the UI, not just logged to console
@@ -894,14 +1167,33 @@ export default function ResourceDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+    <div
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
+      }}
+      className="fixed inset-0 flex items-center justify-center z-50"
+    >
+      <div
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-primary)',
+          color: 'var(--color-text-primary)',
+        }}
+        className="border rounded-lg p-6 max-w-md w-full mx-4"
+      >
         <h3 className="text-lg font-semibold mb-4">
           {mode === 'create' ? 'Create Resource' : 'Edit Resource'}
         </h3>
         {/* Form fields */}
         {(error || externalError) && (
-          <div className="p-3 bg-red-900/20 border border-red-700 rounded text-red-400 text-sm">
+          <div
+            style={{
+              backgroundColor: 'var(--color-error-bg)',
+              borderColor: 'var(--color-error-border)',
+              color: 'var(--color-error)',
+            }}
+            className="p-3 border rounded text-sm"
+          >
             {error || externalError}
           </div>
         )}
@@ -940,23 +1232,59 @@ export default function DeleteConfirmDialog({
   const displayName = resourceName.split('/').pop() || resourceName;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 className="text-lg font-semibold mb-4 text-red-400">
+    <div
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
+      }}
+      className="fixed inset-0 flex items-center justify-center z-50"
+    >
+      <div
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-primary)',
+          color: 'var(--color-text-primary)',
+        }}
+        className="border rounded-lg p-6 max-w-md w-full mx-4"
+      >
+        <h3
+          style={{ color: 'var(--color-error)' }}
+          className="text-lg font-semibold mb-4"
+        >
           Delete {resourceType === 'topic' ? 'Topic' : 'Subscription'}
         </h3>
-        <p className="text-slate-300 mb-2">
+        <p
+          style={{ color: 'var(--color-text-secondary)' }}
+          className="mb-2"
+        >
           Are you sure you want to delete this {resourceType}?
         </p>
-        <code className="block bg-slate-900 rounded p-3 text-sm mb-3 break-all">
+        <code
+          style={{
+            backgroundColor: 'var(--color-bg-code)',
+            color: 'var(--color-text-primary)',
+          }}
+          className="block rounded p-3 text-sm mb-3 break-all"
+        >
           {displayName}
         </code>
-        <p className="text-sm text-red-400 mb-4">
+        <p
+          style={{ color: 'var(--color-error)' }}
+          className="text-sm mb-4"
+        >
           This action cannot be undone.
         </p>
         <div className="flex gap-3 justify-end">
           <button onClick={onCancel}>Cancel</button>
-          <button onClick={onConfirm} className="bg-red-600 hover:bg-red-700">
+          <button
+            onClick={onConfirm}
+            style={{
+              backgroundColor: 'var(--color-error)',
+              color: 'white',
+            }}
+            className="hover:opacity-90 transition-opacity"
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-error-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-error)'}
+          >
             Delete
           </button>
         </div>
