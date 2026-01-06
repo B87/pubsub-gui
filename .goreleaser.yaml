@@ -27,6 +27,8 @@ builds:
     ignore:
       - goos: windows
         goarch: arm64 # Windows ARM64 not commonly supported
+      - goos: linux
+        goarch: arm64 # Linux ARM64 cross-compilation requires CGO toolchain (Wails needs CGO)
     dir: .
     main: .
     binary: pubsub-gui
@@ -85,7 +87,9 @@ release:
     Download the appropriate binary for your platform:
     - **macOS**: `pubsub-gui_darwin_amd64_{{ .Version }}.tar.gz` or `pubsub-gui_darwin_arm64_{{ .Version }}.tar.gz`
     - **Windows**: `pubsub-gui_windows_amd64_{{ .Version }}.zip`
-    - **Linux**: `pubsub-gui_linux_amd64_{{ .Version }}.tar.gz` or `pubsub-gui_linux_arm64_{{ .Version }}.tar.gz`
+    - **Linux**: `pubsub-gui_linux_amd64_{{ .Version }}.tar.gz`
+
+    Note: Linux ARM64 builds are not available due to CGO cross-compilation requirements. Use the amd64 build or build from source.
 
     Extract the archive and run the `pubsub-gui` binary.
 
