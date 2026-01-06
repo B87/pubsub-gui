@@ -824,6 +824,54 @@ Use the `EmptyState` component for empty/initial states:
 
 **CRITICAL RULE**: All user-facing errors MUST be displayed in the UI. Never rely solely on `console.error` for errors that affect user actions.
 
+**When to Display Errors in UI:**
+
+* ✅ **ALWAYS display** errors from async operations triggered by user actions (button clicks, form submissions)
+* ✅ **ALWAYS display** errors from event handlers that perform user-visible operations
+* ✅ **ALWAYS display** errors that prevent operations from completing
+* ✅ **ALWAYS display** errors in notification components (e.g., upgrade notifications, connection dialogs)
+* ⚠️ **May skip UI display** for background operations that fail silently (e.g., periodic checks that don't block user)
+* ⚠️ **May skip UI display** for non-critical errors that are logged for debugging only
+
+**Common Mistake - Missing Error Display:**
+
+```tsx
+// ❌ WRONG: Only logging to console
+const handleDismiss = async () => {
+  try {
+    await DismissUpgradeNotification(version);
+  } catch (error) {
+    console.error('Failed to dismiss:', error); // User never sees this!
+  }
+};
+
+// ✅ CORRECT: Display error in UI
+const [error, setError] = useState<string>('');
+
+const handleDismiss = async () => {
+  setError('');
+  try {
+    await DismissUpgradeNotification(version);
+    setError(''); // Clear on success
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    setError('Failed to dismiss notification: ' + errorMessage);
+    // Keep notification visible on error so user can see the error
+  }
+};
+
+// Display error in JSX
+{error && (
+  <div style={{
+    backgroundColor: 'var(--color-error-bg)',
+    borderColor: 'var(--color-error-border)',
+    color: 'var(--color-error)',
+  }} className="p-2 border rounded text-xs mb-2">
+    {error}
+  </div>
+)}
+```
+
 **Basic Error Display:**
 ```tsx
 {error && (
@@ -931,13 +979,36 @@ catch (err) {
   setError(err.toString()); // Shows raw API error
 }
 
+// ❌ WRONG: Missing error display in notification components
+const handleAction = async () => {
+  try {
+    await SomeWailsMethod();
+  } catch (error) {
+    console.error('Failed:', error); // User never sees this in notification!
+  }
+};
+
 // ✅ CORRECT: Display in UI with user-friendly message
+const [error, setError] = useState<string>('');
+
 try {
   await someOperation();
+  setError(''); // Clear on success
 } catch (err) {
-  const friendlyError = convertToUserFriendlyMessage(err);
-  setError(friendlyError);
+  const errorMessage = err instanceof Error ? err.message : String(err);
+  setError('Failed: ' + errorMessage); // User sees this in UI
 }
+
+// ✅ CORRECT: Display error in notification/component UI
+{error && (
+  <div style={{
+    backgroundColor: 'var(--color-error-bg)',
+    borderColor: 'var(--color-error-border)',
+    color: 'var(--color-error)',
+  }} className="p-2 border rounded text-xs">
+    {error}
+  </div>
+)}
 ```
 
 ### Tabs (Radix UI)

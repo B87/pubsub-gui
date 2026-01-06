@@ -32,6 +32,7 @@ import SubscriptionDialog from './components/SubscriptionDialog';
 import SettingsDialog from './components/SettingsDialog';
 import EmptyState from './components/EmptyState';
 import CommandBar from './components/CommandBar';
+import UpgradeNotification from './components/UpgradeNotification';
 import { useKeyboardShortcuts, formatShortcut } from './hooks/useKeyboardShortcuts';
 import type { CommandBarAction } from './utils/commandBarActions';
 
@@ -750,6 +751,8 @@ function App() {
         topics={topics}
         subscriptions={subscriptions}
       />
+
+      <UpgradeNotification />
     </ThemeProvider>
   );
 }

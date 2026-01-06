@@ -259,6 +259,61 @@ func (a *App) StartMonitor(subscriptionID string) error {
 * Use `Lock()` for write operations
 * Minimize lock duration (unlock before expensive operations)
 
+**CRITICAL: Config Field Access in Goroutines**
+
+When accessing `a.config` fields from goroutines (e.g., background tasks, tickers, event handlers), **ALWAYS use mutex protection** if the field can be modified by other goroutines:
+
+```go
+// ❌ WRONG: Race condition - accessing config field without mutex
+func (a *App) performUpgradeCheck() {
+    if a.config != nil && a.config.DismissedUpgradeVersion == updateInfo.LatestVersion {
+        return // Race condition if DismissUpgradeNotification() modifies this concurrently
+    }
+}
+
+// ✅ CORRECT: Lock before reading config field
+func (a *App) performUpgradeCheck() {
+    // Check if this version was already dismissed (with mutex protection)
+    a.upgradeCheckMu.Lock()
+    dismissedVersion := ""
+    if a.config != nil {
+        dismissedVersion = a.config.DismissedUpgradeVersion
+    }
+    a.upgradeCheckMu.Unlock()
+
+    if dismissedVersion == updateInfo.LatestVersion {
+        return
+    }
+}
+```
+
+**When to Lock Config Fields:**
+
+* ✅ **Lock when reading** config fields from goroutines (background tasks, tickers, event handlers)
+* ✅ **Lock when writing** config fields from any method
+* ✅ **Lock when accessing** config fields that are modified by other goroutines
+* ❌ **Don't lock** when accessing config in single-threaded contexts (e.g., during startup before goroutines start)
+* ❌ **Don't lock unnecessarily** - Only lock fields that are actually shared across goroutines
+
+**Pattern for Config Field Access:**
+
+```go
+// Reading config field in goroutine
+a.configMu.Lock()
+value := ""
+if a.config != nil {
+    value = a.config.SomeField
+}
+a.configMu.Unlock()
+
+// Writing config field
+a.configMu.Lock()
+if a.config != nil {
+    a.config.SomeField = newValue
+}
+a.configMu.Unlock()
+```
+
 ## Frontend (React/TypeScript) Patterns
 
 > **Note:** For comprehensive React/TypeScript UI development patterns, component structure, and styling guidelines, see `react-tailwind.mdc`.

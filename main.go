@@ -8,6 +8,8 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+
+	versionpkg "pubsub-gui/internal/version"
 )
 
 //go:embed all:frontend/dist
@@ -22,6 +24,8 @@ func main() {
 	app := NewApp()
 	// Set version in app
 	app.SetVersion(version)
+	// Set version in version package for upgrade checking
+	versionpkg.SetVersion(version)
 
 	// Create application with options
 	err := wails.Run(&options.App{
