@@ -127,7 +127,7 @@ jobs:
           VERSION_NO_V="${VERSION#v}"
           ARTIFACT_NAME="${{ matrix.artifact_name }}"
 
-          if [ "${{ matrix.os }}" == "macos-14" ]; then
+          if [[ "${{ matrix.os }}" =~ ^macos- ]]; then
             # Package .app bundle for macOS
             cd build/bin
             tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.tar.gz" pubsub-gui.app
@@ -160,7 +160,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}
           path: |
-            pubsub-gui_${{ matrix.artifact_name }}_${{ steps.version.outputs.version }}.*
+            pubsub-gui_${{ matrix.artifact_name }}_*.tar.gz
+            pubsub-gui_${{ matrix.artifact_name }}_*.zip
 
   release:
     name: Create Release
