@@ -201,13 +201,17 @@ For local development with the Pub/Sub Emulator:
 
 1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 2. Start the emulator:
+
    ```bash
    gcloud beta emulators pubsub start
    ```
+
 3. Set the environment variable:
+
    ```bash
    export PUBSUB_EMULATOR_HOST=localhost:8085
    ```
+
 4. Launch the application - it will automatically detect and use the emulator
 
 ## 🐛 Troubleshooting
@@ -247,9 +251,55 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/b87/pubsub-gui/issues)
 - 💡 **Feature Requests**: [GitHub Discussions](https://github.com/b87/pubsub-gui/discussions)
 
-## Roadmap:
+## 🗺️ Roadmap
 
-- [ ]
+### Missing for 1.0.0
+
+#### Integration Tests with Emulator
+
+- Integration tests with the emulator
+
+#### Packaging & Distribution
+
+- One-click installers for macOS, Windows, and Linux
+- Automated builds with GoReleaser
+- Auto-update mechanism
+- Public beta release
+
+### Future Enhancements
+
+#### Multi-Project Workspaces
+
+- Tabbed interface for multiple GCP projects
+- Side-by-side topic/subscription comparison
+- Cross-project resource search
+- Workspace save/restore
+
+#### Advanced Replay Tools
+
+- Subscription snapshots (create, list, seek to snapshot)
+- Seek to timestamp functionality
+- Dead-letter queue viewer with message re-drive
+- Message history export (JSON, CSV formats)
+
+#### Performance Testing Tools
+
+- Bulk publish mode (configurable messages/second)
+- Message payload generator with templates
+- Latency monitoring and throughput visualization
+
+#### Schema Registry Integration
+
+- Validate message payloads against schemas (Avro, Protocol Buffers, JSON)
+- Auto-complete for schema fields
+- Schema version management
+
+#### Long-Term Vision
+
+- Multi-broker support (Kafka, RabbitMQ, AWS SNS/SQS)
+- Cloud Monitoring integration
+- Plugin system for custom validators and transformers
+- Team collaboration features
 
 ---
 

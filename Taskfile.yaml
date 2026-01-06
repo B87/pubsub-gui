@@ -115,26 +115,57 @@ tasks:
   # ============================================================================
 
   test:
-    desc: Run all Go tests
+    desc: Run all Go tests (unit tests only, excludes integration tests)
     cmds:
       - go test ./...
 
-  test:verbose:
-    desc: Run tests with verbose output
+  test:unit:
+    desc: Run unit tests only (excludes integration tests)
     cmds:
-      - go test -v ./...
+      - go test -short ./...
+
+  test:integration:
+    desc: Run integration tests only (requires Pub/Sub emulator)
+    cmds:
+      - |
+        if ! command -v gcloud >/dev/null 2>&1; then
+          echo "❌ gcloud CLI not found. Install Google Cloud SDK:"
+          echo "   https://cloud.google.com/sdk/docs/install"
+          exit 1
+        fi
+        echo "🧪 Running integration tests (requires Pub/Sub emulator)..."
+        go test -tags=integration -v -run Integration ./...
+
+  test:all:
+    desc: Run all tests including integration tests
+    cmds:
+      - task: test:unit
+      - task: test:integration
+
+  test:verbose:
+    desc: Run unit tests with verbose output
+    cmds:
+      - go test -v -short ./...
 
   test:coverage:
-    desc: Run tests with coverage report
+    desc: Run unit tests with coverage report
     cmds:
-      - go test -cover ./...
+      - go test -cover -short ./...
 
   test:coverage:html:
-    desc: Generate HTML coverage report
+    desc: Generate HTML coverage report for unit tests
+    cmds:
+      - go test -coverprofile=coverage.out -short ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test:coverage:all:
+    desc: Generate HTML coverage report for all tests (unit + integration)
     cmds:
       - go test -coverprofile=coverage.out ./...
+      - go test -tags=integration -coverprofile=coverage.integration.out ./...
       - go tool cover -html=coverage.out -o coverage.html
-      - echo "📊 Coverage report generated: coverage.html"
+      - echo "Coverage report generated at coverage.html"
 
   format:
     desc: Format Go code
@@ -171,10 +202,10 @@ tasks:
       - bash scripts/find-legacy-styles.sh
 
   check:all:
-    desc: Run all code quality checks
+    desc: Run all code quality checks (unit tests only)
     cmds:
       - task: format:check
-      - task: test
+      - task: test:unit
       - task: check:legacy-styles
 
   # ============================================================================

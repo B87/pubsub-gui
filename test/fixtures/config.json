@@ -1,0 +1,18 @@
+{
+  "profiles": [
+    {
+      "id": "test-profile-1",
+      "name": "Test Profile",
+      "projectId": "test-project",
+      "authMethod": "ADC",
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "activeProfileId": "test-profile-1",
+  "messageBufferSize": 500,
+  "autoAck": true,
+  "theme": "dark",
+  "fontSize": "medium",
+  "templates": []
+}

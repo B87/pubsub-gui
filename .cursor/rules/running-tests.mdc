@@ -1,0 +1,453 @@
+# Running Tests
+
+This guide covers how to run unit tests and integration tests for the Pub/Sub GUI application.
+
+## Test Organization
+
+### Test Files
+
+**Unit Tests** (no external dependencies):
+- `app_test_common.go` - Shared mocks and helper functions
+- Unit tests are in separate files (when split) or in `*_test.go` files
+
+**Integration Tests** (require Pub/Sub emulator):
+- `app_integration_test.go` - Integration tests using emulator (requires `-tags=integration`)
+
+**Test Helpers** (in `test/` package):
+- `test/emulator.go` - Pub/Sub emulator setup and teardown
+- `test/helpers.go` - Test helper functions (config setup, etc.)
+- `test/mocks.go` - Mock type definitions (for reference)
+- `test/utils.go` - Utility functions
+- `test/fixtures/` - Test data fixtures (config.json, etc.)
+
+## Quick Start
+
+### Run Unit Tests Only
+
+```bash
+# Using Taskfile (recommended)
+task test:unit
+
+# Direct Go command
+go test -short ./...
+
+# With verbose output
+task test:verbose
+# or
+go test -v -short ./...
+```
+
+### Run Integration Tests
+
+```bash
+# Using Taskfile (recommended)
+task test:integration
+
+# Direct Go command
+go test -tags=integration -v -run Integration ./...
+
+# Run specific integration test
+go test -tags=integration -v -run TestConnectWithADC_Integration
+```
+
+### Run All Tests
+
+```bash
+# Using Taskfile
+task test:all
+
+# This runs unit tests first, then integration tests
+```
+
+## Taskfile Commands
+
+The project uses Taskfile for convenient test commands:
+
+| Command | Description |
+|---------|-------------|
+| `task test` | Run all Go tests (unit tests only, excludes integration) |
+| `task test:unit` | Run unit tests only (with `-short` flag) |
+| `task test:integration` | Run integration tests only (requires Pub/Sub emulator) |
+| `task test:all` | Run all tests including integration tests |
+| `task test:verbose` | Run unit tests with verbose output |
+| `task test:coverage` | Run unit tests with coverage report |
+| `task test:coverage:html` | Generate HTML coverage report for unit tests |
+| `task test:coverage:all` | Generate HTML coverage report for all tests |
+
+## Prerequisites
+
+### For Unit Tests
+
+No prerequisites - unit tests use mocks and don't require external services.
+
+### For Integration Tests
+
+**For Integration Tests:**
+
+1. **Docker** must be installed and running:
+   ```bash
+   # macOS
+   brew install --cask docker
+
+   # Or download Docker Desktop from:
+   # https://www.docker.com/get-started
+
+   # Verify installation
+   docker --version
+   docker info  # Should not error if daemon is running
+   ```
+
+2. **Docker daemon must be running**:
+   - On macOS: Start Docker Desktop application
+   - On Linux: Ensure Docker service is running: `sudo systemctl start docker`
+
+**Note:** Integration tests use the official [Google Cloud SDK Docker image](https://hub.docker.com/r/google/cloud-sdk) with the `:emulators` tag, which includes all emulator components. This eliminates the need to install Java, gcloud CLI, or emulator components locally.
+
+## Running Tests
+
+### Unit Tests
+
+Unit tests are fast and don't require external dependencies:
+
+```bash
+# Run all unit tests
+go test -short ./...
+
+# Run with verbose output
+go test -v -short ./...
+
+# Run specific test
+go test -v -short -run TestNewApp
+
+# Run tests in specific package
+go test ./internal/app/...
+```
+
+**Characteristics:**
+- ✅ Fast execution (< 1 second)
+- ✅ No external dependencies
+- ✅ Use mocks for handlers
+- ✅ Test delegation and simple logic
+
+### Integration Tests
+
+Integration tests use the Pub/Sub emulator to test real GCP operations:
+
+```bash
+# Run all integration tests
+go test -tags=integration -v ./...
+
+# Run only integration tests (exclude unit tests)
+go test -tags=integration -v -run Integration
+
+# Run specific integration test
+go test -tags=integration -v -run TestPublishMessage_Integration
+
+# Skip integration tests (run only unit tests)
+go test -v -short ./...
+```
+
+**Characteristics:**
+- ⏱️ Slower execution (5-10 seconds per test)
+- 🔧 Requires Pub/Sub emulator
+- ✅ Test real GCP operations
+- ✅ No credentials needed (uses emulator)
+
+**How It Works:**
+1. Each test starts the gcloud Pub/Sub emulator on `localhost:8085`
+2. Sets `PUBSUB_EMULATOR_HOST=localhost:8085` environment variable
+3. Tests perform real Pub/Sub operations against the emulator
+4. Emulator is stopped and environment variables cleaned up after each test
+
+## Test Coverage
+
+### Generate Coverage Reports
+
+```bash
+# Unit tests coverage
+task test:coverage:html
+
+# All tests coverage (unit + integration)
+task test:coverage:all
+
+# Direct commands
+go test -coverprofile=coverage.out -short ./...
+go tool cover -html=coverage.out -o coverage.html
+```
+
+### View Coverage
+
+After generating the HTML report:
+```bash
+open coverage.html  # macOS
+xdg-open coverage.html  # Linux
+start coverage.html  # Windows
+```
+
+## Build Tags
+
+Integration tests use the `integration` build tag:
+
+```go
+//go:build integration
+// +build integration
+
+package main
+```
+
+This allows:
+- Running unit tests quickly: `go test ./...` (excludes integration)
+- Running integration tests when needed: `go test -tags=integration ./...`
+- CI/CD can run both separately
+
+## Test Structure
+
+### Unit Test Example
+
+```go
+func TestNewApp(t *testing.T) {
+    app := NewApp()
+
+    // Verify initialization
+    if app.activeMonitors == nil {
+        t.Error("activeMonitors map is nil")
+    }
+    // ... more assertions
+}
+```
+
+### Integration Test Example
+
+```go
+func TestPublishMessage_Integration(t *testing.T) {
+    if testing.Short() {
+        t.Skip("skipping integration test")
+    }
+
+    app, cleanup := setupIntegrationTestApp(t)
+    defer cleanup()
+
+    // Connect to emulator
+    if err := app.ConnectWithADC("test-project"); err != nil {
+        t.Fatalf("ConnectWithADC() error = %v", err)
+    }
+
+    // Create topic and publish message
+    // ... test logic ...
+}
+```
+
+## Common Issues and Solutions
+
+### Issue: "context deadline exceeded"
+
+**Cause:** Emulator not ready or context timeout too short.
+
+**Solution:**
+- The emulator setup now waits 5 seconds for readiness
+- Integration tests use 30-second context timeout
+- If still failing, increase wait time in `test/emulator.go`
+
+### Issue: "cannot call 'runtime.EventsEmit': An invalid context was passed"
+
+**Cause:** Integration tests use `context.Background()` instead of Wails context.
+
+**Solution:**
+- This is expected and harmless in integration tests
+- Events won't be emitted, but tests still validate functionality
+- Can be ignored - it's just a warning log
+
+### Issue: "gcloud: command not found"
+
+**Cause:** Google Cloud SDK not installed or not in PATH.
+
+**Solution:**
+```bash
+# Install Google Cloud SDK
+brew install google-cloud-sdk  # macOS
+
+# Or download from:
+# https://cloud.google.com/sdk/docs/install
+
+# Verify installation
+gcloud --version
+```
+
+### Issue: "Docker is required" or "Docker daemon is not running"
+
+**Cause:** Docker not installed or Docker daemon not running.
+
+**Solution:**
+```bash
+# Install Docker Desktop (macOS/Windows)
+# https://www.docker.com/get-started
+
+# Or install via Homebrew (macOS)
+brew install --cask docker
+
+# Start Docker Desktop application, then verify:
+docker --version
+docker info  # Should not error
+
+# On Linux, start Docker service:
+sudo systemctl start docker
+sudo systemctl enable docker  # Enable auto-start on boot
+```
+
+**Note:** Integration tests now use Docker containers with the `google/cloud-sdk:emulators` image, so Java and gcloud CLI are no longer required on the host machine.
+
+### Issue: "Docker is required" or "Docker daemon is not running"
+
+**Cause:** Docker not installed or Docker daemon not running.
+
+**Solution:**
+```bash
+# Install Docker Desktop (macOS/Windows)
+# https://www.docker.com/get-started
+
+# Or install via Homebrew (macOS)
+brew install --cask docker
+
+# Start Docker Desktop application, then verify:
+docker --version
+docker info  # Should not error
+
+# On Linux, start Docker service:
+sudo systemctl start docker
+sudo systemctl enable docker  # Enable auto-start on boot
+```
+
+**Note:** Integration tests now use Docker containers, so Java and gcloud CLI are no longer required on the host machine.
+
+### Issue: "failed to start emulator"
+
+**Cause:** Port 8085 already in use or emulator already running.
+
+**Solution:**
+```bash
+# Check if emulator is already running
+lsof -i :8085
+
+# Kill existing process if needed
+kill <PID>
+
+# Or use a different port (modify test/emulator.go)
+```
+
+### Issue: Tests timeout or hang
+
+**Cause:** Emulator container not responding or network issues.
+
+**Solution:**
+- Check Docker container logs:
+  ```bash
+  docker ps -a  # Find container name
+  docker logs <container-name>
+  ```
+- Verify `PUBSUB_EMULATOR_HOST` is set correctly (should be `localhost:8085`)
+- Ensure Docker daemon is running: `docker info`
+- Try manually starting the emulator container:
+  ```bash
+  docker run --rm -p 8085:8085 google/cloud-sdk:emulators \
+    gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+  ```
+
+## Test Best Practices
+
+### When Writing Tests
+
+1. **Use table-driven tests** for similar test logic
+2. **Use `t.Helper()`** for test helper functions
+3. **Compare full structures** using `cmp` package
+4. **Test error conditions** as well as success cases
+5. **Clean up resources** in `defer` statements
+
+### Test Naming
+
+- Unit tests: `TestFunctionName`
+- Integration tests: `TestFunctionName_Integration`
+- Use descriptive test case names in table-driven tests
+
+### Skipping Tests
+
+```go
+// Skip integration tests when running with -short
+if testing.Short() {
+    t.Skip("skipping integration test")
+}
+
+// Skip if prerequisite not available
+if !hasEmulator() {
+    t.Skip("Pub/Sub emulator not available")
+}
+```
+
+## CI/CD Integration
+
+### Running Tests in CI
+
+```yaml
+# Example GitHub Actions
+- name: Run unit tests
+  run: go test -short ./...
+
+- name: Install gcloud
+  uses: google-github-actions/setup-gcloud@v1
+
+- name: Install pubsub emulator
+  run: gcloud components install pubsub-emulator
+
+- name: Run integration tests
+  run: go test -tags=integration -v ./...
+```
+
+### Test Environment Variables
+
+Integration tests automatically set:
+- `PUBSUB_EMULATOR_HOST=localhost:8085`
+
+No other environment variables needed for tests.
+
+## Debugging Tests
+
+### Verbose Output
+
+```bash
+# See detailed test output
+go test -v ./...
+
+# See test logs
+go test -v -run TestName 2>&1 | tee test.log
+```
+
+### Run Single Test
+
+```bash
+# Unit test
+go test -v -short -run TestNewApp
+
+# Integration test
+go test -tags=integration -v -run TestConnectWithADC_Integration
+```
+
+### Debug with Delve
+
+```bash
+# Install Delve debugger
+go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Debug test
+dlv test -- -test.run TestName
+```
+
+## Test Coverage Goals
+
+- **Unit Tests**: Aim for 100% coverage of delegation methods
+- **Integration Tests**: Cover all major workflows (CRUD, monitoring, etc.)
+- **Overall**: Maintain >80% code coverage
+
+## Additional Resources
+
+- **Test Writing Guidelines**: `.cursor/rules/writing-tests.mdc`
+- **Integration Test Details**: `INTEGRATION_TESTS.md`
+- **Go Testing Documentation**: https://pkg.go.dev/testing
