@@ -174,8 +174,5 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/bin
-    contents:
-      - src: "{{ .ArtifactPath }}"
-        dst: /usr/bin/pubsub-gui
-        file_info:
-          mode: 0755
+    # bindir automatically adds the binary to /usr/bin/ with the binary name
+    # No need for explicit contents section
