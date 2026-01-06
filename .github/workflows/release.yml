@@ -123,19 +123,17 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Remove 'v' prefix from version for archive name (e.g., v0.0.4 -> 0.0.4)
-          VERSION_NO_V="${VERSION#v}"
           ARTIFACT_NAME="${{ matrix.artifact_name }}"
 
           if [[ "${{ matrix.os }}" =~ ^macos- ]]; then
             # Package .app bundle for macOS
             cd build/bin
-            tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.tar.gz" pubsub-gui.app
+            tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION}.tar.gz" pubsub-gui.app
             cd ../..
           else
             # Package binary for Linux
             cd build/bin
-            tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.tar.gz" pubsub-gui
+            tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION}.tar.gz" pubsub-gui
             cd ../..
           fi
 
@@ -144,13 +142,11 @@ jobs:
         shell: pwsh
         run: |
           $VERSION = "${{ steps.version.outputs.version }}"
-          # Remove 'v' prefix from version for archive name (e.g., v0.0.4 -> 0.0.4)
-          $VERSION_NO_V = $VERSION -replace '^v', ''
           $ARTIFACT_NAME = "${{ matrix.artifact_name }}"
 
           # Package .exe for Windows
           Set-Location build/bin
-          $zipName = "..\..\pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.zip"
+          $zipName = "..\..\pubsub-gui_${ARTIFACT_NAME}_${VERSION}.zip"
           Compress-Archive -Path pubsub-gui.exe -DestinationPath $zipName -Force
           Set-Location ..\..
           Write-Host "Created: $zipName"
@@ -211,6 +207,11 @@ jobs:
             fi
           done
 
+      - name: Get release date
+        id: date
+        run: |
+          echo "date=$(date -u +"%Y-%m-%d")" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v2.5.0
         with:
@@ -219,9 +220,7 @@ jobs:
           files: |
             artifacts/*
           body: |
-            ## Release ${{ steps.version.outputs.version }}
-
-            Published on $(date -u +"%Y-%m-%d")
+            Published on ${{ steps.date.outputs.date }}
 
             ## Installation
 
