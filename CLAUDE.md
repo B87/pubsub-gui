@@ -2,40 +2,97 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## Table of Contents
+
+1. [Project Overview](#project-overview)
+2. [Quick Start](#quick-start)
+3. [Architecture](#architecture)
+4. [Development Workflow](#development-workflow)
+5. [Key Technical Decisions](#key-technical-decisions)
+6. [Component Development Guidelines](#component-development-guidelines)
+7. [Backend API Reference](#backend-api-reference)
+8. [Code Quality & Testing](#code-quality--testing)
+9. [Troubleshooting](#troubleshooting)
+10. [Additional Resources](#additional-resources)
+
+---
+
 ## Project Overview
 
 This is a **Wails v2** desktop application for Google Cloud Pub/Sub management. It combines a **Go backend** (for GCP Pub/Sub API interactions) with a **React + TypeScript frontend** (using Vite). The app provides a GUI for browsing topics, monitoring subscriptions, publishing messages, and working with both production GCP and the local Pub/Sub Emulator.
 
-See PRD.md for comprehensive product requirements and architecture.
+### Key Features
 
-## Development Commands
+- **Multi-Project Support**: Connect to multiple GCP projects with saved profiles
+- **Real-Time Monitoring**: Stream messages from topics and subscriptions in real-time
+- **Message Publishing**: Publish messages with custom attributes and payloads
+- **Template System**: Save and reuse message templates
+- **Theme Support**: 5 themes (Auto, Dark, Light, Dracula, Monokai) with 3 font sizes
+- **Resource Management**: Create, update, and delete topics and subscriptions
 
-### Building and Running
+**For comprehensive requirements:** See `PRD.md` for detailed product specifications and architecture.
+
+**For theme system details:** See `.cursor/rules/theme-system.mdc` for complete theme documentation.
+
+**For UI development:** See `.cursor/rules/react-tailwind.mdc` for React and styling guidelines.
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Go**: 1.21+ (for backend development)
+- **Node.js**: 18+ (for frontend development)
+- **Wails CLI**: v2.11.0+ (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
+- **GCP Account**: For testing with real Pub/Sub (optional - can use emulator)
+
+### First-Time Setup
 
 ```bash
-# Live development mode (hot reload frontend, run Go backend)
+# 1. Clone the repository
+git clone <repository-url>
+cd pubsub-gui
+
+# 2. Install dependencies
+wails doctor  # Verify Wails setup
+cd frontend && npm install && cd ..
+
+# 3. Run in development mode
 wails dev
 
-# Build production binary for current platform
+# The app will open automatically
+# Dev server runs on http://localhost:34115 for browser debugging
+```
+
+### Development Workflow
+
+```bash
+# Development (hot reload enabled)
+wails dev
+
+# Build for current platform
 wails build
 
 # Build for specific platforms
-wails build -platform darwin/universal    # macOS universal binary
-wails build -platform windows/amd64       # Windows
-wails build -platform linux/amd64         # Linux
+wails build -platform darwin/universal    # macOS (Intel + Apple Silicon)
+wails build -platform windows/amd64       # Windows 64-bit
+wails build -platform linux/amd64         # Linux 64-bit
+
+# Build artifacts go to build/bin/
 ```
 
-The dev server runs on http://localhost:34115 for browser-based debugging with access to Go methods.
-
-### Frontend Commands
+### Frontend-Only Development
 
 ```bash
 cd frontend
 
-# Install dependencies
+# Install dependencies (first time only)
 npm install
 
-# Run Vite dev server (standalone, without Wails)
+# Run Vite dev server (without Go backend)
 npm run dev
 
 # Build frontend only (outputs to frontend/dist)
@@ -45,14 +102,22 @@ npm run build
 npm run preview
 ```
 
-### Go Commands
+**Note:** Frontend-only mode is useful for UI development, but Wails bindings won't work without the Go backend.
+
+### Backend Development
 
 ```bash
 # Run tests
 go test ./...
 
-# Format code
+# Run tests with coverage
+go test -cover ./...
+
+# Format code (run before committing)
 go fmt ./...
+
+# Lint code (if golangci-lint installed)
+golangci-lint run
 
 # Update dependencies
 go mod tidy
@@ -255,33 +320,596 @@ Users change themes by editing config via ConfigEditorDialog. Changes apply inst
 
 See `.cursor/rules/theme-system.mdc` for comprehensive documentation.
 
-## Configuration Files
+---
 
-- `wails.json`: Wails project configuration (frontend build commands, author info)
-- `go.mod`: Go dependencies (currently Wails v2.11.0)
-- `frontend/package.json`: Frontend dependencies (React 18, Vite 3, TypeScript 4)
-- `frontend/tsconfig.json`: TypeScript compiler options
+## Development Workflow
 
-## Code Quality Rules (Codacy)
+### Adding New Backend Methods
 
-This project uses Codacy MCP Server integration. After editing any file:
-1. Run `codacy_cli_analyze` for the edited file
-2. Fix any issues found before proceeding
-3. After adding dependencies, run `codacy_cli_analyze` with `tool: "trivy"` to check for security vulnerabilities
+When creating new Go methods for the frontend to call:
 
-## IAM Permissions Required
+1. **Define the method on the `App` struct** in `app.go`:
+   ```go
+   func (a *App) MyNewMethod(param string) (string, error) {
+       // Implementation
+       return result, nil
+   }
+   ```
+
+2. **Run `wails dev`** to generate TypeScript bindings
+
+3. **Import and use in React**:
+   ```typescript
+   import { MyNewMethod } from '../wailsjs/go/main/App';
+
+   const result = await MyNewMethod("test");
+   ```
+
+### Adding New Components
+
+When creating new React components:
+
+1. **Check theme system requirements** (see `.cursor/rules/react-tailwind.mdc`)
+2. **Use semantic CSS variables** (preferred) or mapped Tailwind classes
+3. **Test with all 5 themes** (Auto, Dark, Light, Dracula, Monokai)
+4. **Ensure accessibility** (ARIA labels, keyboard navigation)
+
+Example component structure:
+```tsx
+import { useTheme } from '../hooks/useTheme';
+
+export default function MyComponent() {
+  const { theme, fontSize } = useTheme();
+
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--color-bg-secondary)',
+        color: 'var(--color-text-primary)',
+      }}
+      className="border border-slate-700 rounded-lg p-4"
+    >
+      {/* Content */}
+    </div>
+  );
+}
+```
+
+### Emitting Events from Backend
+
+For real-time updates (e.g., message streams):
+
+```go
+import "github.com/wailsapp/wails/v2/pkg/runtime"
+
+// In your App method
+runtime.EventsEmit(a.ctx, "event:name", payload)
+```
+
+Listen in frontend:
+```typescript
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+
+useEffect(() => {
+  const unsubscribe = EventsOn("event:name", (data) => {
+    console.log("Received:", data);
+  });
+
+  return () => EventsOff("event:name");
+}, []);
+```
+
+### Working with Concurrency
+
+The app uses Go concurrency heavily. Key patterns:
+
+**Resource Synchronization:**
+```go
+// Always lock when accessing shared state
+a.resourceMu.RLock()
+topics := a.topics
+a.resourceMu.RUnlock()
+
+// Initialize to empty slices, not nil (prevents race conditions)
+a.topics = []admin.TopicInfo{}
+a.subscriptions = []admin.SubscriptionInfo{}
+```
+
+**Message Streaming:**
+```go
+// Use goroutines with proper cleanup
+go func() {
+    for {
+        select {
+        case msg := <-messageChan:
+            runtime.EventsEmit(a.ctx, "message:received", msg)
+        case <-ctx.Done():
+            return
+        }
+    }
+}()
+```
+
+---
+
+## Component Development Guidelines
+
+### Theme System Requirements
+
+**CRITICAL**: All components MUST support the theme system. See `.cursor/rules/react-tailwind.mdc` for full guidelines.
+
+**Core Requirements:**
+1. **NEVER use hardcoded colors** (e.g., `#1a1a1a`, `rgb(255,0,0)`)
+2. **PRIORITIZE semantic CSS variables** over Tailwind classes
+3. **Test with all 5 themes** before committing
+
+**Approved Styling Approaches:**
+
+**Option 1: Semantic CSS Variables (Preferred)**
+```tsx
+<div
+  style={{
+    backgroundColor: 'var(--color-bg-secondary)',
+    color: 'var(--color-text-primary)',
+    borderColor: 'var(--color-border-primary)',
+  }}
+>
+```
+
+**Option 2: Mapped Tailwind Classes (Fallback)**
+```tsx
+<div className="bg-slate-900 text-slate-100 border border-slate-700">
+```
+
+Available mapped classes:
+- Backgrounds: `bg-slate-{900,800,700,600}`
+- Text: `text-slate-{100,200,300,400,500,600}`
+- Borders: `border-slate-{700,800}`
+- Status: `bg-green-{600,700,900}`, `bg-red-{600,700,900}`, `bg-yellow-{600,700,900}`
+- Opacity: Use `bg-slate-900/30` for 30% opacity (automatically uses `color-mix()`)
+
+### Component Structure
+
+**Standard Component Template:**
+```tsx
+import { useState, useEffect } from 'react';
+import { useTheme } from '../hooks/useTheme';
+
+interface MyComponentProps {
+  data: string;
+  onAction: () => void;
+}
+
+export default function MyComponent({ data, onAction }: MyComponentProps) {
+  const { theme, fontSize } = useTheme();
+  const [localState, setLocalState] = useState('');
+
+  useEffect(() => {
+    // Setup and cleanup
+    return () => {
+      // Cleanup
+    };
+  }, []);
+
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--color-bg-primary)',
+        color: 'var(--color-text-primary)',
+      }}
+      className="rounded-lg border border-slate-700 p-4"
+    >
+      {/* Component content */}
+    </div>
+  );
+}
+```
+
+### Performance Considerations
+
+**Virtual Scrolling:**
+For lists with 100+ items, use `@tanstack/react-virtual`:
+
+```tsx
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+const virtualizer = useVirtualizer({
+  count: items.length,
+  getScrollElement: () => parentRef.current,
+  estimateSize: () => 48, // Row height
+  overscan: 10,
+});
+```
+
+**Memoization:**
+Use `useMemo` for expensive computations:
+
+```tsx
+const filteredItems = useMemo(() => {
+  return items.filter(item => item.name.includes(searchQuery));
+}, [items, searchQuery]);
+```
+
+### Accessibility Checklist
+
+- [ ] All interactive elements have `aria-label` or visible text
+- [ ] Keyboard navigation works (Tab, Enter, Escape)
+- [ ] Focus states are visible
+- [ ] Color contrast meets WCAG AA (4.5:1 for normal text)
+- [ ] Error messages are announced to screen readers
+
+---
+
+## Backend API Reference
+
+### Core App Methods
+
+All methods are on the `App` struct in `app.go` and exposed to frontend via Wails.
+
+#### Connection Management
+
+```go
+func (a *App) Connect(profile models.ConnectionProfile) error
+```
+Connects to GCP project or emulator. Validates credentials and initializes Pub/Sub client.
+
+```go
+func (a *App) Disconnect() error
+```
+Disconnects from current project. Cleans up clients and stops monitoring.
+
+```go
+func (a *App) GetConnectionProfile() models.ConnectionProfile
+```
+Returns currently active connection profile.
+
+#### Resource Management
+
+```go
+func (a *App) SyncResources() error
+```
+Fetches all topics and subscriptions from GCP. Uses goroutines for parallel fetching. Emits `resources:updated` event.
+
+```go
+func (a *App) GetTopics() []admin.TopicInfo
+```
+Returns cached topic list. Call `SyncResources()` first to refresh.
+
+```go
+func (a *App) GetSubscriptions() []admin.SubscriptionInfo
+```
+Returns cached subscription list. Call `SyncResources()` first to refresh.
+
+```go
+func (a *App) CreateTopic(topicID string) error
+```
+Creates a new topic. Auto-refreshes resource cache.
+
+```go
+func (a *App) DeleteTopic(topicID string) error
+```
+Deletes a topic. Auto-refreshes resource cache.
+
+```go
+func (a *App) CreateSubscription(req models.CreateSubscriptionRequest) error
+```
+Creates a new subscription with configuration. Auto-refreshes resource cache.
+
+```go
+func (a *App) DeleteSubscription(subscriptionID string) error
+```
+Deletes a subscription. Auto-refreshes resource cache.
+
+#### Message Operations
+
+```go
+func (a *App) PublishMessage(topicID string, message models.PublishMessageRequest) (string, error)
+```
+Publishes a message to a topic. Returns message ID.
+
+```go
+func (a *App) StartTopicMonitoring(topicID string, subscriptionID *string, autoAck bool) error
+```
+Starts monitoring a topic. If `subscriptionID` is nil, creates temporary subscription. Emits `topic:message` events.
+
+```go
+func (a *App) StopTopicMonitoring(topicID string) error
+```
+Stops monitoring a topic. Cleans up temporary subscription if created.
+
+```go
+func (a *App) StartSubscriptionMonitoring(subscriptionID string, autoAck bool) error
+```
+Starts monitoring a subscription. Emits `subscription:message` events.
+
+```go
+func (a *App) StopSubscriptionMonitoring(subscriptionID string) error
+```
+Stops monitoring a subscription.
+
+#### Configuration
+
+```go
+func (a *App) GetConfig() (models.AppConfig, error)
+```
+Returns app configuration from `~/.pubsub-gui/config.json`.
+
+```go
+func (a *App) SaveConfig(config models.AppConfig) error
+```
+Saves app configuration to disk.
+
+```go
+func (a *App) UpdateTheme(theme string) error
+```
+Updates theme setting. Emits `config:theme-changed` event. Valid values: `auto`, `dark`, `light`, `dracula`, `monokai`.
+
+```go
+func (a *App) UpdateFontSize(fontSize string) error
+```
+Updates font size setting. Emits `config:font-size-changed` event. Valid values: `small`, `medium`, `large`.
+
+### Frontend Events
+
+Events emitted from backend that frontend can listen to:
+
+| Event Name | Payload Type | Description |
+|------------|--------------|-------------|
+| `resources:updated` | `{ topics: [], subscriptions: [] }` | Fired when resource cache is refreshed |
+| `topic:message` | `models.PubSubMessage` | New message received during topic monitoring |
+| `subscription:message` | `models.PubSubMessage` | New message received during subscription monitoring |
+| `config:theme-changed` | `{ theme: string }` | Theme setting changed |
+| `config:font-size-changed` | `{ fontSize: string }` | Font size setting changed |
+| `monitoring:error` | `{ error: string, topicId?: string }` | Error during monitoring |
+
+**Event Listening Pattern:**
+```typescript
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+
+useEffect(() => {
+  const handler = (data) => {
+    console.log("Received:", data);
+  };
+
+  EventsOn("event:name", handler);
+
+  return () => {
+    EventsOff("event:name");
+  };
+}, []);
+```
+
+---
+
+## Code Quality & Testing
+
+### Codacy Integration
+
+This project uses Codacy MCP Server integration. **After editing any file:**
+
+1. **Run analysis:**
+   ```bash
+   codacy_cli_analyze --file <path-to-file>
+   ```
+
+2. **Fix any issues found** before proceeding
+
+3. **Check dependencies for vulnerabilities:**
+   ```bash
+   codacy_cli_analyze --tool trivy
+   ```
+
+### Testing Guidelines
+
+**Backend Tests:**
+```bash
+# Run all tests
+go test ./...
+
+# Run with coverage
+go test -cover ./...
+
+# Run specific package
+go test ./internal/auth/...
+
+# Verbose output
+go test -v ./...
+```
+
+**Frontend Tests:**
+```bash
+cd frontend
+
+# Run tests (if configured)
+npm test
+
+# Run with coverage
+npm test -- --coverage
+```
+
+### Code Quality Checklist
+
+Before committing:
+- [ ] Run `go fmt ./...` on Go code
+- [ ] Run `codacy_cli_analyze` on modified files
+- [ ] Verify no hardcoded colors in React components
+- [ ] Test with all 5 themes
+- [ ] Run `go test ./...` if backend changes
+- [ ] Check for race conditions in concurrent code
+- [ ] Verify proper error handling
+
+---
+
+## Troubleshooting
+
+### Common Errors
+
+#### "subscriptions not yet synced"
+
+**Cause:** Race condition - monitoring started before `SyncResources()` completed.
+
+**Fix:** The code now initializes resource slices to empty arrays instead of `nil`. If you still see this:
+1. Ensure you're calling `SyncResources()` after connecting
+2. Wait for `resources:updated` event before monitoring
+
+#### "failed to create temporary subscription"
+
+**Cause:** Insufficient IAM permissions or topic doesn't exist.
+
+**Fix:**
+1. Verify service account has `roles/pubsub.editor` or `roles/pubsub.subscriber`
+2. Confirm topic exists with `GetTopics()`
+3. Check GCP project ID is correct
+
+#### TypeScript errors for new Go methods
+
+**Cause:** Wails bindings not yet generated.
+
+**Fix:**
+1. Run `wails dev` to generate bindings
+2. Or add temporary `declare` statement (see [Wails Binding Generation](#wails-binding-generation))
+
+#### Theme colors not applying
+
+**Cause:** Component using hardcoded colors or unmapped Tailwind classes.
+
+**Fix:**
+1. Replace hardcoded hex/rgb colors with CSS variables
+2. Use only [approved Tailwind classes](.cursor/rules/react-tailwind.mdc)
+3. Add missing mappings to `frontend/src/themes.css` if needed
+
+#### Build fails with "command not found: wails"
+
+**Cause:** Wails CLI not installed or not in PATH.
+
+**Fix:**
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# Add Go bin to PATH if needed
+export PATH=$PATH:$(go env GOPATH)/bin
+```
+
+### Performance Issues
+
+#### Slow message rendering
+
+**Solution:** Use virtual scrolling. See [TopicMonitor.tsx:57-62](/Users/bernat/vms/personal/pubsub-gui/frontend/src/components/TopicMonitor.tsx#L57-L62) for implementation.
+
+#### High memory usage during monitoring
+
+**Cause:** Message buffer growing unbounded.
+
+**Fix:** The app limits to 500 messages by default. Adjust in backend if needed:
+```go
+const maxBufferSize = 500
+if len(messages) > maxBufferSize {
+    messages = messages[:maxBufferSize]
+}
+```
+
+#### Slow resource sync
+
+**Solution:** The app already uses parallel fetching. If still slow:
+1. Check network latency to GCP
+2. Verify not rate-limited by GCP APIs
+3. Consider caching with longer TTL
+
+### Debugging Tips
+
+**Enable Dev Tools in Wails:**
+```bash
+# Dev mode automatically opens Chrome DevTools
+wails dev
+
+# Access in browser for more tools
+# Open: http://localhost:34115
+```
+
+**Debug Go Backend:**
+```go
+// Add logging
+import "log"
+
+log.Printf("Debug: %+v", variable)
+```
+
+**Debug Race Conditions:**
+```bash
+# Run with race detector
+go test -race ./...
+
+# Build with race detector
+go build -race
+```
+
+**Debug Frontend Events:**
+```typescript
+import { EventsOn } from '../wailsjs/runtime/runtime';
+
+// Log all events
+EventsOn("*", (eventName, data) => {
+  console.log(`Event: ${eventName}`, data);
+});
+```
+
+---
+
+## Additional Resources
+
+### Configuration Files
+
+- **`wails.json`**: Wails project configuration (build commands, app metadata)
+- **`go.mod`**: Go dependencies (currently Wails v2.11.0, GCP libraries)
+- **`frontend/package.json`**: Frontend dependencies (React 18, Vite 3, TypeScript 4)
+- **`frontend/tsconfig.json`**: TypeScript compiler options
+- **`~/.pubsub-gui/config.json`**: User configuration (connection profiles, theme, font size)
+
+### Documentation Files
+
+- **`PRD.md`**: Product Requirements Document - comprehensive feature specifications
+- **`.cursor/rules/theme-system.mdc`**: Complete theme system documentation
+- **`.cursor/rules/react-tailwind.mdc`**: React and styling guidelines (MUST READ for UI work)
+- **`THEME_SYSTEM_IMPROVEMENTS.md`**: Roadmap for theme system enhancements
+
+### IAM Permissions Required
 
 For production GCP usage, service accounts need:
-- `roles/pubsub.viewer`: List topics and subscriptions
-- `roles/pubsub.publisher`: Publish messages to topics
-- `roles/pubsub.subscriber`: Pull messages from subscriptions
+- **`roles/pubsub.viewer`**: List topics and subscriptions
+- **`roles/pubsub.publisher`**: Publish messages to topics
+- **`roles/pubsub.subscriber`**: Pull messages from subscriptions
 
-Recommended: `roles/pubsub.editor` for dev environments (combines all above)
+**Recommended:** `roles/pubsub.editor` for dev environments (combines all above)
 
-## Platform-Specific Notes
+### Platform-Specific Notes
 
-- **macOS**: Builds universal binaries (Intel + Apple Silicon)
-- **Windows**: Requires Windows 10+, uses WebView2
-- **Linux**: Targets Ubuntu 20.04+, outputs `.AppImage`
+- **macOS**: Builds universal binaries (Intel + Apple Silicon), requires macOS 10.13+
+- **Windows**: Requires Windows 10+, uses WebView2 (auto-installed)
+- **Linux**: Targets Ubuntu 20.04+, outputs `.AppImage` and `.deb`
 
 Build artifacts go to `build/bin/`
+
+### External Dependencies
+
+**Backend (Go):**
+- `github.com/wailsapp/wails/v2` - Desktop app framework
+- `cloud.google.com/go/pubsub` - GCP Pub/Sub client
+- `google.golang.org/api` - GCP API support
+
+**Frontend (React):**
+- `react` v18 - UI library
+- `@tanstack/react-virtual` - Virtual scrolling
+- `@monaco-editor/react` - Code editor
+- `tailwindcss` v4 - Utility CSS
+
+### Getting Help
+
+1. **Check this file** for common patterns and troubleshooting
+2. **Review `.cursor/rules/react-tailwind.mdc`** for UI guidelines
+3. **Check `PRD.md`** for feature requirements
+4. **Search codebase** for similar implementations
+5. **Check Wails docs**: https://wails.io/docs/
+
+---
+
+**Last Updated:** 2026-01-06

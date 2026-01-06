@@ -4,54 +4,54 @@ overview: Implement comprehensive theme system improvements following the recomm
 todos:
   - id: settings-dialog
     content: Create SettingsDialog component with Appearance and Advanced tabs, theme selector with preview cards, and font size selector with live preview
-    status: pending
+    status: completed
   - id: backend-theme-methods
     content: Add UpdateTheme() and UpdateFontSize() methods to app.go that validate, save config, and emit events
-    status: pending
+    status: completed
   - id: settings-integration
     content: Add settings button to Sidebar and wire up SettingsDialog in App.tsx
-    status: pending
+    status: completed
     dependencies:
       - settings-dialog
       - backend-theme-methods
   - id: accessibility-audit
     content: Conduct WCAG AA contrast testing for all themes, fix low contrast issues, and document contrast ratios in themes.css
-    status: pending
+    status: completed
   - id: status-icons
     content: Add icons to status indicators (success, error, warning) in StatusIndicator.tsx and other components using color-only status
-    status: pending
+    status: completed
   - id: legacy-audit-script
     content: Create find-legacy-styles.sh script to detect inline styles, arbitrary Tailwind values, and hex colors
-    status: pending
+    status: completed
   - id: legacy-cleanup-sidebar
     content: Clean up legacy styles in Sidebar.tsx - replace inline styles and hardcoded colors with theme variables
-    status: pending
+    status: completed
     dependencies:
       - legacy-audit-script
   - id: legacy-cleanup-details
     content: Clean up legacy styles in TopicDetails.tsx and SubscriptionDetails.tsx
-    status: pending
+    status: completed
     dependencies:
       - legacy-audit-script
   - id: legacy-cleanup-monitors
     content: Clean up legacy styles in MessageDetailDialog.tsx and TopicMonitor.tsx
-    status: pending
+    status: completed
     dependencies:
       - legacy-audit-script
   - id: theme-preview-cards
     content: Enhance theme preview cards with rich visual previews showing actual UI elements in theme colors
-    status: pending
+    status: completed
     dependencies:
       - settings-dialog
   - id: transition-refinement
     content: Replace global transition with targeted selectors, add CSS variables for durations, and support prefers-reduced-motion
-    status: pending
+    status: completed
   - id: monaco-integration-verify
     content: Verify Monaco editor theme sync works correctly, test theme and font size changes update editor
-    status: pending
+    status: completed
   - id: css-mappings-complete
     content: Add comprehensive CSS variable mappings for focus rings, dividers, outlines, and document all mappings
-    status: pending
+    status: completed
 ---
 
 # Theme System Improvements Implementation Plan

@@ -1165,6 +1165,84 @@ func (a *App) GetAutoAck() (bool, error) {
 	return a.config.AutoAck, nil
 }
 
+// UpdateTheme updates the theme setting and saves it to config
+func (a *App) UpdateTheme(theme string) error {
+	if a.configManager == nil {
+		return fmt.Errorf("config manager not initialized")
+	}
+
+	// Validate theme value
+	if theme != "light" && theme != "dark" && theme != "auto" && theme != "dracula" && theme != "monokai" {
+		return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', or 'monokai'")
+	}
+
+	// Load current config to preserve other settings
+	if a.config == nil {
+		var err error
+		a.config, err = a.configManager.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+
+	// Store old theme to detect changes
+	oldTheme := a.config.Theme
+
+	// Update theme
+	a.config.Theme = theme
+
+	// Save config
+	if err := a.configManager.SaveConfig(a.config); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Emit event if theme changed
+	if oldTheme != theme {
+		runtime.EventsEmit(a.ctx, "config:theme-changed", theme)
+	}
+
+	return nil
+}
+
+// UpdateFontSize updates the font size setting and saves it to config
+func (a *App) UpdateFontSize(size string) error {
+	if a.configManager == nil {
+		return fmt.Errorf("config manager not initialized")
+	}
+
+	// Validate font size value
+	if size != "small" && size != "medium" && size != "large" {
+		return fmt.Errorf("fontSize must be 'small', 'medium', or 'large'")
+	}
+
+	// Load current config to preserve other settings
+	if a.config == nil {
+		var err error
+		a.config, err = a.configManager.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+
+	// Store old font size to detect changes
+	oldFontSize := a.config.FontSize
+
+	// Update font size
+	a.config.FontSize = size
+
+	// Save config
+	if err := a.configManager.SaveConfig(a.config); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Emit event if font size changed
+	if oldFontSize != size {
+		runtime.EventsEmit(a.ctx, "config:font-size-changed", size)
+	}
+
+	return nil
+}
+
 // GetConfigFileContent returns the raw JSON content of the config file
 func (a *App) GetConfigFileContent() (string, error) {
 	if a.configManager == nil {

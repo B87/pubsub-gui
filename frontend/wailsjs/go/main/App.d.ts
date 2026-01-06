@@ -67,6 +67,10 @@ export function SwitchProfile(arg1:string):Promise<void>;
 
 export function SyncResources():Promise<void>;
 
+export function UpdateFontSize(arg1:string):Promise<void>;
+
 export function UpdateSubscription(arg1:string,arg2:main.SubscriptionUpdateParams):Promise<void>;
 
 export function UpdateTemplate(arg1:string,arg2:models.MessageTemplate):Promise<void>;
+
+export function UpdateTheme(arg1:string):Promise<void>;

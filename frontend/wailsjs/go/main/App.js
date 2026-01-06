@@ -126,10 +126,18 @@ export function SyncResources() {
   return window['go']['main']['App']['SyncResources']();
 }
 
+export function UpdateFontSize(arg1) {
+  return window['go']['main']['App']['UpdateFontSize'](arg1);
+}
+
 export function UpdateSubscription(arg1, arg2) {
   return window['go']['main']['App']['UpdateSubscription'](arg1, arg2);
 }
 
 export function UpdateTemplate(arg1, arg2) {
   return window['go']['main']['App']['UpdateTemplate'](arg1, arg2);
+}
+
+export function UpdateTheme(arg1) {
+  return window['go']['main']['App']['UpdateTheme'](arg1);
 }

@@ -27,7 +27,7 @@ import TopicDetails from './components/TopicDetails';
 import SubscriptionDetails from './components/SubscriptionDetails';
 import TopicCreateDialog from './components/TopicCreateDialog';
 import SubscriptionDialog from './components/SubscriptionDialog';
-import ConfigEditorDialog from './components/ConfigEditorDialog';
+import SettingsDialog from './components/SettingsDialog';
 import EmptyState from './components/EmptyState';
 
 function App() {
@@ -45,7 +45,7 @@ function App() {
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
   const [subscriptionDialogMode, setSubscriptionDialogMode] = useState<'create' | 'edit'>('create');
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
-  const [showConfigEditorDialog, setShowConfigEditorDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 
   // Use ref to track selectedResource in event listeners without causing re-renders
   const selectedResourceRef = useRef(selectedResource);
@@ -466,7 +466,7 @@ function App() {
               setShowSubscriptionDialog(true);
             }}
             onEditSubscription={handleEditSubscription}
-            onOpenConfigEditor={() => setShowConfigEditorDialog(true)}
+            onOpenSettings={() => setShowSettingsDialog(true)}
             profileRefreshTrigger={profileRefreshTrigger}
             loading={loadingResources}
           />
@@ -533,13 +533,9 @@ function App() {
         error={error}
       />
 
-      <ConfigEditorDialog
-        open={showConfigEditorDialog}
-        onClose={() => {
-          setShowConfigEditorDialog(false);
-          setError('');
-        }}
-        error={error}
+      <SettingsDialog
+        open={showSettingsDialog}
+        onClose={() => setShowSettingsDialog(false)}
       />
     </ThemeProvider>
   );
