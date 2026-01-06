@@ -1,7 +1,7 @@
 ---
 alwaysApply: false
+description: Goreleaser configuration and usage guide for Pub/Sub GUI
 ---
-
 # Goreleaser Guide for Pub/Sub GUI
 
 This guide explains how to use Goreleaser to build and release the Pub/Sub GUI application for all platforms (macOS, Windows, Linux) both locally and via GitHub Actions.

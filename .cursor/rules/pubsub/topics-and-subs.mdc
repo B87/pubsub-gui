@@ -2,6 +2,7 @@
 description: Guidelines for working with Topics and Subscriptions in GCP Pub/Sub
 alwaysApply: false
 ---
+
 # Topics and Subscriptions Guidelines
 
 > **Note:** This rule complements `pubsub.mdc` with specific patterns for resource name handling and CRUD operations.
@@ -9,21 +10,24 @@ alwaysApply: false
 ## Resource Name Handling
 
 ### Topic and Subscription IDs
-- **Full Resource Names**: GCP Pub/Sub uses full resource names like `projects/{project-id}/topics/{topic-id}` or `projects/{project-id}/subscriptions/{subscription-id}`
-- **Topic/Subscription Names Only**: Sometimes code receives just the name part (e.g., `my-topic` instead of the full path)
-- **Always Normalize**: When creating subscriptions or topics, check if the input is already a full resource name before prepending the project prefix
+
+* **Full Resource Names**: GCP Pub/Sub uses full resource names like `projects/{project-id}/topics/{topic-id}` or `projects/{project-id}/subscriptions/{subscription-id}`
+* **Topic/Subscription Names Only**: Sometimes code receives just the name part (e.g., `my-topic` instead of the full path)
+* **Always Normalize**: When creating subscriptions or topics, check if the input is already a full resource name before prepending the project prefix
 
 ### Subscription ID Format Requirements
-- **Valid Characters**: Subscription IDs can only contain lowercase letters, numbers, hyphens, and underscores
-- **Invalid Characters**: Forward slashes (`/`) are NOT allowed in subscription IDs
-- **Length Limits**: Subscription IDs must be between 3 and 255 characters
-- **When Generating IDs**: Always extract the topic name (last segment after `/`) before using it in subscription ID generation
+
+* **Valid Characters**: Subscription IDs can only contain lowercase letters, numbers, hyphens, and underscores
+* **Invalid Characters**: Forward slashes (`/`) are NOT allowed in subscription IDs
+* **Length Limits**: Subscription IDs must be between 3 and 255 characters
+* **When Generating IDs**: Always extract the topic name (last segment after `/`) before using it in subscription ID generation
 
 ### Example: Creating Temporary Subscriptions
 
 See implementation in `app.go:732-764` for `StartTopicMonitor` which demonstrates:
-- Extracting topic name from full resource path
-- Generating valid subscription ID (no slashes!) with format `ps-gui-mon-{short-topic}-{random}`
+
+* Extracting topic name from full resource path
+* Generating valid subscription ID (no slashes!) with format `ps-gui-mon-{short-topic}-{random}`
 
 ```go 755:764:app.go
 	// Extract the actual topic name from the full resource path if necessary
@@ -41,37 +45,48 @@ See implementation in `app.go:732-764` for `StartTopicMonitor` which demonstrate
 
 ## Resource Name Normalization Pattern
 
-When working with GCP Pub/Sub resources, always handle both formats. See actual implementations:
+When working with GCP Pub/Sub resources, always handle both full resource names and short names. See actual implementations:
 
 **For Create Operations (extract short name first):**
-- Topic creation: See `internal/pubsub/admin/topics.go:86-94` for normalization logic
-- Subscription creation: See `internal/pubsub/admin/subscriptions.go:135-153` for normalization logic
+
+* Topic creation: See `internal/pubsub/admin/topics.go:86-94` for normalization logic
+* Subscription creation: See `internal/pubsub/admin/subscriptions.go:135-153` for normalization logic
+* **Important:** Always extract the short name first to ensure valid resource IDs (no slashes, proper format)
 
 **For Delete Operations (accept both formats):**
-- Topic deletion: See `internal/pubsub/admin/topics.go:123-127` for normalization logic
-- Subscription deletion: See `internal/pubsub/admin/subscriptions.go:189-192` for normalization logic
+
+* Topic deletion: See `internal/pubsub/admin/topics.go:123-127` for normalization logic
+* Subscription deletion: See `internal/pubsub/admin/subscriptions.go:189-192` for normalization logic
+
+**For Display Names:**
+
+* Extract short name from full resource name for display purposes
+* See `internal/pubsub/admin/topics.go:141-149` for `extractDisplayName()` function
 
 ## CRUD Operation Patterns
 
 ### Creating Resources
 
 **Topics:**
-- Topics are immutable in GCP - only Create and Delete operations are supported
-- Message retention duration can be set at creation time only
-- Topic IDs must be valid: lowercase letters, numbers, hyphens, underscores
+
+* Topics are immutable in GCP - only Create and Delete operations are supported
+* Message retention duration can be set at creation time only
+* Topic IDs must be valid: lowercase letters, numbers, hyphens, underscores
 
 **Subscriptions:**
-- Full CRUD support: Create, Read, Update, Delete
-- Must specify a topic when creating
-- Can update: ack deadline, retention duration, filter, dead letter policy, push config
-- Use field masks when updating to only change specified fields
+
+* Full CRUD support: Create, Read, Update, Delete
+* Must specify a topic when creating
+* Can update: ack deadline, retention duration, filter, dead letter policy, push config
+* Use field masks when updating to only change specified fields
 
 ### Validating Resource IDs
 
 **Note:** The codebase relies on GCP API validation for resource ID format. When generating subscription IDs programmatically (e.g., for temporary subscriptions), ensure:
-- Only lowercase letters, numbers, hyphens, and underscores (NO slashes)
-- Length between 3 and 255 characters
-- Extract topic name from full resource path before using in subscription ID generation
+
+* Only lowercase letters, numbers, hyphens, and underscores (NO slashes)
+* Length between 3 and 255 characters
+* Extract topic name from full resource path before using in subscription ID generation
 
 See `app.go:755-764` for an example of extracting topic name and generating a valid subscription ID.
 
@@ -80,32 +95,50 @@ See `app.go:755-764` for an example of extracting topic name and generating a va
 Always provide user-friendly error messages with permission hints. See actual implementations:
 
 **Topic Operations:**
-- Create: See `internal/pubsub/admin/topics.go:115` for error message with permission hint
-- Delete: See `internal/pubsub/admin/topics.go:135` for error handling
+
+* Create: See `internal/pubsub/admin/topics.go:115` for error message with permission hint
+* Delete: See `internal/pubsub/admin/topics.go:135` for error handling
 
 **Subscription Operations:**
-- Create: See `internal/pubsub/admin/subscriptions.go:164-165` for topic existence check and `internal/pubsub/admin/subscriptions.go:181` for error message with permission hint
-- Delete: See `internal/pubsub/admin/subscriptions.go:200` for error handling
+
+* Create: See `internal/pubsub/admin/subscriptions.go:164-165` for topic existence check and `internal/pubsub/admin/subscriptions.go:181` for error message with permission hint
+* Delete: See `internal/pubsub/admin/subscriptions.go:200` for error handling
+
+**General Error Handling Pattern:**
+
+```go
+// ✅ GOOD: Include permission hints and context
+if err != nil {
+    return fmt.Errorf("failed to create topic %s: %w. Ensure you have 'pubsub.topics.create' permission", topicName, err)
+}
+
+// ✅ GOOD: Check for common error types
+errStr := err.Error()
+if strings.Contains(errStr, "PermissionDenied") || strings.Contains(errStr, "permission denied") {
+    return fmt.Errorf("permission denied: you don't have permission to publish to this topic")
+}
+if strings.Contains(errStr, "NotFound") || strings.Contains(errStr, "not found") {
+    return fmt.Errorf("topic not found: the topic '%s' does not exist", topicID)
+}
+```
 
 ## Topic-Subscription Relationships
 
 ### Querying Relationships
 
-The codebase provides methods to query relationships between topics and subscriptions:
+**Note:** The following methods (`GetTopicSubscriptions`, `GetSubscriptionsUsingTopicAsDeadLetter`, `GetDeadLetterTopicsForTopic`) have been **removed** from the backend. The frontend now filters relationships locally from the synchronized resource store for instant updates without API roundtrips.
 
-**Backend Methods (in `app.go`):**
-- `GetTopicSubscriptions(topicID string)` - Returns all subscriptions subscribed to a topic
-- `GetSubscriptionsUsingTopicAsDeadLetter(topicID string)` - Returns subscriptions that use a topic as their dead letter topic
-- `GetDeadLetterTopicsForTopic(topicID string)` - Returns dead letter topics used by subscriptions subscribed to a topic
+**Current Pattern (Local Filtering):**
 
-**Implementation Pattern:**
-- All methods normalize topic IDs (handle both full path and short name)
-- Methods filter client-side from full lists (no GCP API filtering available)
-- Return empty arrays (not errors) when no relationships exist
-- See `app.go:348-447` for implementation examples
+* Frontend receives full lists of topics and subscriptions via `resources:updated` event
+* Components filter relationships locally using `useMemo` hooks
+* No backend API calls needed for relationship queries
+* Instant UI updates when navigating between resources
 
-**Frontend Usage:**
-- These methods are exposed via Wails bindings
-- Use in React components to display relationship tabs (e.g., "Subscriptions" and "Dead Letter" tabs in TopicDetails)
-- Handle loading states and empty states appropriately
-- See `frontend/src/components/TopicDetails.tsx` for example usage
+**Frontend Implementation:**
+
+* See `frontend/src/components/TopicDetails.tsx` for example usage
+* Components receive `allSubscriptions` and `allTopics` as props
+* Filter subscriptions for a topic: `allSubscriptions.filter(sub => sub.topic === topic.name)`
+* Filter dead letter subscriptions: `allSubscriptions.filter(sub => sub.deadLetterPolicy?.deadLetterTopic === topic.name)`
+* See `wails.mdc` Local Filtering Pattern section for complete details

@@ -9,6 +9,8 @@ This project uses `cloud.google.com/go/pubsub/v2` for all Pub/Sub operations. Fo
 
 ## Client Creation
 
+> **Note:** For authentication methods (ADC, Service Account, OAuth), see `auth.mdc`.
+
 ### Basic Client Creation
 
 ```go
@@ -22,14 +24,9 @@ if err != nil {
 defer client.Close()
 ```
 
-### Authentication Methods
+**Emulator Support:**
 
-**Application Default Credentials (ADC):**
-
-- Automatically detects `GOOGLE_APPLICATION_CREDENTIALS` env var
-- Falls back to `gcloud auth application-default login`
-- Works with GCE/Cloud Run metadata server
-- Automatically detects `PUBSUB_EMULATOR_HOST` for local emulator
+When using the emulator, use `option.WithoutAuthentication()`:
 
 ```go
 import (
@@ -37,39 +34,12 @@ import (
     "google.golang.org/api/option"
 )
 
-// For emulator support
 opts := []option.ClientOption{}
 if os.Getenv("PUBSUB_EMULATOR_HOST") != "" {
     opts = append(opts, option.WithoutAuthentication())
 }
 client, err := pubsub.NewClient(ctx, projectID, opts...)
 ```
-
-**Service Account JSON Key:**
-
-The recommended approach is to set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable:
-
-```go
-import (
-    "cloud.google.com/go/pubsub/v2"
-    "os"
-)
-
-// Set GOOGLE_APPLICATION_CREDENTIALS before creating client
-originalCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", keyPath)
-defer func() {
-    if originalCreds != "" {
-        os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", originalCreds)
-    } else {
-        os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
-    }
-}()
-
-client, err := pubsub.NewClient(ctx, projectID)
-```
-
-**Important:** Always check for `PUBSUB_EMULATOR_HOST` first - if set, use ADC with `option.WithoutAuthentication()` instead of service account credentials.
 
 ## Admin Operations
 
@@ -585,6 +555,8 @@ if err != nil {
 }
 ```
 
+> **Note:** For CRUD operation error handling patterns, see `topics-and-subs.mdc`.
+
 ### Subscription Monitoring Errors
 
 When monitoring subscriptions, handle NotFound errors gracefully (subscription may have been deleted):
@@ -602,50 +574,10 @@ if err != nil {
 }
 ```
 
-## Emulator Support
-
-The client automatically detects `PUBSUB_EMULATOR_HOST` environment variable:
-
-```go
-// Set before creating client
-os.Setenv("PUBSUB_EMULATOR_HOST", "localhost:8085")
-
-// Client will automatically use emulator
-client, err := pubsub.NewClient(ctx, "my-project-id")
-```
-
-When using emulator, use `option.WithoutAuthentication()`:
-
-```go
-if os.Getenv("PUBSUB_EMULATOR_HOST") != "" {
-    opts = append(opts, option.WithoutAuthentication())
-}
-```
 
 ## CRUD Operations
 
-### Resource Name Normalization
-
-Always normalize resource names before API calls. Handle both full resource names and short names:
-
-**For Create Operations:**
-
-When creating resources, extract the short name from full paths first, then build the full resource name:
-- Topic creation: See `internal/pubsub/admin/topics.go:86-94` for normalization logic
-- Subscription creation: See `internal/pubsub/admin/subscriptions.go:135-153` for normalization logic
-
-**For Delete Operations:**
-
-Normalize by checking if already a full name, otherwise build it:
-- Topic deletion: See `internal/pubsub/admin/topics.go:123-127` for normalization logic
-- Subscription deletion: See `internal/pubsub/admin/subscriptions.go:189-192` for normalization logic
-
-**For Display Names:**
-
-Extract short name from full resource name for display purposes:
-- See `internal/pubsub/admin/topics.go:141-149` for `extractDisplayName()` function
-
-**Important:** For create operations, always extract the short name first to ensure valid resource IDs (no slashes, proper format).
+> **Note:** For resource name normalization patterns, see `topics-and-subs.mdc`.
 
 ### Update Operations with Field Masks
 
@@ -743,24 +675,9 @@ if topic.MessageRetentionDuration != nil {
 retention := durationpb.New(7 * 24 * time.Hour)
 ```
 
-## Connection Management & Profile Switching
+## Connection Management
 
-### Connection Lifecycle
-
-When switching between connection profiles or projects:
-
-1. **Disconnect First**: Always disconnect the current connection before connecting to a new one
-2. **Close Clients**: Ensure all Pub/Sub clients are properly closed before creating new ones
-3. **Clear State**: Clear all cached resources (topics, subscriptions) when disconnecting
-4. **Verify Connection**: After connecting, verify the connection is established before loading resources
-
-**Implementation:**
-
-See `app.go:250-286` for the `SwitchProfile` method which demonstrates the complete pattern:
-- Disconnect current connection first
-- Find and validate profile
-- Connect with new profile
-- Update active profile ID and save config
+> **Note:** For connection profiles and authentication, see `auth.mdc`.
 
 ### Client Manager Best Practices
 
@@ -791,32 +708,9 @@ client := a.client // Don't do this
 projectID := a.projectID // Don't do this
 ```
 
-**Connection Lifecycle Pattern:**
+### Resource Loading After Connection
 
-```go
-// 1. Always disconnect before connecting to new profile
-if a.clientManager.IsConnected() {
-    if err := a.clientManager.Close(); err != nil {
-        return fmt.Errorf("failed to disconnect: %w", err)
-    }
-}
-
-// 2. Create new client
-client, err := pubsub.NewClient(ctx, projectID, opts...)
-if err != nil {
-    return err
-}
-
-// 3. Set client via ClientManager (closes old client if exists)
-if err := a.clientManager.SetClient(client, projectID); err != nil {
-    client.Close() // Clean up if SetClient fails
-    return err
-}
-```
-
-### Resource Loading After Connection Switch
-
-When loading resources (topics, subscriptions) after a connection switch:
+When loading resources (topics, subscriptions) after connecting:
 
 1. **Verify Connection**: Check `IsConnected()` before loading
 2. **Get Project ID**: Use `GetProjectID()` to ensure it matches expected project
@@ -824,11 +718,11 @@ When loading resources (topics, subscriptions) after a connection switch:
 
 **Implementation:**
 
-See `app.go:305-314` for the `ListTopics` method which demonstrates:
-- Getting client via `ClientManager`
-- Checking connection status
-- Getting project ID
-- Calling admin function
+See `app.go:243-246` for the `ListTopics` method which delegates to `ResourceHandler`:
+- Method in `app.go` delegates to `a.resources.ListTopics()`
+- Actual implementation in `internal/app/resources.go:143-160`
+- Returns cached topics from synchronized store
+- Uses `RLock()` for thread-safe access
 
 ## Migration from v1
 

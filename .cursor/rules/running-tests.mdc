@@ -1,3 +1,8 @@
+---
+alwaysApply: false
+description: How to run unit tests and integration tests for the Pub/Sub GUI application
+---
+
 # Running Tests
 
 This guide covers how to run unit tests and integration tests for the Pub/Sub GUI application.
