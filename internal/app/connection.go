@@ -150,7 +150,7 @@ func (h *ConnectionHandler) ConnectWithOAuth(projectID, oauthClientPath string) 
 	runtime.EventsEmit(h.ctx, "connection:success", map[string]interface{}{
 		"projectId":  projectID,
 		"authMethod": "OAuth",
-		"userEmail":   userEmail,
+		"userEmail":  userEmail,
 	})
 
 	return nil
