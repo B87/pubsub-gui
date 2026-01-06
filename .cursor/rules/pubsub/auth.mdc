@@ -5,12 +5,177 @@ description: Guidelines for working with authentication in the Pub/Sub GUI - How
 
 # Authentication Methods
 
-The Pub/Sub GUI supports the following authentication methods:
+The Pub/Sub GUI supports three authentication methods for connecting to Google Cloud Pub/Sub:
 
-- ADC (Application Default Credentials)
-- Service Account
-- OAuth
+- **ADC (Application Default Credentials)** - Uses gcloud CLI credentials or environment variables
+- **Service Account** - Uses a JSON key file from a service account
+- **OAuth** - Uses OAuth2 3-legged flow with PKCE for user authentication
 
-# ADC Authentication
+## ADC Authentication
 
-ADC authentication is the default authentication method. It is used when no other authentication method is specified.
+ADC authentication is the default authentication method. It automatically detects credentials from:
+
+1. `GOOGLE_APPLICATION_CREDENTIALS` environment variable (service account JSON path)
+2. `gcloud auth application-default login` credentials
+3. GCE/Cloud Run metadata server (when running on GCP)
+4. `PUBSUB_EMULATOR_HOST` environment variable (for local emulator)
+
+**Implementation:**
+- Backend: `internal/auth/adc.go` - `ConnectWithADC()` function
+- Frontend: `ConnectWithADC(projectID: string)` Wails method
+- Connection Dialog: First option in authentication method selector
+
+**Usage:**
+```typescript
+import { ConnectWithADC } from '../wailsjs/go/main/App';
+await ConnectWithADC('my-project-id');
+```
+
+**Emulator Support:**
+When `PUBSUB_EMULATOR_HOST` is set, ADC automatically uses the emulator without requiring credentials.
+
+## Service Account Authentication
+
+Service Account authentication uses a JSON key file downloaded from GCP Console.
+
+**Implementation:**
+- Backend: `internal/auth/service_account.go` - `ConnectWithServiceAccount()` function
+- Frontend: `ConnectWithServiceAccount(projectID: string, keyPath: string)` Wails method
+- Connection Dialog: Second option in authentication method selector
+
+**Usage:**
+```typescript
+import { ConnectWithServiceAccount } from '../wailsjs/go/main/App';
+await ConnectWithServiceAccount('my-project-id', '/path/to/service-account.json');
+```
+
+**Key File Requirements:**
+- Must be a valid service account JSON key file
+- Must have Pub/Sub permissions (e.g., `roles/pubsub.editor`)
+- Path must be absolute or relative to current working directory
+
+**Connection Profile Storage:**
+- Service account path is stored in `ConnectionProfile.serviceAccountPath`
+- Path is stored as-is (not resolved to absolute path)
+- User must ensure path remains valid if files are moved
+
+## OAuth Authentication
+
+OAuth authentication uses OAuth2 3-legged flow with PKCE (Proof Key for Code Exchange) for enhanced security in desktop applications.
+
+**Implementation:**
+- Backend: `internal/auth/oauth.go` - OAuth flow with PKCE
+- Backend: `internal/auth/oauth_client.go` - Pub/Sub client creation with OAuth tokens
+- Backend: `internal/auth/oauth_server.go` - Local callback server for OAuth redirect
+- Backend: `internal/auth/token_store.go` - Secure token storage with AES-256-GCM encryption
+- Frontend: `ConnectWithOAuth(projectID: string, oauthClientPath: string)` Wails method
+- Connection Dialog: Third option in authentication method selector
+
+**OAuth Flow:**
+1. User provides OAuth client JSON file path (downloaded from GCP Console)
+2. Backend generates PKCE challenge and random state parameter
+3. Local HTTP server starts on port 8888 to receive callback
+4. Browser opens to Google OAuth consent screen
+5. User authenticates and grants permissions
+6. Google redirects to `http://localhost:8888/callback` with authorization code
+7. Backend exchanges code for access/refresh tokens using PKCE verifier
+8. Tokens are encrypted and stored securely
+9. Pub/Sub client is created using OAuth tokens
+
+**OAuth Client Configuration:**
+- Download OAuth 2.0 Client ID (Desktop app) from GCP Console
+- Redirect URI must be: `http://localhost:8888/callback`
+- Scopes: `https://www.googleapis.com/auth/pubsub`
+
+**Token Storage:**
+- Tokens stored in `~/.pubsub-gui/tokens/{profile-id}.token`
+- Encrypted with AES-256-GCM
+- Encryption key stored in `~/.pubsub-gui/.encryption_key`
+- Tokens automatically refreshed when expired
+
+**Error Handling:**
+- **Port conflict**: If port 8888 is in use, error message instructs user to close previous OAuth windows
+- **State mismatch**: Invalid state parameter indicates callback from previous flow - user should try again
+- **Project not found**: OAuth token may not have access to the specified project - verify project ID and permissions
+- **Timeout**: OAuth flow times out after 5 minutes if user doesn't complete authentication
+
+**Connection Profile Storage:**
+- OAuth client path stored in `ConnectionProfile.oauthClientPath`
+- User email stored in `ConnectionProfile.oauthEmail` (for display purposes)
+- Profile ID used for token storage (one token file per profile)
+
+**Usage:**
+```typescript
+import { ConnectWithOAuth } from '../wailsjs/go/main/App';
+await ConnectWithOAuth('my-project-id', '/path/to/client_secret_*.json');
+```
+
+**Security Features:**
+- PKCE prevents authorization code interception
+- State parameter prevents CSRF attacks
+- Tokens encrypted at rest
+- Automatic token refresh
+- Secure token cleanup on profile deletion
+
+## Connection Profiles
+
+All authentication methods can be saved as connection profiles for quick switching:
+
+**Profile Structure:**
+```go
+type ConnectionProfile struct {
+    ID                 string `json:"id"`
+    Name               string `json:"name"`
+    ProjectID          string `json:"projectId"`
+    AuthMethod         string `json:"authMethod"` // "ADC" | "ServiceAccount" | "OAuth"
+    ServiceAccountPath string `json:"serviceAccountPath,omitempty"`
+    OAuthClientPath    string `json:"oauthClientPath,omitempty"`
+    OAuthEmail         string `json:"oauthEmail,omitempty"`
+    EmulatorHost       string `json:"emulatorHost,omitempty"`
+    IsDefault          bool   `json:"isDefault"`
+    CreatedAt          string `json:"createdAt"`
+}
+```
+
+**Profile Management:**
+- Create: Via ConnectionDialog or ProfileDialog
+- Switch: Via ConnectionDropdown or Settings
+- Delete: Via Settings > Connections tab
+- Default: One profile can be marked as default (auto-connects on startup)
+
+## Error Handling Patterns
+
+### Common Errors
+
+**"Project not found or user does not have access"**
+- **Cause**: Invalid project ID or insufficient permissions
+- **Solution**: Verify project ID is correct (not display name), check IAM permissions
+
+**"Invalid state parameter"**
+- **Cause**: OAuth callback from previous flow or multiple OAuth windows open
+- **Solution**: Close all OAuth browser windows and try again
+
+**"Port 8888 is already in use"**
+- **Cause**: Previous OAuth flow didn't clean up properly
+- **Solution**: Close any open OAuth authentication windows and try again
+
+**"Failed to exchange code for token"**
+- **Cause**: Invalid OAuth client configuration or expired authorization code
+- **Solution**: Verify OAuth client JSON is correct, ensure redirect URI matches
+
+### Error Display
+
+All authentication errors are displayed in the UI with user-friendly messages. Technical errors are converted to actionable guidance where possible.
+
+## Implementation Files
+
+- `internal/auth/adc.go` - ADC authentication
+- `internal/auth/service_account.go` - Service Account authentication
+- `internal/auth/oauth.go` - OAuth flow with PKCE
+- `internal/auth/oauth_client.go` - OAuth client creation
+- `internal/auth/oauth_server.go` - OAuth callback server
+- `internal/auth/token_store.go` - Token storage and encryption
+- `internal/auth/client.go` - ClientManager for connection lifecycle
+- `internal/app/connection.go` - ConnectionHandler for profile management
+- `frontend/src/components/ConnectionDialog.tsx` - Connection UI
+- `frontend/src/components/Settings/ProfileDialog.tsx` - Profile management UI

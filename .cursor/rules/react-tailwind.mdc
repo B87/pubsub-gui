@@ -1,6 +1,5 @@
 ---
-description: UI Development Guide for Pub/Sub GUI
-alwaysApply: false
+alwaysApply: true
 ---
 # UI Development Guide for Pub/Sub GUI
 
@@ -35,6 +34,8 @@ frontend/src/
 
 ## Component Patterns
 
+> **Note:** For Wails-specific patterns (method binding, events, context), see `wails.mdc` Frontend Patterns section.
+
 ### Component Structure
 
 ```typescript
@@ -67,6 +68,8 @@ export default function Component({ topic, onAction }: ComponentProps) {
 **CRITICAL**: Before creating or modifying any component, ensure:
 
 **Theme System Compliance:**
+> **Note:** For complete theme system documentation, see `theme-system.mdc`.
+
 - [ ] All colors use semantic CSS variables (`var(--color-*)`) via inline styles or custom CSS classes
 - [ ] NO hardcoded colors (`style={{ color: '#fff' }}` or `bg-[#...]`)
 - [ ] Tailwind classes only used as fallback when semantic styling isn't practical
@@ -86,6 +89,8 @@ export default function Component({ topic, onAction }: ComponentProps) {
 - Status colors (success/error/warning) hardcoded
 - Modal/dialog backgrounds not using theme variables
 - Accent colors hardcoded to blue (should use theme accent)
+- Unicode characters (e.g., → U+2192) causing parsing errors - use ASCII alternatives (e.g., `-` or `->`)
+- Hardcoded `color: 'white'` on colored backgrounds - use `var(--color-text-primary)` for theme compatibility
 
 ### Naming Conventions
 
@@ -98,6 +103,8 @@ export default function Component({ topic, onAction }: ComponentProps) {
 
 ### Theme System
 
+> **Note:** For complete theme system documentation including architecture, implementation patterns, and Monaco Editor integration, see `theme-system.mdc`.
+
 **CRITICAL**: This application uses a comprehensive theme system with 5 themes (Auto, Dark, Light, Dracula, Monokai) and 3 font sizes. **ALL components MUST use the theme system.**
 
 **Core Requirements:**
@@ -105,128 +112,35 @@ export default function Component({ topic, onAction }: ComponentProps) {
 2. **PRIORITIZE semantic style format** - Use CSS custom properties directly via inline styles or custom CSS classes
 3. **Tailwind classes are fallback** - Only use Tailwind utility classes when semantic styling isn't practical
 4. **Test with multiple themes** - Components should work correctly in all 5 themes
-5. **Reference theme documentation** - See `.cursor/rules/theme-system.mdc` for complete details
 
-**Theme System Architecture:**
-- **CSS Variables**: All colors defined as CSS custom properties in `frontend/src/themes.css`
-- **Semantic Tokens**: Use semantic variable names (e.g., `--color-bg-primary`, `--color-text-primary`)
-- **Runtime Switching**: Themes can be changed without reloading the app
-- **System Integration**: "Auto" theme respects OS dark/light mode preference
-- **Backward Compatibility**: Tailwind classes are mapped to theme variables for existing code
-
-**Semantic CSS Variables (PREFERRED):**
+**Quick Reference - Semantic CSS Variables:**
 
 ```typescript
 // ✅ PREFERRED: Use semantic CSS variables directly
 <div style={{ backgroundColor: 'var(--color-bg-primary)' }}>...</div>
 <div style={{ color: 'var(--color-text-primary)' }}>...</div>
 <div style={{ borderColor: 'var(--color-border-primary)' }}>...</div>
-
-// Or define custom CSS classes in component stylesheet:
-// .card { background-color: var(--color-bg-secondary); }
-// .card-text { color: var(--color-text-primary); }
 ```
 
-**Available Semantic Tokens:**
+**Common Variables:**
+- Backgrounds: `--color-bg-primary`, `--color-bg-secondary`, `--color-bg-tertiary`, `--color-bg-input`, `--color-bg-code`
+- Text: `--color-text-primary`, `--color-text-secondary`, `--color-text-muted`
+- Borders: `--color-border-primary`, `--color-border-secondary`
+- Accents: `--color-accent-primary`, `--color-accent-hover`
+- Status: `--color-success`, `--color-error`, `--color-warning` (with `-bg`, `-border`, `-hover` variants)
 
-```css
-/* Backgrounds */
---color-bg-primary        /* Main app background */
---color-bg-secondary      /* Sidebar, cards */
---color-bg-tertiary       /* Inputs, buttons */
---color-bg-hover          /* Hover states */
---color-bg-input          /* Input field backgrounds */
---color-bg-code           /* Code block backgrounds */
-
-/* Text */
---color-text-primary      /* Primary text */
---color-text-secondary    /* Secondary text */
---color-text-tertiary     /* Tertiary text */
---color-text-muted        /* Muted/placeholder text */
---color-text-disabled     /* Disabled text */
-
-/* Borders */
---color-border-primary    /* Primary borders */
---color-border-secondary   /* Secondary borders */
-
-/* Accents */
---color-accent-primary    /* Primary actions (buttons, links) */
---color-accent-hover      /* Accent hover state */
---color-accent-active     /* Accent active state */
---color-accent-light      /* Light accent variant */
---color-accent-dark       /* Dark accent variant */
-
-/* Status Colors */
---color-success           /* Success state */
---color-success-hover     /* Success hover */
---color-success-bg        /* Success background */
---color-success-border    /* Success border */
-
---color-error             /* Error state */
---color-error-hover       /* Error hover */
---color-error-bg          /* Error background */
---color-error-border      /* Error border */
-
---color-warning           /* Warning state */
---color-warning-hover     /* Warning hover */
---color-warning-bg        /* Warning background */
---color-warning-border    /* Warning border */
-
-/* Special Colors */
---color-purple-bg         /* Purple background */
---color-purple-text       /* Purple text */
---color-purple-border     /* Purple border */
---color-orange            /* Orange color */
-```
-
-**Tailwind Classes (FALLBACK - for backward compatibility):**
-
-Tailwind utility classes are available as a fallback for existing code, but **new code should prefer semantic styling**:
-
+**Tailwind Classes (FALLBACK):**
 ```typescript
 // ⚠️ FALLBACK: Use Tailwind classes only when semantic styling isn't practical
-// These are mapped to theme variables for backward compatibility
 <div className="bg-slate-800">...</div>  // Maps to var(--color-bg-secondary)
 <div className="text-slate-100">...</div> // Maps to var(--color-text-primary)
 ```
 
-**Styling Patterns:**
-
-```tsx
-// ✅ PREFERRED: Semantic inline styles
-<div style={{
-  backgroundColor: 'var(--color-bg-secondary)',
-  color: 'var(--color-text-primary)',
-  borderColor: 'var(--color-border-primary)'
-}}>
-  Content
-</div>
-
-// ✅ PREFERRED: Custom CSS classes with semantic variables
-// In component stylesheet or CSS module:
-.card {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border-primary);
-}
-
-// ⚠️ FALLBACK: Tailwind classes (use sparingly)
-<div className="bg-slate-800 text-slate-100 border border-slate-700">
-  Content
-</div>
-```
-
-**Anti-Patterns to Avoid:**
+**Anti-Patterns:**
 ```tsx
 // ❌ WRONG: Hardcoded colors (breaks theme system)
 <div style={{ backgroundColor: '#1e293b' }}>...</div>
 <div className="bg-[#1e293b]">...</div>
-
-// ❌ WRONG: Using un-mapped Tailwind classes
-<div className="bg-slate-950">...</div>  // Not mapped to theme variables
-
-// ⚠️ ACCEPTABLE BUT NOT PREFERRED: Tailwind classes
-<div className="bg-slate-800">...</div>  // Works but not semantic
 
 // ✅ PREFERRED: Semantic CSS variables
 <div style={{ backgroundColor: 'var(--color-bg-secondary)' }}>...</div>
@@ -432,43 +346,17 @@ import * as Tabs from '@radix-ui/react-tabs';
 
 ## Wails Integration
 
-### Wails Binding Generation
+> **Note:** For comprehensive Wails patterns including backend-frontend communication, event handling, and method binding, see `wails.mdc`.
 
-**Important:** Wails TypeScript bindings are **auto-generated** when you run `wails dev` or `wails build`. The `frontend/wailsjs/` directory contains generated code - **DO NOT EDIT** these files.
+### Quick Reference
 
-**When Adding New Go Methods:**
-
-1. Add the method to `app.go` (methods on the `App` struct are automatically exposed)
-2. Run `wails dev` to generate TypeScript bindings
-3. Import and use the method in React components
-
-**Handling New Methods During Development:**
-
-If you need to use a new method before running `wails dev`, declare it temporarily to avoid TypeScript errors:
-
-```typescript
-// These functions will be generated by Wails when the app runs
-// Declare them here to avoid TypeScript errors during development
-declare const NewMethodName: (param: string) => Promise<ReturnType>;
-
-// Use the declared function
-const result = await NewMethodName('value');
-```
-
-After running `wails dev`, remove the `declare` statement and import normally:
-
-```typescript
-import { NewMethodName } from '../wailsjs/go/main/App';
-```
-
-### Calling Go Methods from React
-
+**Importing Wails Methods:**
 ```typescript
 import { MethodName } from '../wailsjs/go/main/App';
-
-// Async method call
 const result = await MethodName(param1, param2);
 ```
+
+**Important:** Wails TypeScript bindings are **auto-generated** when you run `wails dev` or `wails build`. The `frontend/wailsjs/` directory contains generated code - **DO NOT EDIT** these files.
 
 **Available Methods** (from `wailsjs/go/main/App.d.ts`):
 
@@ -522,6 +410,8 @@ const result = await MethodName(param1, param2);
 
 ### Listening to Go Events
 
+> **Note:** For comprehensive event listening patterns, see `wails.mdc` Frontend Patterns section.
+
 ```typescript
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
@@ -538,19 +428,12 @@ useEffect(() => {
 - `message:received` - New message from subscription
 - `connection:status` - Connection status updates
 - `monitor:error` - Monitoring errors
+- `config:theme-changed` - Theme configuration changed (see `theme-system.mdc`)
+- `resources:updated` - Resource cache synchronized (see `wails.mdc`)
 
 ### Error Handling
 
-Always wrap Wails calls in try-catch:
-
-```typescript
-try {
-  const result = await SomeMethod();
-  setError('');
-} catch (e: any) {
-  setError(e.toString());
-}
-```
+> **Note:** For basic Wails error handling patterns, see `wails.mdc`. For comprehensive UI error display patterns, see Error Display section below.
 
 ## Type Safety
 
@@ -594,6 +477,8 @@ The app uses a consistent layout pattern:
 - Use semantic CSS variables for backgrounds (`var(--color-bg-primary)`, `var(--color-bg-secondary)`)
 
 ## State Management
+
+> **Note:** For Wails-specific state patterns (resource synchronization, event-driven updates), see `wails.mdc` Common Patterns section.
 
 **Current Approach:** React `useState` and `useEffect` (no global state library)
 
@@ -801,6 +686,103 @@ useEffect(() => {
 - Creating/deleting resources
 - Connecting to services
 - Any operation that may fail and needs user awareness
+
+## Connection Dialog Patterns
+
+### ConnectionDialog Component
+
+The `ConnectionDialog` component provides UI for connecting to GCP Pub/Sub with different authentication methods.
+
+**Location:** `frontend/src/components/ConnectionDialog.tsx`
+
+**Authentication Methods:**
+- **ADC**: Application Default Credentials (default)
+- **Service Account**: JSON key file path required
+- **OAuth**: OAuth client JSON path required
+
+**Component Structure:**
+```tsx
+interface ConnectionDialogProps {
+  open: boolean;
+  onConnect: (
+    projectId: string,
+    authMethod: 'ADC' | 'ServiceAccount' | 'OAuth',
+    serviceAccountPath?: string,
+    oauthClientPath?: string,
+    saveAsProfile?: { name: string; isDefault?: boolean }
+  ) => Promise<void>;
+  onClose: () => void;
+  error?: string;
+}
+```
+
+**Theme Compliance:**
+- Uses semantic CSS variables for all colors
+- Backdrop uses `color-mix(in srgb, var(--color-bg-primary) 50%, transparent)`
+- Error messages use `var(--color-error-bg)`, `var(--color-error-border)`, `var(--color-error)`
+- Buttons use theme-aware accent colors
+
+**Validation:**
+- Project ID is required for all methods
+- Service Account path required when `authMethod === 'ServiceAccount'`
+- OAuth client path required when `authMethod === 'OAuth'`
+- Profile name required if `saveAsProfile` is enabled
+
+**Usage Example:**
+```tsx
+const handleConnect = async (
+  projectId: string,
+  authMethod: 'ADC' | 'ServiceAccount' | 'OAuth',
+  serviceAccountPath?: string,
+  oauthClientPath?: string,
+  saveAsProfile?: { name: string; isDefault?: boolean }
+) => {
+  setError('');
+  setLoading(true);
+  try {
+    if (authMethod === 'ADC') {
+      await ConnectWithADC(projectId);
+    } else if (authMethod === 'ServiceAccount') {
+      if (!serviceAccountPath) {
+        throw new Error('Service account path is required');
+      }
+      await ConnectWithServiceAccount(projectId, serviceAccountPath);
+    } else if (authMethod === 'OAuth') {
+      if (!oauthClientPath) {
+        throw new Error('OAuth client path is required');
+      }
+      await ConnectWithOAuth(projectId, oauthClientPath);
+    }
+
+    // Save as profile if requested
+    if (saveAsProfile) {
+      const profile: ConnectionProfile = {
+        id: Date.now().toString(),
+        name: saveAsProfile.name,
+        projectId: projectId,
+        authMethod: authMethod,
+        serviceAccountPath: authMethod === 'ServiceAccount' ? serviceAccountPath : undefined,
+        oauthClientPath: authMethod === 'OAuth' ? oauthClientPath : undefined,
+        isDefault: saveAsProfile.isDefault || false,
+        createdAt: new Date().toISOString(),
+      };
+      await SaveProfile(profile);
+    }
+
+    await loadStatus();
+    onClose();
+  } catch (e: any) {
+    setError(e.toString());
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Error Handling:**
+- All errors displayed in UI with user-friendly messages
+- OAuth errors include guidance (e.g., "close previous windows")
+- Project not found errors suggest verifying project ID and permissions
 
 ## Common UI Patterns
 

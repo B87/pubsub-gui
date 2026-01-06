@@ -11,9 +11,9 @@ This guide covers Wails v2 architecture patterns, backend-frontend communication
 
 This is a **Wails v2** desktop application combining:
 
-- **Go backend** (`app.go`, `main.go`) - Handles GCP Pub/Sub API interactions
-- **React + TypeScript frontend** (`frontend/src/`) - UI layer with hot reload
-- **Wails bindings** (`frontend/wailsjs/`) - Auto-generated TypeScript bindings for Go methods
+* **Go backend** (`app.go`, `main.go`) - Handles GCP Pub/Sub API interactions
+* **React + TypeScript frontend** (`frontend/src/`) - UI layer with hot reload
+* **Wails bindings** (`frontend/wailsjs/`) - Auto-generated TypeScript bindings for Go methods
 
 ### Key Wails Concepts
 
@@ -26,7 +26,7 @@ This is a **Wails v2** desktop application combining:
 
 ### App Struct Structure
 
-The main `App` struct in `app.go` holds application state and is bound to the frontend:
+The main `App` struct in `app.go` holds application state and delegates to handler structs:
 
 ```go
 type App struct {
@@ -34,24 +34,31 @@ type App struct {
     config         *models.AppConfig
     configManager  *config.Manager
     clientManager  *auth.ClientManager
-    activeMonitors map[string]*subscriber.MessageStreamer
-    topicMonitors  map[string]string
-    monitorsMu     sync.RWMutex
 
-    // Resource store for synchronized state
-    resourceMu    sync.RWMutex
-    topics        []admin.TopicInfo
-    subscriptions []admin.SubscriptionInfo
+    // Handler structs for organizing methods by domain
+    connection    *app.ConnectionHandler
+    resources     *app.ResourcesHandler
+    monitoring    *app.MonitoringHandler
+    configH       *app.ConfigHandler
+    templates     *app.TemplatesHandler
 }
 ```
 
 **Key Principles:**
 
-- Store `context.Context` as a field (set in `startup()`)
-- Use `sync.RWMutex` for concurrent map access
-- Initialize managers in `startup()` lifecycle hook
-- Clean up resources in `Disconnect()` and `OnShutdown`
-- Maintain synchronized resource store for performance (see Resource Synchronization Pattern below)
+* Store `context.Context` as a field (set in `startup()`)
+* Use handler structs to organize methods by domain (connection, resources, monitoring, config, templates)
+* Initialize managers and handlers in `startup()` lifecycle hook
+* Clean up resources in `Disconnect()` and `OnShutdown`
+* Handlers maintain their own state (e.g., ResourcesHandler maintains synchronized resource store)
+
+**Handler Organization:**
+
+* `ConnectionHandler` (`internal/app/connection.go`): Connection and profile management
+* `ResourcesHandler` (`internal/app/resources.go`): Topic and subscription CRUD operations
+* `MonitoringHandler` (`internal/app/monitoring.go`): Message monitoring and streaming
+* `ConfigHandler` (`internal/app/config.go`): Configuration management (theme, font size, auto-ack)
+* `TemplatesHandler` (`internal/app/templates.go`): Message template management
 
 ### Method Exposure Rules
 
@@ -71,8 +78,8 @@ func (a *App) connectWithProfile(profile *models.ConnectionProfile) error {
 
 **Method Naming:**
 
-- Use **PascalCase** for exported methods (e.g., `GetConnectionStatus`, `PublishMessage`)
-- Use **camelCase** for private helpers (e.g., `connectWithProfile`, `findExistingMonitoringSubscription`)
+* Use **PascalCase** for exported methods (e.g., `GetConnectionStatus`, `PublishMessage`)
+* Use **camelCase** for private helpers (e.g., `connectWithProfile`, `findExistingMonitoringSubscription`)
 
 ### Return Types and Error Handling
 
@@ -96,9 +103,9 @@ func (a *App) ListTopics() []admin.TopicInfo {
 
 **Error Patterns:**
 
-- Use custom errors from `internal/models/errors.go` for domain errors
-- Wrap errors with context: `fmt.Errorf("failed to connect: %w", err)`
-- Return `nil` for empty slices on success: `return []admin.TopicInfo{}, nil`
+* Use custom errors from `internal/models/errors.go` for domain errors
+* Wrap errors with context: `fmt.Errorf("failed to connect: %w", err)`
+* Return `nil` for empty slices on success: `return []admin.TopicInfo{}, nil`
 
 ### JSON Serialization
 
@@ -120,9 +127,9 @@ func (a *App) GetAutoAck() (bool, error) {
 
 **JSON Tag Rules:**
 
-- Use `camelCase` for JSON field names (matches TypeScript conventions)
-- Use `omitempty` for optional fields
-- Use `json:"-"` to exclude fields from serialization
+* Use `camelCase` for JSON field names (matches TypeScript conventions)
+* Use `omitempty` for optional fields
+* Use `json:"-"` to exclude fields from serialization
 
 ### Context Usage
 
@@ -145,9 +152,9 @@ func (a *App) ListTopics() ([]admin.TopicInfo, error) {
 
 **Context Lifecycle:**
 
-- `a.ctx` is set in `startup(ctx context.Context)` hook
-- Use `a.ctx` for all GCP API calls
-- Context is automatically cancelled on app shutdown
+* `a.ctx` is set in `startup(ctx context.Context)` hook
+* Use `a.ctx` for all GCP API calls
+* Context is automatically cancelled on app shutdown
 
 ### Event Emission
 
@@ -171,17 +178,17 @@ func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error
 
 **Event Naming Convention:**
 
-- Use `resource:action` format (e.g., `topic:created`, `subscription:deleted`)
-- Use `kebab-case` for event names
-- Include relevant data in the event payload
+* Use `resource:action` format (e.g., `topic:created`, `subscription:deleted`)
+* Use `kebab-case` for event names
+* Include relevant data in the event payload
 
 **Common Events:**
 
-- `topic:created`, `topic:deleted`
-- `subscription:created`, `subscription:updated`, `subscription:deleted`
-- `monitor:started`, `monitor:stopped`
-- `config:theme-changed`
-- `resources:updated` - Emitted when resource store is synchronized (see Resource Synchronization Pattern)
+* `topic:created`, `topic:deleted`
+* `subscription:created`, `subscription:updated`, `subscription:deleted`
+* `monitor:started`, `monitor:stopped`
+* `config:theme-changed`
+* `resources:updated` - Emitted when resource store is synchronized (see Resource Synchronization Pattern)
 
 ### Lifecycle Hooks
 
@@ -204,16 +211,16 @@ func (a *App) startup(ctx context.Context) {
 
 **Startup Responsibilities:**
 
-- Store context: `a.ctx = ctx`
-- Initialize managers (config, auth)
-- Load persisted configuration
-- Auto-connect to active profile if set
+* Store context: `a.ctx = ctx`
+* Initialize managers (config, auth)
+* Load persisted configuration
+* Auto-connect to active profile if set
 
 **Shutdown Responsibilities:**
 
-- Stop all active monitors
-- Close GCP client connections
-- Clean up temporary resources
+* Stop all active monitors
+* Close GCP client connections
+* Clean up temporary resources
 
 ### Concurrency and Thread Safety
 
@@ -245,12 +252,14 @@ func (a *App) StartMonitor(subscriptionID string) error {
 
 **Mutex Guidelines:**
 
-- Use `sync.RWMutex` for read-heavy operations
-- Use `RLock()` for read operations
-- Use `Lock()` for write operations
-- Minimize lock duration (unlock before expensive operations)
+* Use `sync.RWMutex` for read-heavy operations
+* Use `RLock()` for read operations
+* Use `Lock()` for write operations
+* Minimize lock duration (unlock before expensive operations)
 
 ## Frontend (React/TypeScript) Patterns
+
+> **Note:** For comprehensive React/TypeScript UI development patterns, component structure, and styling guidelines, see `react-tailwind.mdc`.
 
 ### Wails Bindings Usage
 
@@ -271,15 +280,15 @@ const topics = await ListTopics();
 
 **Binding Generation:**
 
-- Bindings are auto-generated when running `wails dev` or `wails build`
-- Located in `frontend/wailsjs/go/main/App.js` and `App.d.ts`
-- **DO NOT EDIT** files in `frontend/wailsjs/` - they are overwritten
+* Bindings are auto-generated when running `wails dev` or `wails build`
+* Located in `frontend/wailsjs/go/main/App.js` and `App.d.ts`
+* **DO NOT EDIT** files in `frontend/wailsjs/` - they are overwritten
 
 **Type Safety:**
 
-- TypeScript types are generated in `App.d.ts`
-- Use `as any` only when necessary (e.g., complex nested types)
-- Prefer proper type definitions in `frontend/src/types/index.ts`
+* TypeScript types are generated in `App.d.ts`
+* Use `as any` only when necessary (e.g., complex nested types)
+* Prefer proper type definitions in `frontend/src/types/index.ts`
 
 ### Event Listening
 
@@ -312,10 +321,10 @@ useEffect(() => {
 
 **Event Listener Patterns:**
 
-- Set up listeners in `useEffect` with empty dependency array
-- Store unsubscribe functions and call them in cleanup
-- Use refs (`useRef`) to access latest state in event handlers without re-renders
-- Handle resource cleanup (clear selections, reset state) in event handlers
+* Set up listeners in `useEffect` with empty dependency array
+* Store unsubscribe functions and call them in cleanup
+* Use refs (`useRef`) to access latest state in event handlers without re-renders
+* Handle resource cleanup (clear selections, reset state) in event handlers
 
 ### Error Handling
 
@@ -347,10 +356,10 @@ const loadResources = async () => {
 
 **Error Handling Best Practices:**
 
-- Always use try/catch for async Wails method calls
-- Clear state on error to prevent stale data
-- Display user-friendly error messages
-- Log errors to console for debugging
+* Always use try/catch for async Wails method calls
+* Clear state on error to prevent stale data
+* Display user-friendly error messages
+* Log errors to console for debugging
 
 ### Wails Runtime Methods
 
@@ -363,7 +372,7 @@ import {
   WindowSetSystemDefaultTheme,
 } from "../wailsjs/runtime/runtime";
 
-// Apply theme change
+// Apply theme change (see theme-system.mdc for complete theme implementation)
 EventsOn('config:theme-changed', (theme: string) => {
   if (theme === 'light') {
     WindowSetLightTheme();
@@ -377,8 +386,10 @@ EventsOn('config:theme-changed', (theme: string) => {
 
 **Available Runtime Methods:**
 
-- `WindowSetLightTheme()`, `WindowSetDarkTheme()`, `WindowSetSystemDefaultTheme()`
-- See `frontend/wailsjs/runtime/runtime.d.ts` for full API
+* `WindowSetLightTheme()`, `WindowSetDarkTheme()`, `WindowSetSystemDefaultTheme()`
+* See `frontend/wailsjs/runtime/runtime.d.ts` for full API
+
+> **Note:** For complete theme system implementation including ThemeContext and event handling, see `theme-system.mdc`.
 
 ### Complex Type Handling
 
@@ -398,9 +409,9 @@ await UpdateSubscription(subID, wailsParams);
 
 **Type Conversion Patterns:**
 
-- Use `createFrom()` static method for complex types
-- Import from `wailsjs/go/models` for shared types
-- Use `as any` sparingly when types don't match exactly
+* Use `createFrom()` static method for complex types
+* Import from `wailsjs/go/models` for shared types
+* Use `as any` sparingly when types don't match exactly
 
 ### Resource ID Normalization Pattern
 
@@ -481,17 +492,17 @@ await StartTopicMonitor(topic.name, subscriptionID);
 
 **Best Practices:**
 
-- **Backend methods should normalize** - Accept both formats and normalize internally for consistency
-- **Document normalization behavior** - Comment in code when methods handle normalization
-- **Use full paths in frontend** - Frontend components work with full resource names from API responses
-- **Extract short IDs only when required** - Some admin operations require short IDs (see `pubsub.mdc` for details)
+* **Backend methods should normalize** - Accept both formats and normalize internally for consistency
+* **Document normalization behavior** - Comment in code when methods handle normalization
+* **Use full paths in frontend** - Frontend components work with full resource names from API responses
+* **Extract short IDs only when required** - Some admin operations require short IDs (see `pubsub.mdc` for details)
 
 **When to Normalize:**
 
-- ✅ **Normalize in backend** when method calls admin APIs that require short IDs
-- ✅ **Normalize in backend** when storing IDs in maps or comparing with other normalized IDs
-- ❌ **Don't normalize** when passing to client methods (`Publisher()`, `Subscriber()`) - they accept both formats
-- ❌ **Don't normalize unnecessarily** - If admin API accepts full paths, use them directly
+* ✅ **Normalize in backend** when method calls admin APIs that require short IDs
+* ✅ **Normalize in backend** when storing IDs in maps or comparing with other normalized IDs
+* ❌ **Don't normalize** when passing to client methods (`Publisher()`, `Subscriber()`) - they accept both formats
+* ❌ **Don't normalize unnecessarily** - If admin API accepts full paths, use them directly
 
 ## Project Structure
 
@@ -512,10 +523,11 @@ internal/
 
 **File Organization Rules:**
 
-- Keep `app.go` focused on Wails bindings and orchestration
-- Delegate business logic to `internal/` packages
-- Use `internal/models/` for shared types and errors
-- Separate concerns: auth, config, pubsub operations
+* Keep `app.go` focused on Wails bindings and delegation to handlers
+* Use handler structs in `internal/app/` to organize methods by domain
+* Delegate business logic to `internal/` packages (auth, config, pubsub)
+* Use `internal/models/` for shared types and errors
+* Separate concerns: connection, resources, monitoring, config, templates
 
 ### Frontend Organization
 
@@ -664,10 +676,10 @@ useEffect(() => {
 
 **Key Differences:**
 
-- ✅ **New**: Backend syncs automatically, frontend receives `resources:updated` event
-- ✅ **New**: Frontend doesn't need to call `loadResources()` - updates come via events
-- ✅ **New**: Filtering happens locally in frontend (see Local Filtering Pattern)
-- ❌ **Old**: Frontend had to manually call `ListTopics()` and `ListSubscriptions()` after each mutation
+* ✅ **New**: Backend syncs automatically, frontend receives `resources:updated` event
+* ✅ **New**: Frontend doesn't need to call `loadResources()` - updates come via events
+* ✅ **New**: Filtering happens locally in frontend (see Local Filtering Pattern)
+* ❌ **Old**: Frontend had to manually call `ListTopics()` and `ListSubscriptions()` after each mutation
 
 ### Async Operation with Loading States
 
@@ -764,9 +776,9 @@ func (a *App) ListTopics() ([]admin.TopicInfo, error) {
 
 **When to Sync:**
 
-- **On connection**: After `ConnectWithADC` or `ConnectWithServiceAccount` succeeds
-- **After mutations**: After `CreateTopic`, `DeleteTopic`, `CreateSubscription`, `UpdateSubscription`, `DeleteSubscription`
-- **Manual refresh**: Via `SyncResources()` method (exposed for frontend refresh button)
+* **On connection**: After `ConnectWithADC` or `ConnectWithServiceAccount` succeeds
+* **After mutations**: After `CreateTopic`, `DeleteTopic`, `CreateSubscription`, `UpdateSubscription`, `DeleteSubscription`
+* **Manual refresh**: Via `SyncResources()` method (exposed for frontend refresh button)
 
 **Frontend Implementation:**
 
@@ -800,18 +812,20 @@ useEffect(() => {
 
 **Benefits:**
 
-- **Instant UI**: Navigation between resources is immediate (no API roundtrips)
-- **Reduced API calls**: Only syncs once on connect and after mutations
-- **Parallel fetching**: Topics and subscriptions fetched simultaneously
-- **Automatic updates**: Frontend receives updates via events when resources change
+* **Instant UI**: Navigation between resources is immediate (no API roundtrips)
+* **Reduced API calls**: Only syncs once on connect and after mutations
+* **Parallel fetching**: Topics and subscriptions fetched simultaneously
+* **Automatic updates**: Frontend receives updates via events when resources change
 
 **See Implementation:**
 
-- Backend: `app.go:328-391` for `syncResources()` and `SyncResources()` methods
-- Backend: `app.go:393-425` for cached `ListTopics()` and `ListSubscriptions()` methods
-- Frontend: `frontend/src/App.tsx:73-84` for `resources:updated` event listener
+* Backend: `app.go:328-391` for `syncResources()` and `SyncResources()` methods
+* Backend: `app.go:393-425` for cached `ListTopics()` and `ListSubscriptions()` methods
+* Frontend: `frontend/src/App.tsx:73-84` for `resources:updated` event listener
 
 ### Local Filtering Pattern
+
+> **Note:** This pattern is used in React components. For general React patterns, see `react-tailwind.mdc`.
 
 **Frontend Filtering Instead of Backend API Calls**
 
@@ -864,22 +878,22 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, ... }
 
 **Key Principles:**
 
-- **Pass full lists as props**: Child components receive `allSubscriptions` and `allTopics`
-- **Use `useMemo` for filtering**: Memoize filtered results to avoid unnecessary recalculations
-- **No loading states**: Filtering is instant, no async operations needed
-- **Automatic updates**: When `resources:updated` event fires, `useMemo` automatically recalculates
+* **Pass full lists as props**: Child components receive `allSubscriptions` and `allTopics`
+* **Use `useMemo` for filtering**: Memoize filtered results to avoid unnecessary recalculations
+* **No loading states**: Filtering is instant, no async operations needed
+* **Automatic updates**: When `resources:updated` event fires, `useMemo` automatically recalculates
 
 **Benefits:**
 
-- **Zero latency**: Filtering happens instantly in memory
-- **Reduced backend load**: No API calls for relationship queries
-- **Simpler code**: No async loading states or error handling for filtering
-- **Better UX**: Instant updates when navigating between resources
+* **Zero latency**: Filtering happens instantly in memory
+* **Reduced backend load**: No API calls for relationship queries
+* **Simpler code**: No async loading states or error handling for filtering
+* **Better UX**: Instant updates when navigating between resources
 
 **See Implementation:**
 
-- Frontend: `frontend/src/components/TopicDetails.tsx:79-95` for local filtering with `useMemo`
-- Frontend: `frontend/src/App.tsx:377-388` for passing full lists as props
+* Frontend: `frontend/src/components/TopicDetails.tsx:79-95` for local filtering with `useMemo`
+* Frontend: `frontend/src/App.tsx:377-388` for passing full lists as props
 
 ### Topic Monitoring with Subscription Selection
 
@@ -927,51 +941,51 @@ const handleStartMonitoring = async () => {
 
 **UI Pattern:**
 
-- Show dropdown with "Auto-create subscription" as default option
-- List available resources (filtered appropriately, e.g., only pull subscriptions)
-- Disable dropdown when operation is active
-- Show which resource is currently being used
+* Show dropdown with "Auto-create subscription" as default option
+* List available resources (filtered appropriately, e.g., only pull subscriptions)
+* Disable dropdown when operation is active
+* Show which resource is currently being used
 
 **See Implementation:**
 
-- Backend: `app.go:908-1025` for `StartTopicMonitor` with optional subscription parameter
-- Frontend: `frontend/src/components/TopicDetails.tsx` for state management and `TopicMonitor.tsx` for UI
+* Backend: `app.go:908-1025` for `StartTopicMonitor` with optional subscription parameter
+* Frontend: `frontend/src/components/TopicDetails.tsx` for state management and `TopicMonitor.tsx` for UI
 
 ## Best Practices
 
 ### DO ✅
 
-- **Always return errors** from Go methods
-- **Use context** from `startup()` for all API calls
-- **Emit events** after state-changing operations
-- **Trigger sync** after mutations (`go a.syncResources()`)
-- **Handle errors** in frontend with try/catch
-- **Clean up resources** in `Disconnect()` and `OnShutdown`
-- **Use mutexes** for concurrent map access
-- **Set up event listeners** once in `useEffect` with cleanup
-- **Clear state on errors** to prevent stale data
-- **Use refs** for accessing latest state in event handlers
-- **Filter locally** in frontend using `useMemo` for relationships
-- **Pass full lists** as props to child components for local filtering
+* **Always return errors** from Go methods
+* **Use context** from `startup()` for all API calls
+* **Emit events** after state-changing operations
+* **Trigger sync** after mutations (`go a.syncResources()`)
+* **Handle errors** in frontend with try/catch
+* **Clean up resources** in `Disconnect()` and `OnShutdown`
+* **Use mutexes** for concurrent map access
+* **Set up event listeners** once in `useEffect` with cleanup
+* **Clear state on errors** to prevent stale data
+* **Use refs** for accessing latest state in event handlers
+* **Filter locally** in frontend using `useMemo` for relationships
+* **Pass full lists** as props to child components for local filtering
 
 ### DON'T ❌
 
-- **Don't edit** `frontend/wailsjs/` files (auto-generated)
-- **Don't create new contexts** - use stored `a.ctx`
-- **Don't forget** to emit events after mutations
-- **Don't forget** to trigger `syncResources()` after mutations
-- **Don't skip** error handling in async operations
-- **Don't access** shared state without mutex protection
-- **Don't set up** event listeners in render (use `useEffect`)
-- **Don't forget** to unsubscribe from events on cleanup
-- **Don't use** `context.Background()` - use stored context
-- **Don't make backend API calls** for filtering relationships - filter locally in frontend
-- **Don't call `loadResources()`** after mutations - rely on `resources:updated` event instead
+* **Don't edit** `frontend/wailsjs/` files (auto-generated)
+* **Don't create new contexts** - use stored `a.ctx`
+* **Don't forget** to emit events after mutations
+* **Don't forget** to trigger `syncResources()` after mutations
+* **Don't skip** error handling in async operations
+* **Don't access** shared state without mutex protection
+* **Don't set up** event listeners in render (use `useEffect`)
+* **Don't forget** to unsubscribe from events on cleanup
+* **Don't use** `context.Background()` - use stored context
+* **Don't make backend API calls** for filtering relationships - filter locally in frontend
+* **Don't call `loadResources()`** after mutations - rely on `resources:updated` event instead
 
 ## References
 
-- [Wails v2 Documentation](https://wails.io/docs/introduction)
-- [Wails v2 API Reference](https://pkg.go.dev/github.com/wailsapp/wails/v2)
-- [Go Context Package](https://pkg.go.dev/context)
-- Project PRD: `PRD.md`
-- Project Architecture: `CLAUDE.md`
+* [Wails v2 Documentation](https://wails.io/docs/introduction)
+* [Wails v2 API Reference](https://pkg.go.dev/github.com/wailsapp/wails/v2)
+* [Go Context Package](https://pkg.go.dev/context)
+* Project PRD: `PRD.md`
+* Project Architecture: `CLAUDE.md`
