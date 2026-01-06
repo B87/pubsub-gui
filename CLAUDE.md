@@ -730,7 +730,6 @@ Updates auto-acknowledge setting.
 Updates font size setting. Emits `config:font-size-changed` event. Valid values: `small`, `medium`, `large`.
 
 ### Frontend Events
-### Frontend Events
 
 Events emitted from backend that frontend can listen to:
 
