@@ -1,0 +1,273 @@
+version: '3'
+
+vars:
+  BINARY_NAME: pubsub-gui
+  FRONTEND_DIR: frontend
+  BUILD_DIR: build/bin
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # ============================================================================
+  # Setup & Dependencies
+  # ============================================================================
+
+  setup:
+    desc: Initial project setup (install dependencies and verify tools)
+    cmds:
+      - task: deps
+      - task: wails-install
+      - echo "✅ Setup complete! Run 'task dev' to start development"
+
+  deps:
+    desc: Install all dependencies (Go modules and npm packages)
+    cmds:
+      - echo "📦 Installing Go dependencies..."
+      - go mod download
+      - go mod tidy
+      - echo "📦 Installing frontend dependencies..."
+      - cd {{.FRONTEND_DIR}} && npm ci && cd ..
+
+  deps:update:
+    desc: Update all dependencies to latest versions
+    cmds:
+      - echo "🔄 Updating Go dependencies..."
+      - go get -u ./...
+      - go mod tidy
+      - echo "🔄 Updating frontend dependencies..."
+      - cd {{.FRONTEND_DIR}} && npm update && cd ..
+
+  wails-install:
+    desc: Install Wails CLI
+    cmds:
+      - echo "📥 Installing Wails CLI..."
+      - go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - echo "✅ Wails CLI installed"
+
+  wails:doctor:
+    desc: Verify Wails setup and system dependencies
+    cmds:
+      - wails doctor
+
+  # ============================================================================
+  # Development
+  # ============================================================================
+
+  dev:
+    desc: Run application in development mode (hot reload)
+    cmds:
+      - wails dev
+
+  frontend:
+    desc: Run frontend-only development server (no Go backend)
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Build frontend only (outputs to frontend/dist)
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run build
+
+  frontend:preview:
+    desc: Preview production frontend build
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run preview
+
+  # ============================================================================
+  # Building
+  # ============================================================================
+
+  build:
+    desc: Build application for current platform
+    cmds:
+      - wails build
+
+  build:macos:
+    desc: Build for macOS (Universal Binary - Intel + Apple Silicon)
+    cmds:
+      - wails build -platform darwin/universal
+
+  build:windows:
+    desc: Build for Windows 64-bit
+    cmds:
+      - wails build -platform windows/amd64
+
+  build:linux:
+    desc: Build for Linux 64-bit
+    cmds:
+      - wails build -platform linux/amd64
+
+  build:all:
+    desc: Build for all supported platforms
+    cmds:
+      - task: build:macos
+      - task: build:windows
+      - task: build:linux
+
+  # ============================================================================
+  # Testing & Code Quality
+  # ============================================================================
+
+  test:
+    desc: Run all Go tests
+    cmds:
+      - go test ./...
+
+  test:verbose:
+    desc: Run tests with verbose output
+    cmds:
+      - go test -v ./...
+
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -cover ./...
+
+  test:coverage:html:
+    desc: Generate HTML coverage report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "📊 Coverage report generated: coverage.html"
+
+  format:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+
+  format:check:
+    desc: Check if Go code is formatted (CI-friendly)
+    cmds:
+      - |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "❌ Code is not formatted. Run 'task format' to fix."
+          gofmt -s -d .
+          exit 1
+        else
+          echo "✅ Code is properly formatted"
+        fi
+
+  lint:
+    desc: Lint Go code (requires golangci-lint)
+    cmds:
+      - |
+        if command -v golangci-lint >/dev/null 2>&1; then
+          golangci-lint run
+        else
+          echo "⚠️  golangci-lint not installed. Install with:"
+          echo "   go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+          exit 1
+        fi
+
+  check:legacy-styles:
+    desc: Find legacy style patterns that should be migrated to theme system
+    cmds:
+      - bash scripts/find-legacy-styles.sh
+
+  check:all:
+    desc: Run all code quality checks
+    cmds:
+      - task: format:check
+      - task: test
+      - task: check:legacy-styles
+
+  # ============================================================================
+  # Release & Distribution
+  # ============================================================================
+
+  release:snapshot:
+    desc: Create a snapshot release (for testing)
+    cmds:
+      - |
+        if [ -z "${GITHUB_OWNER}" ] || [ -z "${GITHUB_REPO_NAME}" ]; then
+          echo "⚠️  Setting default GitHub variables for snapshot"
+          export GITHUB_OWNER=${GITHUB_OWNER:-b87}
+          export GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-pubsub-gui}
+        fi
+      - goreleaser release --snapshot --clean
+
+  release:test:
+    desc: Test build for macOS only (local testing)
+    cmds:
+      - bash scripts/test-build-macos.sh
+
+  release:dry-run:
+    desc: Run GoReleaser in dry-run mode (no release)
+    cmds:
+      - |
+        if [ -z "${GITHUB_OWNER}" ] || [ -z "${GITHUB_REPO_NAME}" ]; then
+          echo "⚠️  Setting default GitHub variables for dry-run"
+          export GITHUB_OWNER=${GITHUB_OWNER:-b87}
+          export GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-pubsub-gui}
+        fi
+      - goreleaser release --snapshot --clean --skip-publish
+
+  # ============================================================================
+  # Cleanup
+  # ============================================================================
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - echo "🧹 Cleaning build artifacts..."
+      - rm -rf {{.BUILD_DIR}}
+      - rm -rf dist
+      - rm -f coverage.out coverage.html
+      - echo "✅ Clean complete"
+
+  clean:frontend:
+    desc: Clean frontend build artifacts
+    cmds:
+      - echo "🧹 Cleaning frontend build..."
+      - rm -rf {{.FRONTEND_DIR}}/dist
+      - rm -rf {{.FRONTEND_DIR}}/node_modules/.vite
+      - echo "✅ Frontend clean complete"
+
+  clean:all:
+    desc: Clean everything including dependencies
+    cmds:
+      - task: clean
+      - task: clean:frontend
+      - echo "🧹 Cleaning dependencies..."
+      - rm -rf {{.FRONTEND_DIR}}/node_modules
+      - rm -f go.sum
+      - echo "✅ Full clean complete"
+
+  # ============================================================================
+  # Utilities
+  # ============================================================================
+
+  version:
+    desc: Show version information
+    cmds:
+      - echo "Go version:"
+      - go version
+      - echo ""
+      - echo "Node version:"
+      - node --version
+      - echo ""
+      - echo "npm version:"
+      - npm --version
+      - echo ""
+      - echo "Wails version:"
+      - wails version || echo "⚠️  Wails CLI not installed. Run 'task wails-install'"
+
+  info:
+    desc: Show project information
+    cmds:
+      - echo "📦 Project -> {{.BINARY_NAME}}"
+      - echo "📁 Frontend -> {{.FRONTEND_DIR}}"
+      - echo "📁 Build -> {{.BUILD_DIR}}"
+      - echo ""
+      - task: version
+
+  help:
+    desc: Show this help message
+    cmds:
+      - task --list

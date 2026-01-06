@@ -22,18 +22,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Required for changelog generation
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.24'
           cache-dependency-path: go.sum
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -44,6 +44,7 @@ jobs:
           cd frontend
           npm ci
           npm run build
+          cd ..
 
       - name: Install Wails CLI
         run: |
@@ -61,44 +62,48 @@ jobs:
           brew install webkit2gtk
 
       - name: Install Goreleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           install-only: true
 
       - name: Set version from tag
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          GITHUB_REF: ${{ github.ref }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+            git tag -a "$VERSION" -m "Release $VERSION" || true
+            git push origin "$VERSION" || true
           else
-            VERSION=${GITHUB_REF#refs/tags/}
+            VERSION="${GITHUB_REF#refs/tags/}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Tag: $VERSION"
+          echo "Version: $VERSION"
 
-      - name: Create tag (if workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ github.event.inputs.version }}" -m "Release ${{ github.event.inputs.version }}"
-          git push origin "${{ github.event.inputs.version }}"
-
-      - name: Run Goreleaser
+      - name: Set environment variables
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Goreleaser can auto-detect repository from GITHUB_TOKEN, but we set explicitly for clarity
-          GITHUB_OWNER: ${{ github.repository_owner }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          goreleaser release --clean
+          echo "GITHUB_OWNER=${GITHUB_REPOSITORY%/*}" >> $GITHUB_ENV
+          echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
 
-      - name: Upload release artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Run Goreleaser
+        uses: goreleaser/goreleaser-action@v6
         with:
-          name: release-artifacts
-          path: dist/*
-          retention-days: 30
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ env.GITHUB_OWNER }}
+          GITHUB_REPO_NAME: ${{ env.GITHUB_REPO_NAME }}
+          # Uncomment and set these when you have code signing certificates
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          # WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          # WINDOWS_CERTIFICATE_THUMBPRINT: ${{ secrets.WINDOWS_CERTIFICATE_THUMBPRINT }}

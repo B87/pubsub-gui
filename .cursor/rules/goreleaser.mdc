@@ -85,9 +85,22 @@ cd ..
 # Test the configuration
 goreleaser check
 
-# Dry run (builds but doesn't publish)
-goreleaser release --snapshot --skip-publish --clean
+# Dry run (builds but doesn't publish - snapshot mode skips publishing automatically)
+# Note: Set environment variables for local testing
+GITHUB_OWNER=yourusername GITHUB_REPO_NAME=pubsub-gui goreleaser release --snapshot --clean
+
+# For local testing on macOS only (avoids cross-compilation issues):
+# Use the provided test script:
+./scripts/test-build-macos.sh
+
+# Or manually test configuration validation:
+GITHUB_OWNER=test GITHUB_REPO_NAME=pubsub-gui goreleaser check
+
+# For full cross-platform builds, use GitHub Actions (recommended)
+# The workflow will handle all platforms correctly
 ```
+
+**Note:** Cross-compilation from macOS to Linux/Windows requires CGO and may fail locally. For full cross-platform builds, use GitHub Actions. Local testing is best for validating the configuration and building for your current platform.
 
 This creates a `dist/` directory with all built artifacts.
 

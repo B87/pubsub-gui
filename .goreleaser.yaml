@@ -1,5 +1,13 @@
 # Goreleaser configuration for Wails v2 Pub/Sub GUI application
+version: 2
 project_name: pubsub-gui
+
+# Build hooks - ensure frontend is built before Go compilation
+# Also run go mod tidy to avoid parallel dependency download issues
+before:
+  hooks:
+    - go mod tidy
+    - "cd frontend && npm ci && npm run build && cd .."
 
 # Build configuration
 # Note: Frontend must be built before running Goreleaser (see GitHub Actions workflow)
@@ -23,15 +31,21 @@ builds:
     dir: .
     main: .
     binary: pubsub-gui
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
 
 # Archive configuration
 archives:
   - id: default
-    builds:
-      - pubsub-gui
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}_{{ .Version }}"
     files:
       - README.md
@@ -44,8 +58,8 @@ checksum:
   algorithm: sha256
 
 # Snapshots (for development builds)
-snapshot:
-  name_template: "{{ .Tag }}-next"
+# Empty snapshot config uses defaults
+snapshot: {}
 
 # Changelog
 changelog:
@@ -60,7 +74,7 @@ changelog:
 release:
   github:
     owner: "{{ .Env.GITHUB_OWNER }}" # Set in GitHub Actions
-    name: "{{ .Env.GITHUB_REPOSITORY }}" # Set in GitHub Actions
+    name: "{{ .Env.GITHUB_REPO_NAME }}" # Set in GitHub Actions
   mode: replace
   header: |
     ## Release {{ .Tag }}
@@ -70,11 +84,13 @@ release:
     ## Installation
 
     Download the appropriate binary for your platform:
-    - **macOS**: `pubsub-gui_darwin_amd64.tar.gz` or `pubsub-gui_darwin_arm64.tar.gz`
-    - **Windows**: `pubsub-gui_windows_amd64.zip`
-    - **Linux**: `pubsub-gui_linux_amd64.tar.gz` or `pubsub-gui_linux_arm64.tar.gz`
+    - **macOS**: `pubsub-gui_darwin_amd64_{{ .Version }}.tar.gz` or `pubsub-gui_darwin_arm64_{{ .Version }}.tar.gz`
+    - **Windows**: `pubsub-gui_windows_amd64_{{ .Version }}.zip`
+    - **Linux**: `pubsub-gui_linux_amd64_{{ .Version }}.tar.gz` or `pubsub-gui_linux_arm64_{{ .Version }}.tar.gz`
 
     Extract the archive and run the `pubsub-gui` binary.
+
+    For installers (DMG, NSIS, AppImage), see the release notes for platform-specific instructions.
 
 # Homebrew tap (optional - for macOS users)
 # Uncomment and configure if you want to publish to Homebrew
@@ -110,22 +126,53 @@ release:
 #       - "yourusername/pubsub-gui:latest"
 #     dockerfile: Dockerfile
 
+# macOS Universal Binary (Intel + Apple Silicon)
+# Note: DMG creation requires additional tools (create-dmg, hdiutil)
+# See: https://github.com/create-dmg/create-dmg
+# For code signing, you'll need Developer ID certificates
+universal_binaries:
+  - id: default
+    replace: true
+
+# Windows NSIS installer
+# Note: NSIS installer creation requires:
+# 1. NSIS installed on Windows build machine
+# 2. Custom script or post-build hook to create installer
+# 3. Code signing certificates for Windows (optional but recommended)
+# See: https://nsis.sourceforge.io/
+
+# Linux AppImage
+# Note: AppImage creation requires:
+# 1. appimagetool (https://github.com/AppImage/AppImageKit)
+# 2. Custom script or post-build hook
+# 3. Desktop integration files (.desktop, icon)
+# See: https://appimage.org/
+
+# Installer creation can be added as post-build hooks or separate GitHub Actions steps
+# Example post-build hook:
+# post_hooks:
+#   - cmd: scripts/create-dmg.sh
+#     dir: dist
+#   - cmd: scripts/create-nsis.sh
+#     dir: dist
+#   - cmd: scripts/create-appimage.sh
+#     dir: dist
+
 # NFPM (for .deb and .rpm packages - optional)
-# nfpms:
-#   - id: default
-#     builds:
-#       - pubsub-gui
-#     package_name: pubsub-gui
-#     file_name_template: "{{ .ConventionalFileName }}"
-#     maintainer: "Bernat <b.barroso8@gmail.com>"
-#     description: "GUI for Google Cloud Pub/Sub management"
-#     license: "MIT"
-#     formats:
-#       - deb
-#       - rpm
-#     bindir: /usr/bin
-#     contents:
-#       - src: "{{ .ArtifactPath }}"
-#         dst: /usr/bin/pubsub-gui
-#         file_info:
-#           mode: 0755
+nfpms:
+  - id: default
+    package_name: pubsub-gui
+    file_name_template: "{{ .ConventionalFileName }}"
+    maintainer: "Bernat <b.barroso8@gmail.com>"
+    vendor: "Bernat"
+    description: "GUI for Google Cloud Pub/Sub management"
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: "{{ .ArtifactPath }}"
+        dst: /usr/bin/pubsub-gui
+        file_info:
+          mode: 0755
