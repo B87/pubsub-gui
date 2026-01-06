@@ -718,11 +718,11 @@ When loading resources (topics, subscriptions) after connecting:
 
 **Implementation:**
 
-See `app.go:305-314` for the `ListTopics` method which demonstrates:
-- Getting client via `ClientManager`
-- Checking connection status
-- Getting project ID
-- Calling admin function
+See `app.go:243-246` for the `ListTopics` method which delegates to `ResourceHandler`:
+- Method in `app.go` delegates to `a.resources.ListTopics()`
+- Actual implementation in `internal/app/resources.go:143-160`
+- Returns cached topics from synchronized store
+- Uses `RLock()` for thread-safe access
 
 ## Migration from v1
 

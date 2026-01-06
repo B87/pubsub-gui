@@ -425,11 +425,17 @@ useEffect(() => {
 ```
 
 **Common Events:**
-- `message:received` - New message from subscription
-- `connection:status` - Connection status updates
-- `monitor:error` - Monitoring errors
+- `message:received` - New message received during monitoring (topic or subscription)
+- `monitor:started` - Monitoring started for a subscription
+- `monitor:stopped` - Monitoring stopped for a subscription
+- `monitor:error` - Error during monitoring
+- `topic:created`, `topic:deleted` - Topic lifecycle events
+- `subscription:created`, `subscription:updated`, `subscription:deleted` - Subscription lifecycle events
+- `connection:success` - Connection established successfully
 - `config:theme-changed` - Theme configuration changed (see `theme-system.mdc`)
+- `config:font-size-changed` - Font size configuration changed (see `theme-system.mdc`)
 - `resources:updated` - Resource cache synchronized (see `wails.mdc`)
+- `resources:sync-error` - Error during resource synchronization (partial failures)
 
 ### Error Handling
 

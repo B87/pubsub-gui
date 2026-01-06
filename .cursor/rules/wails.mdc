@@ -37,10 +37,10 @@ type App struct {
 
     // Handler structs for organizing methods by domain
     connection    *app.ConnectionHandler
-    resources     *app.ResourcesHandler
+    resources     *app.ResourceHandler
     monitoring    *app.MonitoringHandler
     configH       *app.ConfigHandler
-    templates     *app.TemplatesHandler
+    templates     *app.TemplateHandler
 }
 ```
 
@@ -50,15 +50,15 @@ type App struct {
 * Use handler structs to organize methods by domain (connection, resources, monitoring, config, templates)
 * Initialize managers and handlers in `startup()` lifecycle hook
 * Clean up resources in `Disconnect()` and `OnShutdown`
-* Handlers maintain their own state (e.g., ResourcesHandler maintains synchronized resource store)
+* Handlers maintain their own state (e.g., ResourceHandler maintains synchronized resource store)
 
 **Handler Organization:**
 
 * `ConnectionHandler` (`internal/app/connection.go`): Connection and profile management
-* `ResourcesHandler` (`internal/app/resources.go`): Topic and subscription CRUD operations
+* `ResourceHandler` (`internal/app/resources.go`): Topic and subscription CRUD operations
 * `MonitoringHandler` (`internal/app/monitoring.go`): Message monitoring and streaming
 * `ConfigHandler` (`internal/app/config.go`): Configuration management (theme, font size, auto-ack)
-* `TemplatesHandler` (`internal/app/templates.go`): Message template management
+* `TemplateHandler` (`internal/app/templates.go`): Message template management
 
 ### Method Exposure Rules
 
@@ -186,8 +186,10 @@ func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error
 
 * `topic:created`, `topic:deleted`
 * `subscription:created`, `subscription:updated`, `subscription:deleted`
+* `message:received` - New message received during monitoring (topic or subscription)
 * `monitor:started`, `monitor:stopped`
-* `config:theme-changed`
+* `monitor:error` - Error during monitoring
+* `config:theme-changed`, `config:font-size-changed`
 * `resources:updated` - Emitted when resource store is synchronized (see Resource Synchronization Pattern)
 
 ### Lifecycle Hooks
@@ -606,12 +608,16 @@ npm run dev  # Vite dev server on http://localhost:34115
 ### Connection State Management
 
 ```go
-// Backend: Check connection before operations
+// Backend: App methods delegate to handlers which check connection
 func (a *App) ListTopics() ([]admin.TopicInfo, error) {
-    client := a.clientManager.GetClient()
-    if client == nil {
-        return nil, models.ErrNotConnected
-    }
+    return a.resources.ListTopics() // Handler checks connection internally
+}
+
+// Handler implementation checks connection
+func (h *ResourceHandler) ListTopics() ([]admin.TopicInfo, error) {
+    // Returns cached data (connection check happens during sync)
+    h.resourceMu.RLock()
+    defer h.resourceMu.RUnlock()
     // ...
 }
 ```
@@ -718,65 +724,20 @@ type App struct {
     subscriptions []admin.SubscriptionInfo
 }
 
-// syncResources fetches topics and subscriptions in parallel and updates the local store
+// syncResources is a helper that calls the resource handler's syncResources
 func (a *App) syncResources() {
-    client := a.clientManager.GetClient()
-    if client == nil {
-        return
-    }
-
-    projectID := a.clientManager.GetProjectID()
-
-    // Fetch topics and subscriptions in parallel
-    var topics []admin.TopicInfo
-    var subscriptions []admin.SubscriptionInfo
-    var topicsErr, subsErr error
-
-    var wg sync.WaitGroup
-    wg.Add(2)
-
-    go func() {
-        defer wg.Done()
-        topics, topicsErr = admin.ListTopicsAdmin(a.ctx, client, projectID)
-    }()
-
-    go func() {
-        defer wg.Done()
-        subscriptions, subsErr = admin.ListSubscriptionsAdmin(a.ctx, client, projectID)
-    }()
-
-    wg.Wait()
-
-    // Update local store
-    a.resourceMu.Lock()
-    a.topics = topics
-    a.subscriptions = subscriptions
-    a.resourceMu.Unlock()
-
-    // Emit event to frontend with updated resources
-    runtime.EventsEmit(a.ctx, "resources:updated", map[string]interface{}{
-        "topics":        topics,
-        "subscriptions": subscriptions,
-    })
+    go a.resources.SyncResources()
 }
 
-// List methods return cached data
+// List methods delegate to ResourceHandler (return cached data)
 func (a *App) ListTopics() ([]admin.TopicInfo, error) {
-    a.resourceMu.RLock()
-    defer a.resourceMu.RUnlock()
-
-    if a.topics != nil {
-        result := make([]admin.TopicInfo, len(a.topics))
-        copy(result, a.topics)
-        return result, nil
-    }
-    return []admin.TopicInfo{}, nil
+    return a.resources.ListTopics()
 }
 ```
 
 **When to Sync:**
 
-* **On connection**: After `ConnectWithADC` or `ConnectWithServiceAccount` succeeds
+* **On connection**: After `ConnectWithADC`, `ConnectWithServiceAccount`, or `ConnectWithOAuth` succeeds
 * **After mutations**: After `CreateTopic`, `DeleteTopic`, `CreateSubscription`, `UpdateSubscription`, `DeleteSubscription`
 * **Manual refresh**: Via `SyncResources()` method (exposed for frontend refresh button)
 
@@ -819,8 +780,9 @@ useEffect(() => {
 
 **See Implementation:**
 
-* Backend: `app.go:328-391` for `syncResources()` and `SyncResources()` methods
-* Backend: `app.go:393-425` for cached `ListTopics()` and `ListSubscriptions()` methods
+* Backend: `app.go:234-241` for `SyncResources()` and `syncResources()` methods (delegation)
+* Backend: `internal/app/resources.go:53-141` for `ResourceHandler.SyncResources()` and `syncResources()` implementation
+* Backend: `internal/app/resources.go:143-160` for cached `ListTopics()` and `ListSubscriptions()` methods
 * Frontend: `frontend/src/App.tsx:73-84` for `resources:updated` event listener
 
 ### Local Filtering Pattern

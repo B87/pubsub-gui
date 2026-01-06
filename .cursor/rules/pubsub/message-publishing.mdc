@@ -59,27 +59,37 @@ export interface MessageTemplate {
 
 ## API Methods
 
-### Backend (`app.go`)
+### Backend
+
+**Note:** Template methods are exposed via `app.go` but implemented in `internal/app/templates.go` (TemplateHandler). The App struct delegates to the handler.
 
 #### GetTemplates
 
-```go 478:500:app.go
+**Exposed in `app.go`:**
+```go 298:300:app.go
+func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
+	return a.templates.GetTemplates(topicID)
+}
+```
+
+**Implementation in `internal/app/templates.go`:**
+```go 25:46:internal/app/templates.go
 // GetTemplates returns all templates, optionally filtered by topicID
 // If topicID is empty, returns all templates
 // If topicID is provided, returns templates linked to that topic + global templates (no topicID)
-func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
-	if a.config == nil {
+func (h *TemplateHandler) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
+	if h.config == nil {
 		return []models.MessageTemplate{}, nil
 	}
 
 	if topicID == "" {
 		// Return all templates
-		return a.config.Templates, nil
+		return h.config.Templates, nil
 	}
 
 	// Filter templates: include if no topicID (global) or matches current topic
 	filtered := []models.MessageTemplate{}
-	for _, t := range a.config.Templates {
+	for _, t := range h.config.Templates {
 		if t.TopicID == "" || t.TopicID == topicID {
 			filtered = append(filtered, t)
 		}
@@ -95,9 +105,17 @@ func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
 
 #### SaveTemplate
 
-```go 502:544:app.go
-// SaveTemplate saves a message template to the configuration
+**Exposed in `app.go`:**
+```go 303:305:app.go
 func (a *App) SaveTemplate(template models.MessageTemplate) error {
+	return a.templates.SaveTemplate(template)
+}
+```
+
+**Implementation in `internal/app/templates.go`:**
+```go 49:91:internal/app/templates.go
+// SaveTemplate saves a message template to the configuration
+func (h *TemplateHandler) SaveTemplate(template models.MessageTemplate) error {
 	// Generate ID if not provided
 	if template.ID == "" {
 		template.ID = models.GenerateID()
@@ -112,11 +130,11 @@ func (a *App) SaveTemplate(template models.MessageTemplate) error {
 
 	// Validate template
 	if err := template.Validate(); err != nil {
-		return fmt.Errorf("invalid template: %w", err)
+		return err
 	}
 
 	// Check for duplicate names (excluding the template itself if updating)
-	for _, t := range a.config.Templates {
+	for _, t := range h.config.Templates {
 		if t.Name == template.Name && t.ID != template.ID {
 			return models.ErrDuplicateTemplate
 		}
@@ -124,20 +142,20 @@ func (a *App) SaveTemplate(template models.MessageTemplate) error {
 
 	// Find and update existing template, or add new one
 	found := false
-	for i, t := range a.config.Templates {
+	for i, t := range h.config.Templates {
 		if t.ID == template.ID {
-			a.config.Templates[i] = template
+			h.config.Templates[i] = template
 			found = true
 			break
 		}
 	}
 
 	if !found {
-		a.config.Templates = append(a.config.Templates, template)
+		h.config.Templates = append(h.config.Templates, template)
 	}
 
 	// Save configuration
-	return a.configManager.SaveConfig(a.config)
+	return h.configManager.SaveConfig(h.config)
 }
 ```
 
@@ -150,11 +168,19 @@ func (a *App) SaveTemplate(template models.MessageTemplate) error {
 
 #### UpdateTemplate
 
-```go 546:586:app.go
-// UpdateTemplate updates an existing template
+**Exposed in `app.go`:**
+```go 308:310:app.go
 func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate) error {
+	return a.templates.UpdateTemplate(templateID, template)
+}
+```
+
+**Implementation in `internal/app/templates.go`:**
+```go 93:133:internal/app/templates.go
+// UpdateTemplate updates an existing template
+func (h *TemplateHandler) UpdateTemplate(templateID string, template models.MessageTemplate) error {
 	if templateID == "" {
-		return fmt.Errorf("template ID cannot be empty")
+		return models.ErrTemplateNotFound
 	}
 
 	// Set the ID to match
@@ -163,16 +189,16 @@ func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate)
 
 	// Validate template
 	if err := template.Validate(); err != nil {
-		return fmt.Errorf("invalid template: %w", err)
+		return err
 	}
 
 	// Find and update existing template
 	found := false
-	for i, t := range a.config.Templates {
+	for i, t := range h.config.Templates {
 		if t.ID == templateID {
 			// Preserve CreatedAt
 			template.CreatedAt = t.CreatedAt
-			a.config.Templates[i] = template
+			h.config.Templates[i] = template
 			found = true
 			break
 		}
@@ -183,14 +209,14 @@ func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate)
 	}
 
 	// Check for duplicate names (excluding the template itself)
-	for _, t := range a.config.Templates {
+	for _, t := range h.config.Templates {
 		if t.Name == template.Name && t.ID != templateID {
 			return models.ErrDuplicateTemplate
 		}
 	}
 
 	// Save configuration
-	return a.configManager.SaveConfig(a.config)
+	return h.configManager.SaveConfig(h.config)
 }
 ```
 
@@ -202,17 +228,25 @@ func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate)
 
 #### DeleteTemplate
 
-```go 588:613:app.go
-// DeleteTemplate removes a template from the configuration
+**Exposed in `app.go`:**
+```go 313:315:app.go
 func (a *App) DeleteTemplate(templateID string) error {
+	return a.templates.DeleteTemplate(templateID)
+}
+```
+
+**Implementation in `internal/app/templates.go`:**
+```go 135:160:internal/app/templates.go
+// DeleteTemplate removes a template from the configuration
+func (h *TemplateHandler) DeleteTemplate(templateID string) error {
 	if templateID == "" {
-		return fmt.Errorf("template ID cannot be empty")
+		return models.ErrTemplateNotFound
 	}
 
 	// Find and remove the template
 	newTemplates := make([]models.MessageTemplate, 0)
 	found := false
-	for _, t := range a.config.Templates {
+	for _, t := range h.config.Templates {
 		if t.ID == templateID {
 			found = true
 		} else {
@@ -224,10 +258,10 @@ func (a *App) DeleteTemplate(templateID string) error {
 		return models.ErrTemplateNotFound
 	}
 
-	a.config.Templates = newTemplates
+	h.config.Templates = newTemplates
 
 	// Save configuration
-	return a.configManager.SaveConfig(a.config)
+	return h.configManager.SaveConfig(h.config)
 }
 ```
 
@@ -331,25 +365,25 @@ await DeleteTemplate(templateId);
 
 ## Template Filtering Logic
 
-Templates are filtered based on the selected topic. See implementation in `app.go`:
+Templates are filtered based on the selected topic. See implementation in `internal/app/templates.go`:
 
-```go 478:500:app.go
+```go 25:46:internal/app/templates.go
 // GetTemplates returns all templates, optionally filtered by topicID
 // If topicID is empty, returns all templates
 // If topicID is provided, returns templates linked to that topic + global templates (no topicID)
-func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
-	if a.config == nil {
+func (h *TemplateHandler) GetTemplates(topicID string) ([]models.MessageTemplate, error) {
+	if h.config == nil {
 		return []models.MessageTemplate{}, nil
 	}
 
 	if topicID == "" {
 		// Return all templates
-		return a.config.Templates, nil
+		return h.config.Templates, nil
 	}
 
 	// Filter templates: include if no topicID (global) or matches current topic
 	filtered := []models.MessageTemplate{}
-	for _, t := range a.config.Templates {
+	for _, t := range h.config.Templates {
 		if t.TopicID == "" || t.TopicID == topicID {
 			filtered = append(filtered, t)
 		}

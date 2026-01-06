@@ -126,24 +126,19 @@ if strings.Contains(errStr, "NotFound") || strings.Contains(errStr, "not found")
 
 ### Querying Relationships
 
-The codebase provides methods to query relationships between topics and subscriptions:
+**Note:** The following methods (`GetTopicSubscriptions`, `GetSubscriptionsUsingTopicAsDeadLetter`, `GetDeadLetterTopicsForTopic`) have been **removed** from the backend. The frontend now filters relationships locally from the synchronized resource store for instant updates without API roundtrips.
 
-**Backend Methods (in `app.go`):**
+**Current Pattern (Local Filtering):**
 
-* `GetTopicSubscriptions(topicID string)` - Returns all subscriptions subscribed to a topic
-* `GetSubscriptionsUsingTopicAsDeadLetter(topicID string)` - Returns subscriptions that use a topic as their dead letter topic
-* `GetDeadLetterTopicsForTopic(topicID string)` - Returns dead letter topics used by subscriptions subscribed to a topic
+* Frontend receives full lists of topics and subscriptions via `resources:updated` event
+* Components filter relationships locally using `useMemo` hooks
+* No backend API calls needed for relationship queries
+* Instant UI updates when navigating between resources
 
-**Implementation Pattern:**
+**Frontend Implementation:**
 
-* All methods normalize topic IDs (handle both full path and short name)
-* Methods filter client-side from full lists (no GCP API filtering available)
-* Return empty arrays (not errors) when no relationships exist
-* See `app.go:348-447` for implementation examples
-
-**Frontend Usage:**
-
-* These methods are exposed via Wails bindings
-* Use in React components to display relationship tabs (e.g., "Subscriptions" and "Dead Letter" tabs in TopicDetails)
-* Handle loading states and empty states appropriately
 * See `frontend/src/components/TopicDetails.tsx` for example usage
+* Components receive `allSubscriptions` and `allTopics` as props
+* Filter subscriptions for a topic: `allSubscriptions.filter(sub => sub.topic === topic.name)`
+* Filter dead letter subscriptions: `allSubscriptions.filter(sub => sub.deadLetterPolicy?.deadLetterTopic === topic.name)`
+* See `wails.mdc` Local Filtering Pattern section for complete details

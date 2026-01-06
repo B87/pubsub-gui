@@ -133,21 +133,21 @@ go get <package>
 **Entry Point:** `main.go` creates the Wails app and binds the `App` struct from `app.go`.
 
 **Current Structure:**
-- `app.go`: Main application struct with Go methods exposed to frontend via Wails bindings
+- `app.go`: Main application struct with Go methods exposed to frontend via Wails bindings (delegates to handlers)
 - `main.go`: Wails initialization, window configuration, asset server setup
-
-**Planned Structure (per PRD.md):**
-```
-internal/
-├── app/              # Wails app initialization and bindings
-├── auth/             # GCP authentication (ADC + JSON key)
-├── config/           # Local configuration persistence
-├── pubsub/
-│   ├── admin/        # List topics/subscriptions, fetch metadata
-│   ├── publisher/    # Publish messages with attributes
-│   └── subscriber/   # Streaming pull with backpressure control
-└── models/           # Shared data structures
-```
+- `internal/app/`: Handler structs organizing methods by domain:
+  - `connection.go`: ConnectionHandler for connection and profile management
+  - `resources.go`: ResourceHandler for topic and subscription CRUD operations
+  - `monitoring.go`: MonitoringHandler for message monitoring and streaming
+  - `config.go`: ConfigHandler for configuration management (theme, font size, auto-ack)
+  - `templates.go`: TemplateHandler for message template management
+- `internal/auth/`: GCP authentication (ADC, Service Account, OAuth)
+- `internal/config/`: Local configuration persistence
+- `internal/pubsub/`:
+  - `admin/`: List topics/subscriptions, fetch metadata
+  - `publisher/`: Publish messages with attributes
+  - `subscriber/`: Message streaming and monitoring
+- `internal/models/`: Shared data structures
 
 ### Frontend (React + TypeScript)
 
@@ -456,17 +456,6 @@ go func() {
 >
 ```
 
-**Option 2: Mapped Tailwind Classes (Fallback)**
-```tsx
-<div className="bg-slate-900 text-slate-100 border border-slate-700">
-```
-
-Available mapped classes:
-- Backgrounds: `bg-slate-{900,800,700,600}`
-- Text: `text-slate-{100,200,300,400,500,600}`
-- Borders: `border-slate-{700,800}`
-- Status: `bg-green-{600,700,900}`, `bg-red-{600,700,900}`, `bg-yellow-{600,700,900}`
-- Opacity: Use `bg-slate-900/30` for 30% opacity (automatically uses `color-mix()`)
 
 ### Component Structure
 
@@ -549,9 +538,19 @@ All methods are on the `App` struct in `app.go` and exposed to frontend via Wail
 #### Connection Management
 
 ```go
-func (a *App) Connect(profile models.ConnectionProfile) error
+func (a *App) ConnectWithADC(projectID string) error
 ```
-Connects to GCP project or emulator. Validates credentials and initializes Pub/Sub client.
+Connects to GCP project using Application Default Credentials. Validates credentials and initializes Pub/Sub client.
+
+```go
+func (a *App) ConnectWithServiceAccount(projectID, keyPath string) error
+```
+Connects to GCP project using a service account JSON key file. Validates credentials and initializes Pub/Sub client.
+
+```go
+func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error
+```
+Connects to GCP project using OAuth2 credentials. Opens browser for authentication and stores encrypted tokens.
 
 ```go
 func (a *App) Disconnect() error
@@ -559,9 +558,31 @@ func (a *App) Disconnect() error
 Disconnects from current project. Cleans up clients and stops monitoring.
 
 ```go
-func (a *App) GetConnectionProfile() models.ConnectionProfile
+func (a *App) GetConnectionStatus() app.ConnectionStatus
 ```
-Returns currently active connection profile.
+Returns current connection status including project ID, auth method, and emulator host.
+
+#### Profile Management
+
+```go
+func (a *App) GetProfiles() []models.ConnectionProfile
+```
+Returns all saved connection profiles.
+
+```go
+func (a *App) SaveProfile(profile models.ConnectionProfile) error
+```
+Saves a connection profile to the configuration.
+
+```go
+func (a *App) DeleteProfile(profileID string) error
+```
+Deletes a connection profile. Disconnects if the deleted profile was active.
+
+```go
+func (a *App) SwitchProfile(profileID string) error
+```
+Switches to a different connection profile. Disconnects from current connection and connects using the new profile.
 
 #### Resource Management
 
@@ -571,19 +592,29 @@ func (a *App) SyncResources() error
 Fetches all topics and subscriptions from GCP. Uses goroutines for parallel fetching. Emits `resources:updated` event.
 
 ```go
-func (a *App) GetTopics() []admin.TopicInfo
+func (a *App) ListTopics() ([]admin.TopicInfo, error)
 ```
-Returns cached topic list. Call `SyncResources()` first to refresh.
+Returns cached topic list from synchronized store. Call `SyncResources()` first to refresh.
 
 ```go
-func (a *App) GetSubscriptions() []admin.SubscriptionInfo
+func (a *App) ListSubscriptions() ([]admin.SubscriptionInfo, error)
 ```
-Returns cached subscription list. Call `SyncResources()` first to refresh.
+Returns cached subscription list from synchronized store. Call `SyncResources()` first to refresh.
 
 ```go
-func (a *App) CreateTopic(topicID string) error
+func (a *App) GetTopicMetadata(topicID string) (admin.TopicInfo, error)
 ```
-Creates a new topic. Auto-refreshes resource cache.
+Retrieves metadata for a specific topic.
+
+```go
+func (a *App) GetSubscriptionMetadata(subID string) (admin.SubscriptionInfo, error)
+```
+Retrieves metadata for a specific subscription.
+
+```go
+func (a *App) CreateTopic(topicID string, messageRetentionDuration string) error
+```
+Creates a new topic with optional message retention duration. Auto-refreshes resource cache.
 
 ```go
 func (a *App) DeleteTopic(topicID string) error
@@ -591,9 +622,14 @@ func (a *App) DeleteTopic(topicID string) error
 Deletes a topic. Auto-refreshes resource cache.
 
 ```go
-func (a *App) CreateSubscription(req models.CreateSubscriptionRequest) error
+func (a *App) CreateSubscription(topicID string, subID string, ttlSeconds int64) error
 ```
-Creates a new subscription with configuration. Auto-refreshes resource cache.
+Creates a new subscription for a topic with TTL. Auto-refreshes resource cache.
+
+```go
+func (a *App) UpdateSubscription(subID string, params SubscriptionUpdateParams) error
+```
+Updates a subscription's configuration (ack deadline, retention duration, filter, dead letter policy, push config). Auto-refreshes resource cache.
 
 ```go
 func (a *App) DeleteSubscription(subscriptionID string) error
@@ -603,41 +639,73 @@ Deletes a subscription. Auto-refreshes resource cache.
 #### Message Operations
 
 ```go
-func (a *App) PublishMessage(topicID string, message models.PublishMessageRequest) (string, error)
+func (a *App) PublishMessage(topicID, payload string, attributes map[string]string) (PublishResult, error)
 ```
-Publishes a message to a topic. Returns message ID.
+Publishes a message to a topic. Returns `PublishResult` containing message ID and timestamp.
 
 ```go
-func (a *App) StartTopicMonitoring(topicID string, subscriptionID *string, autoAck bool) error
+func (a *App) StartTopicMonitor(topicID string, subscriptionID string) error
 ```
-Starts monitoring a topic. If `subscriptionID` is nil, creates temporary subscription. Emits `topic:message` events.
+Starts monitoring a topic. If `subscriptionID` is empty, creates temporary subscription. Emits `message:received` events.
 
 ```go
-func (a *App) StopTopicMonitoring(topicID string) error
+func (a *App) StopTopicMonitor(topicID string) error
 ```
 Stops monitoring a topic. Cleans up temporary subscription if created.
 
 ```go
-func (a *App) StartSubscriptionMonitoring(subscriptionID string, autoAck bool) error
+func (a *App) StartMonitor(subscriptionID string) error
 ```
-Starts monitoring a subscription. Emits `subscription:message` events.
+Starts monitoring a subscription. Emits `message:received` events.
 
 ```go
-func (a *App) StopSubscriptionMonitoring(subscriptionID string) error
+func (a *App) StopMonitor(subscriptionID string) error
 ```
 Stops monitoring a subscription.
+
+```go
+func (a *App) GetBufferedMessages(subscriptionID string) ([]subscriber.PubSubMessage, error)
+```
+Returns all messages in the buffer for a subscription.
+
+```go
+func (a *App) ClearMessageBuffer(subscriptionID string) error
+```
+Clears the message buffer for a subscription.
+
+#### Templates
+
+```go
+func (a *App) GetTemplates(topicID string) ([]models.MessageTemplate, error)
+```
+Returns all templates, optionally filtered by topicID. If topicID is empty, returns all templates. If provided, returns templates linked to that topic + global templates.
+
+```go
+func (a *App) SaveTemplate(template models.MessageTemplate) error
+```
+Saves a message template to the configuration.
+
+```go
+func (a *App) UpdateTemplate(templateID string, template models.MessageTemplate) error
+```
+Updates an existing template.
+
+```go
+func (a *App) DeleteTemplate(templateID string) error
+```
+Deletes a template from the configuration.
 
 #### Configuration
 
 ```go
-func (a *App) GetConfig() (models.AppConfig, error)
+func (a *App) GetConfigFileContent() (string, error)
 ```
-Returns app configuration from `~/.pubsub-gui/config.json`.
+Returns raw JSON content of the config file.
 
 ```go
-func (a *App) SaveConfig(config models.AppConfig) error
+func (a *App) SaveConfigFileContent(content string) error
 ```
-Saves app configuration to disk.
+Saves raw JSON content to the config file. Validates theme and font size values.
 
 ```go
 func (a *App) UpdateTheme(theme string) error
@@ -649,18 +717,46 @@ func (a *App) UpdateFontSize(fontSize string) error
 ```
 Updates font size setting. Emits `config:font-size-changed` event. Valid values: `small`, `medium`, `large`.
 
+```go
+func (a *App) GetAutoAck() (bool, error)
+```
+Returns current auto-acknowledge setting.
+
+```go
+func (a *App) SetAutoAck(enabled bool) error
+```
+Updates auto-acknowledge setting.
+
+```go
+func (a *App) GetConfigFileContent() (string, error)
+```
+Returns raw JSON content of the config file.
+
+```go
+func (a *App) SaveConfigFileContent(content string) error
+```
+Saves raw JSON content to the config file. Validates theme and font size values.
+
 ### Frontend Events
 
 Events emitted from backend that frontend can listen to:
 
 | Event Name | Payload Type | Description |
 |------------|--------------|-------------|
-| `resources:updated` | `{ topics: [], subscriptions: [] }` | Fired when resource cache is refreshed |
-| `topic:message` | `models.PubSubMessage` | New message received during topic monitoring |
-| `subscription:message` | `models.PubSubMessage` | New message received during subscription monitoring |
-| `config:theme-changed` | `{ theme: string }` | Theme setting changed |
-| `config:font-size-changed` | `{ fontSize: string }` | Font size setting changed |
-| `monitoring:error` | `{ error: string, topicId?: string }` | Error during monitoring |
+| `resources:updated` | `{ topics?: [], subscriptions?: [] }` | Fired when resource cache is refreshed (may include partial data) |
+| `resources:sync-error` | `{ errors: { topics?: string, subscriptions?: string } }` | Error during resource synchronization (partial failures) |
+| `message:received` | `models.PubSubMessage` | New message received during monitoring (topic or subscription) |
+| `monitor:started` | `{ subscriptionID: string }` | Monitoring started for a subscription |
+| `monitor:stopped` | `{ subscriptionID: string }` | Monitoring stopped for a subscription |
+| `monitor:error` | `{ subscriptionID: string, error: string }` | Error during monitoring |
+| `topic:created` | `{ topicID: string }` | Topic created |
+| `topic:deleted` | `{ topicID: string }` | Topic deleted |
+| `subscription:created` | `{ subscriptionID: string }` | Subscription created |
+| `subscription:updated` | `{ subscriptionID: string }` | Subscription updated |
+| `subscription:deleted` | `{ subscriptionID: string }` | Subscription deleted |
+| `connection:success` | `{ projectId: string, authMethod: string }` | Connection established successfully |
+| `config:theme-changed` | `string` | Theme setting changed (value is the theme name) |
+| `config:font-size-changed` | `string` | Font size setting changed (value is the font size) |
 
 **Event Listening Pattern:**
 ```typescript
@@ -870,7 +966,6 @@ EventsOn("*", (eventName, data) => {
 - **`PRD.md`**: Product Requirements Document - comprehensive feature specifications
 - **`.cursor/rules/theme-system.mdc`**: Complete theme system documentation
 - **`.cursor/rules/react-tailwind.mdc`**: React and styling guidelines (MUST READ for UI work)
-- **`THEME_SYSTEM_IMPROVEMENTS.md`**: Roadmap for theme system enhancements
 
 ### IAM Permissions Required
 

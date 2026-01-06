@@ -1,7 +1,7 @@
 # PRD: Google Cloud Pub/Sub Desktop GUI
 
 **Version:** 1.0
-**Last Updated:** 2026-01-04
+**Last Updated:** 2026-01-06
 **Status:** Draft
 
 ---
@@ -54,11 +54,6 @@ The application has successfully completed its MVP (Minimum Viable Product) mile
 3. **Reliable message publishing** — Publish messages and confirm delivery with message IDs
 4. **Seamless emulator support** — Zero-config switch between GCP and local emulator
 
-### Success Metrics (MVP)
-- User can authenticate and view project resources within 5 seconds
-- Message stream displays incoming messages in real-time without UI freezing
-- 100% of published messages show confirmation with message ID
-- Application runs on macOS, Windows, and Linux without platform-specific bugs
 
 ---
 
@@ -119,50 +114,19 @@ internal/
 
 ### 5.3 Frontend Architecture (React)
 
-```
-frontend/src/
-├── components/
-│   ├── Sidebar/          # Project selector + resource tree
-│   ├── TopicDetails/     # Topic metadata + publish form
-│   ├── SubscriptionMonitor/  # Message stream viewer
-│   └── MessageCard/      # Individual message display
-├── contexts/
-│   ├── AuthContext.tsx   # Authentication state
-│   └── PubSubContext.tsx # Active project/resources
-├── hooks/
-│   └── useMessageStream.ts  # WebSocket-like message handling
-└── App.tsx
-```
+**Note:** For detailed frontend architecture and current structure, see `CLAUDE.md` Architecture section.
+
+The frontend uses React 18 with TypeScript, organized into components, contexts, and hooks. Key components include Sidebar, TopicDetails, SubscriptionMonitor, and MessageCard. See `CLAUDE.md` for the complete current structure.
 
 ### 5.4 Communication: Frontend ↔ Backend
 
-**Wails Method Calls** (Frontend → Backend):
-```go
-// Auth
-ConnectWithADC(projectID string) error
-ConnectWithServiceAccount(projectID, keyPath string) error
+**Note:** For complete API reference with accurate method signatures, see `CLAUDE.md` Backend API Reference section.
 
-// Resource listing
-ListTopics(pageToken string) ([]Topic, string, error)
-ListSubscriptions(pageToken string) ([]Subscription, string, error)
+The application uses Wails v2 bindings for frontend-backend communication:
+- **Method Calls**: Frontend calls Go methods exposed via Wails bindings (e.g., `ConnectWithADC`, `ListTopics`, `PublishMessage`, `StartMonitor`)
+- **Events**: Backend emits events to frontend for real-time updates (e.g., `message:received`, `resources:updated`, `monitor:error`)
 
-// Publishing
-PublishMessage(topicID string, payload []byte, attrs map[string]string) (string, error)
-
-// Monitoring
-StartMonitor(subscriptionID string, maxMessages int) error
-StopMonitor(subscriptionID string) error
-```
-
-**Wails Events** (Backend → Frontend):
-```go
-// Message streaming
-runtime.EventsEmit(ctx, "message:received", message)
-
-// Status updates
-runtime.EventsEmit(ctx, "connection:status", status)
-runtime.EventsEmit(ctx, "monitor:error", error)
-```
+See `CLAUDE.md` for detailed method signatures, event payloads, and communication patterns.
 
 ---
 
@@ -377,14 +341,17 @@ runtime.EventsEmit(ctx, "monitor:error", error)
 
 ## 9. Data Models
 
+**Note:** These are simplified data models for requirements documentation. For complete, accurate TypeScript definitions, see `frontend/src/types/index.ts`.
+
 ### 9.1 Connection Profile
 ```typescript
 interface ConnectionProfile {
   id: string;              // UUID
   name: string;            // User-defined name
   projectID: string;       // GCP project ID
-  authMethod: 'ADC' | 'ServiceAccount';
+  authMethod: 'ADC' | 'ServiceAccount' | 'OAuth';
   serviceAccountPath?: string;  // Path to JSON key (if authMethod = ServiceAccount)
+  oauthClientPath?: string;     // Path to OAuth client JSON (if authMethod = OAuth)
   emulatorHost?: string;   // e.g., "localhost:8085"
   isDefault: boolean;      // Auto-connect on launch
 }
@@ -408,6 +375,8 @@ interface Subscription {
   ackDeadline: number;     // Seconds
   retentionDuration: string;
   filter?: string;         // Filter expression
+  subscriptionType: 'pull' | 'push';
+  pushEndpoint?: string;   // For push subscriptions
   deadLetterPolicy?: {
     deadLetterTopic: string;
     maxDeliveryAttempts: number;
@@ -436,6 +405,8 @@ interface MessageTemplate {
   topicID?: string;        // Optional: link to specific topic
   payload: string;
   attributes: Record<string, string>;
+  createdAt: string;       // ISO timestamp
+  updatedAt: string;       // ISO timestamp
 }
 ```
 
@@ -452,7 +423,8 @@ Stored in local config file (`~/.pubsub-gui/config.json`):
   "settings": {
     "messageBufferSize": 500,
     "autoAck": true,
-    "theme": "auto",  // "light" | "dark" | "auto"
+    "theme": "auto",  // "auto" | "dark" | "light" | "dracula" | "monokai"
+    "fontSize": "medium",  // "small" | "medium" | "large"
     "defaultProfile": "profile-uuid"
   },
   "templates": [ /* array of MessageTemplate */ ]
@@ -590,17 +562,17 @@ Currently, users must build from source using `wails build`. Packaging will enab
 - [x] **Enhanced theme system** (5 themes: Auto, Dark, Light, Dracula, Monokai)
 - [x] **Configurable font sizes** (small/medium/large)
 - [x] **Monaco Editor theme matching**
+- [x] Keyboard shortcuts (Cmd/Ctrl+R refresh, Cmd/Ctrl+P publish, etc.)
+- [x] Command bar for quick actions
 
 **Remaining:**
-- [ ] Keyboard shortcuts (Cmd/Ctrl+R refresh, Cmd/Ctrl+P publish, etc.)
-- [ ] Command bar for quick actions
 - [ ] Template variables/placeholders ({{timestamp}}, {{uuid}}, {{random}})
 - [ ] Application icon and branding finalization
 - [ ] User onboarding tooltips/walkthrough
 - [ ] Performance profiling and optimization
 
 **Next Up:**
-The immediate focus is implementing keyboard shortcuts and command bar for quick actions, followed by template variables support.
+The immediate focus is template variables support.
 
 **Acceptance:**
 - ✅ Core user flows work end-to-end
@@ -611,40 +583,14 @@ The immediate focus is implementing keyboard shortcuts and command bar for quick
 
 ## 13. Features Beyond MVP Scope (Implemented)
 
-The following features have been implemented beyond the original MVP requirements:
+The following features have been implemented beyond the original MVP requirements. See **Section 12: Implementation Roadmap** for detailed milestone information.
 
-1. **Topic/Subscription CRUD Operations**
-   - Create topics with message retention duration
-   - Delete topics
-   - Create subscriptions with full configuration (ack deadline, retention, filters, dead letter policy, push endpoints)
-   - Update subscription configurations
-   - Delete subscriptions
-
-2. **Topic Monitoring**
-   - Monitor topics directly by creating temporary subscriptions
-   - Automatic cleanup of temporary subscriptions
-   - Reuse existing monitoring subscriptions when available
-
-3. **Advanced Subscription Features**
-   - Dead letter topic configuration and viewing
-   - Push subscription support (view-only, monitoring not supported)
-   - Filter expression display and editing
-   - Subscription type detection (pull vs push)
-
-4. **Enhanced UI Features**
-   - Config file editor dialog for advanced users
-   - JSON editor with syntax highlighting for message payloads
-   - Template manager with topic-linked templates
-   - Virtual scrolling for large message lists
-   - Real-time message search with debouncing
-
-5. **Configuration Management**
-   - Configurable message buffer size
-   - Auto-ack toggle with persistence
-   - Enhanced theme system (5 themes: Auto, Dark, Light, Dracula, Monokai) with system preference detection
-   - Configurable font sizes (small/medium/large) independent of theme
-   - Monaco Editor theme matching
-   - Active profile persistence across app restarts
+**Summary:**
+- **Topic/Subscription CRUD Operations** - Full create, update, delete support (see Milestone 2)
+- **Topic Monitoring** - Direct topic monitoring via temporary subscriptions (see Milestone 4)
+- **Advanced Subscription Features** - Dead letter topics, filters, push subscription viewing (see Milestone 2)
+- **Enhanced UI Features** - Config editor, JSON syntax highlighting, virtual scrolling, template manager (see Milestones 3-4)
+- **Configuration Management** - Enhanced theme system (5 themes), font sizes, auto-ack, buffer size (see Milestone 6)
 
 ---
 
@@ -669,56 +615,30 @@ The following features have been implemented beyond the original MVP requirement
 
 ---
 
-## 15. Success Metrics
+## 15. Roadmap (Prioritized)
 
-### Post-Launch Metrics
-
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Time to first successful publish | < 2 minutes | User testing |
-| Message stream latency | < 2 seconds | Automated testing |
-| Crash rate | < 1% of sessions | Error logging (opt-in) |
-| User retention (weekly active users) | 60% after 30 days | Analytics (opt-in) |
-
-### User Adoption Goals
-- 100 active users by end of Q1 2026
-- 500 active users by end of Q2 2026
-- 50% weekly retention rate
-
-### Quality Metrics
-- Crash rate < 1% of sessions
-- Time to first publish < 2 minutes (first-time users)
-- Message stream latency < 2 seconds
-- Support response time < 24 hours (after public release)
-
-### Performance Benchmarks
-- List 100 topics/subscriptions in < 3 seconds
-- Handle 500 buffered messages without lag
-- Startup time < 5 seconds on modern hardware
-- Memory usage < 500MB under normal load
-
----
-
-## 16. Roadmap: Next 6 Months
-
-### Q1 2026 (Current Quarter)
-
-#### January - February: Theme System & Polish
-**Priority:** High
+### Priority 1: Theme System & Polish
+**Status:** Partially Complete
 **Goal:** Complete Milestone 6 (Polish)
 
-- ✅ Theme system foundation (light/dark/auto) - Complete
-- ✅ **Enhanced theme system** with Dracula and Monokai presets - Complete
-- ✅ **Configurable font sizes** independent of theme - Complete
-- ✅ **Monaco Editor theme matching** - Complete
-- ⏳ Keyboard shortcuts and command bar
+**Completed:**
+- ✅ Theme system foundation (light/dark/auto)
+- ✅ Enhanced theme system with Dracula and Monokai presets
+- ✅ Configurable font sizes independent of theme
+- ✅ Monaco Editor theme matching
+- ✅ Keyboard shortcuts and command bar
+
+**Remaining:**
 - ⏳ Template variables ({{timestamp}}, {{uuid}}, etc.)
 - ⏳ Application icon and branding finalization
 
-#### March: Packaging & Distribution
-**Priority:** High
+---
+
+### Priority 2: Packaging & Distribution
+**Status:** Not Started
 **Goal:** Complete Milestone 5 (Packaging)
 
+**Deliverables:**
 - GoReleaser setup for all platforms
 - GitHub Actions CI/CD pipeline
 - macOS code signing and notarization
@@ -726,17 +646,10 @@ The following features have been implemented beyond the original MVP requirement
 - Auto-update mechanism
 - Public beta release
 
-**Success Criteria:**
-- Users can download and install with one click
-- App auto-updates when new versions are available
-- Installation time < 2 minutes
-
 ---
 
-### Q2 2026
-
-#### April - May: Advanced Replay Tools
-**Priority:** Medium
+### Priority 3: Advanced Replay Tools
+**Status:** Not Started
 **Goal:** Enable power users to debug complex message flows
 
 **Features:**
@@ -751,8 +664,10 @@ The following features have been implemented beyond the original MVP requirement
 - Debug dead-letter queue issues
 - Export messages for compliance/auditing
 
-#### June: Performance Testing Tools
-**Priority:** Medium
+---
+
+### Priority 4: Performance Testing Tools
+**Status:** Not Started
 **Goal:** Support load testing and performance benchmarking
 
 **Features:**
@@ -769,10 +684,8 @@ The following features have been implemented beyond the original MVP requirement
 
 ---
 
-### Q3 2026
-
-#### July - August: Multi-Project Workspaces
-**Priority:** Low
+### Priority 5: Multi-Project Workspaces
+**Status:** Not Started
 **Goal:** Enable users to work with multiple projects simultaneously
 
 **Features:**
@@ -787,8 +700,10 @@ The following features have been implemented beyond the original MVP requirement
 - Monitor messages in dev and prod simultaneously
 - Quickly switch between client projects
 
-#### September: Schema Registry Integration
-**Priority:** Low
+---
+
+### Priority 6: Schema Registry Integration
+**Status:** Not Started
 **Goal:** Integrate with Pub/Sub Schema Registry
 
 **Features:**
@@ -805,32 +720,11 @@ The following features have been implemented beyond the original MVP requirement
 
 ---
 
-## 17. Future Enhancements (Post-MVP)
+## 16. Future Enhancements (Post-MVP)
 
-### Near-Term (v2.0+)
+**Note:** See **Section 15: Roadmap** for prioritized list of planned features.
 
-1. **Advanced Replay Tools**
-   - Create snapshots
-   - Seek subscription to timestamp/snapshot
-   - Dead-letter queue viewer with re-drive
-
-2. **Multi-Project Workspaces**
-   - Tabbed interface for multiple projects
-   - Compare topics/subs across environments (dev/stage/prod)
-
-3. **Schema Registry Integration**
-   - Validate payloads against Pub/Sub schemas
-   - Auto-complete for schema fields
-
-4. **Performance Testing**
-   - Bulk publish (N messages/sec)
-   - Payload generator with templates
-
-5. **Export/Import**
-   - Export messages to JSON/CSV
-   - Import/replay message sets
-
-### Long-Term Vision (2027+)
+### Long-Term Vision
 
 #### Multi-Broker Support
 Extend the application to support additional message brokers:
@@ -859,7 +753,7 @@ Extend the application to support additional message brokers:
 
 ---
 
-## 18. Known Limitations & Technical Debt
+## 17. Known Limitations & Technical Debt
 
 ### Current Limitations
 1. **Push subscriptions:** View-only support (cannot monitor push subscriptions)
@@ -878,13 +772,13 @@ Extend the application to support additional message brokers:
 6. **Accessibility:** Keyboard navigation incomplete, screen reader support untested
 
 **Debt Paydown Plan:**
-- Q1 2026: Semantic theme token migration (addresses #1)
-- Q2 2026: Add E2E tests with Playwright (addresses #4)
-- Q3 2026: Improve accessibility compliance (addresses #6)
+- Semantic theme token migration (addresses #1)
+- Add E2E tests with Playwright (addresses #4)
+- Improve accessibility compliance (addresses #6)
 
 ---
 
-## 19. Versioning Strategy
+## 18. Versioning Strategy
 
 ### Version Numbering
 Following [Semantic Versioning](https://semver.org/):
@@ -892,26 +786,15 @@ Following [Semantic Versioning](https://semver.org/):
 - **Minor (0.X.0):** New features (backward compatible)
 - **Patch (0.0.X):** Bug fixes and minor improvements
 
-### Current Version: 1.1.0
-- 1.0.0: Initial MVP release (Milestones 1-4 complete)
-- 1.1.0: Enhanced theme system and polish (Milestone 6)
-
-### Upcoming Versions
-- 1.2.0: Packaging and distribution (Milestone 5)
-- 1.3.0: Keyboard shortcuts and command bar
-- 2.0.0: Multi-project workspaces (breaking: new config schema)
-- 2.1.0: Advanced replay tools
-- 2.2.0: Schema Registry integration
-
 ---
 
-## 20. Community & Contributions
+## 19. Community & Contributions
 
 ### Open Source Strategy
 This project is currently in private development. Future plans:
-- **Q1 2026:** Open source under MIT license after Milestone 6 completion
-- **Q2 2026:** Accept community contributions (features, bug fixes, themes)
-- **Ongoing:** Maintain public roadmap and feature voting
+- Open source under MIT license after Milestone 6 completion
+- Accept community contributions (features, bug fixes, themes)
+- Maintain public roadmap and feature voting
 
 ### How to Contribute (Future)
 Once open-sourced:
@@ -923,7 +806,7 @@ Once open-sourced:
 
 ---
 
-## 21. References
+## 20. References
 
 - [Google Cloud Pub/Sub Documentation](https://cloud.google.com/pubsub/docs)
 - [Wails Framework Docs](https://wails.io/docs/introduction)
@@ -938,3 +821,4 @@ Once open-sourced:
 - 2026-01-XX: Updated milestone status - Milestone 4 (Subscription Monitor) marked as complete, Milestone 6 partially complete
 - 2026-01-06: Merged ROADMAP.md content into PRD.md - Added roadmap sections, known limitations, versioning strategy, and community information
 - 2026-01-06: Updated Milestone 6 status - Enhanced theme system (5 themes), configurable font sizes, and Monaco Editor theme matching marked as complete
+- 2026-01-06: Removed success metrics section and date-specific timelines - Restructured roadmap to focus on sequential priorities
