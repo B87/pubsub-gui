@@ -727,16 +727,9 @@ func (a *App) SetAutoAck(enabled bool) error
 ```
 Updates auto-acknowledge setting.
 
-```go
-func (a *App) GetConfigFileContent() (string, error)
-```
-Returns raw JSON content of the config file.
+Updates font size setting. Emits `config:font-size-changed` event. Valid values: `small`, `medium`, `large`.
 
-```go
-func (a *App) SaveConfigFileContent(content string) error
-```
-Saves raw JSON content to the config file. Validates theme and font size values.
-
+### Frontend Events
 ### Frontend Events
 
 Events emitted from backend that frontend can listen to:
