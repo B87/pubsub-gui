@@ -12,12 +12,12 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"myproject/internal/auth"
-	"myproject/internal/config"
-	"myproject/internal/models"
-	"myproject/internal/pubsub/admin"
-	"myproject/internal/pubsub/publisher"
-	"myproject/internal/pubsub/subscriber"
+	"pubsub-gui/internal/auth"
+	"pubsub-gui/internal/config"
+	"pubsub-gui/internal/models"
+	"pubsub-gui/internal/pubsub/admin"
+	"pubsub-gui/internal/pubsub/publisher"
+	"pubsub-gui/internal/pubsub/subscriber"
 )
 
 // App struct holds the application state and managers

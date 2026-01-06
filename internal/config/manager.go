@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"myproject/internal/models"
+	"pubsub-gui/internal/models"
 )
 
 // Manager handles loading and saving configuration

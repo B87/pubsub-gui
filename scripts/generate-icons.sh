@@ -72,7 +72,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 32x32 "$ICONSET_DIR/icon_16x16@2x.png"
 
     # Create ICNS file
-    iconutil -c icns "$ICONSET_DIR" -o "$BUILD_DIR/bin/myproject.app/Contents/Resources/iconfile.icns"
+    iconutil -c icns "$ICONSET_DIR" -o "$BUILD_DIR/bin/pubsub-gui.app/Contents/Resources/iconfile.icns"
 
     # Clean up iconset directory
     rm -rf "$ICONSET_DIR"
@@ -88,5 +88,5 @@ echo "Generated files:"
 echo "  - $BUILD_DIR/appicon.png (macOS PNG)"
 echo "  - $BUILD_DIR/windows/icon.ico (Windows ICO)"
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "  - $BUILD_DIR/bin/myproject.app/Contents/Resources/iconfile.icns (macOS ICNS)"
+    echo "  - $BUILD_DIR/bin/pubsub-gui.app/Contents/Resources/iconfile.icns (macOS ICNS)"
 fi

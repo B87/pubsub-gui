@@ -1,4 +1,4 @@
-module myproject
+module pubsub-gui
 
 go 1.25.5
 

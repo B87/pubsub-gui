@@ -7,7 +7,7 @@ import (
 
 	"cloud.google.com/go/pubsub/v2"
 
-	"myproject/internal/models"
+	"pubsub-gui/internal/models"
 )
 
 // ConnectWithServiceAccount creates a Pub/Sub client using a service account JSON key file
