@@ -22,7 +22,7 @@ export default function SubscriptionDetails({ subscription, onEdit, onDelete }: 
     <div className="flex flex-col h-full">
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
         <div className="p-8 border-b border-slate-700">
-          <div className="max-w-4xl">
+          <div className="w-full">
             {/* Header */}
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
@@ -59,7 +59,7 @@ export default function SubscriptionDetails({ subscription, onEdit, onDelete }: 
         {/* Tab Content */}
         <Tabs.Content value="metadata" className="flex-1 overflow-auto">
           <div className="p-8">
-            <div className="max-w-4xl">
+            <div className="w-full">
 
         {/* Metadata Card */}
         <div className="bg-slate-800 rounded-lg border border-slate-700">

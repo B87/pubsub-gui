@@ -363,7 +363,7 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
 
   return (
     <div className="p-8">
-      <div className="max-w-4xl">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
