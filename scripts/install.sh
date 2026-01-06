@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO_URL="${PUBSUB_GUI_REPO_URL:-https://github.com/b87/pubsub-gui}"
+REPO_URL="${PUBSUB_GUI_REPO_URL:-https://github.com/B87/pubsub-gui}"
 BINARY_NAME="pubsub-gui"
 INSTALL_DIR="${PUBSUB_GUI_INSTALL_DIR:-}"
 VERSION="${1:-latest}"
@@ -70,14 +70,33 @@ detect_platform() {
     ARCHIVE_EXT="$ext"
 }
 
+# Normalize GitHub repository URL (remove www, ensure https://github.com format)
+normalize_github_url() {
+    local url="$1"
+    # Remove www. and ensure https://github.com format
+    echo "$url" | sed -E 's|^https?://www\.github\.com/|https://github.com/|' | sed -E 's|^http://github\.com/|https://github.com/|' | sed 's|/$||'
+}
+
 # Get latest release version from GitHub API
 get_latest_version() {
-    local api_url="${REPO_URL%/}/releases/latest"
+    # Normalize the repo URL first
+    local normalized_url=$(normalize_github_url "$REPO_URL")
+
+    # Convert GitHub repository URL to API URL
+    local api_url
+    if echo "$normalized_url" | grep -qE '^https://github\.com/'; then
+        # Extract owner/repo from URL (remove protocol and trailing slashes)
+        local path=$(echo "$normalized_url" | sed 's|^https://github\.com/||' | sed 's|/$||')
+        api_url="https://api.github.com/repos/${path}/releases/latest"
+    else
+        # If not a GitHub URL, assume it's already an API URL or construct from REPO_URL
+        api_url="${normalized_url%/}/releases/latest"
+    fi
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$api_url" | grep -oP '"tag_name": "\K[^"]+' | head -1
+        curl -fsSL "$api_url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "$api_url" | grep -oP '"tag_name": "\K[^"]+' | head -1
+        wget -qO- "$api_url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1
     else
         echo -e "${RED}Error: curl or wget is required${NC}" >&2
         exit 1
@@ -118,9 +137,12 @@ install_binary() {
     local arch="$3"
     local ext="$4"
 
-    # Construct download URL
-    local archive_name="${BINARY_NAME}_${os}_${arch}_${version}.${ext}"
-    local download_url="${REPO_URL%/}/releases/download/${version}/${archive_name}"
+    # Construct download URL (normalize GitHub URL first)
+    local normalized_url=$(normalize_github_url "$REPO_URL")
+    # Strip 'v' prefix from version for archive name (e.g., v0.0.4 -> 0.0.4)
+    local version_no_v="${version#v}"
+    local archive_name="${BINARY_NAME}_${os}_${arch}_${version_no_v}.${ext}"
+    local download_url="${normalized_url%/}/releases/download/${version}/${archive_name}"
 
     # Determine install directory
     local install_path=$(determine_install_dir)
@@ -178,7 +200,71 @@ install_binary() {
         fi
     fi
 
-    # Find the binary in extracted files
+    # Handle macOS .app bundles differently
+    if [ "$os" = "darwin" ]; then
+        # Look for .app bundle first
+        local app_bundle=$(find . -name "${BINARY_NAME}.app" -type d | head -1)
+
+        if [ -n "$app_bundle" ]; then
+            # Install .app bundle to Applications directory
+            local applications_dir=""
+            if [ -w "/Applications" ] || [ "$EUID" -eq 0 ]; then
+                applications_dir="/Applications"
+            else
+                applications_dir="$HOME/Applications"
+            fi
+
+            echo -e "${BLUE}Installing .app bundle to ${applications_dir}...${NC}"
+            mkdir -p "$applications_dir"
+
+            local app_dest="${applications_dir}/${BINARY_NAME}.app"
+            if [ -d "$app_dest" ]; then
+                echo -e "${YELLOW}Removing existing installation...${NC}"
+                rm -rf "$app_dest"
+            fi
+
+            if [ "$EUID" -eq 0 ] && [ ! -w "/Applications" ]; then
+                sudo cp -R "$app_bundle" "$app_dest"
+                sudo chown -R "$(whoami)" "$app_dest" 2>/dev/null || true
+            else
+                cp -R "$app_bundle" "$app_dest"
+            fi
+
+            # Create symlink in install_path for command-line access
+            local binary_inside_app="${app_dest}/Contents/MacOS/${BINARY_NAME}"
+            if [ -f "$binary_inside_app" ]; then
+                mkdir -p "$install_path"
+                if [ -L "$binary_path" ] || [ -f "$binary_path" ]; then
+                    rm -f "$binary_path"
+                fi
+                ln -sf "$binary_inside_app" "$binary_path"
+            fi
+
+            echo -e "${GREEN}✓ Successfully installed Pub/Sub GUI to ${app_dest}${NC}"
+            echo -e "${GREEN}✓ Command-line launcher available at ${binary_path}${NC}"
+
+            # Verify installation
+            if [ -d "$app_dest" ] && [ -f "$binary_inside_app" ]; then
+                if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+                    echo -e "${GREEN}✓ Binary is available in PATH${NC}"
+                else
+                    echo -e "${YELLOW}⚠ Binary is not in PATH${NC}"
+                    echo -e "${YELLOW}Add ${install_path} to your PATH, or run: open ${app_dest}${NC}"
+                fi
+
+                # Show version if available
+                if "$binary_inside_app" --version >/dev/null 2>&1; then
+                    echo -e "${GREEN}Version: $("$binary_inside_app" --version)${NC}"
+                fi
+            else
+                echo -e "${RED}Error: Installation verification failed${NC}" >&2
+                exit 1
+            fi
+            return
+        fi
+    fi
+
+    # For non-macOS or if no .app bundle found, look for standalone binary
     local extracted_binary=""
     if [ "$os" = "windows" ]; then
         extracted_binary=$(find . -name "${BINARY_NAME}.exe" -type f | head -1)
