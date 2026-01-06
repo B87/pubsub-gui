@@ -156,6 +156,11 @@ func (a *App) ConnectWithServiceAccount(projectID, keyPath string) error {
 	return a.connection.ConnectWithServiceAccount(projectID, keyPath)
 }
 
+// ConnectWithOAuth connects to Pub/Sub using OAuth2 credentials
+func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error {
+	return a.connection.ConnectWithOAuth(projectID, oauthClientPath)
+}
+
 // Disconnect closes the current Pub/Sub connection
 func (a *App) Disconnect() error {
 	// Stop all active monitors before disconnecting
@@ -218,6 +223,8 @@ func (a *App) connectWithProfile(profile *models.ConnectionProfile) error {
 		return a.connection.ConnectWithADC(profile.ProjectID)
 	case "ServiceAccount":
 		return a.connection.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath)
+	case "OAuth":
+		return a.connection.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath)
 	default:
 		return fmt.Errorf("unsupported auth method: %s", profile.AuthMethod)
 	}

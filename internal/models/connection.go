@@ -12,8 +12,10 @@ type ConnectionProfile struct {
 	ID                 string `json:"id"`
 	Name               string `json:"name"`
 	ProjectID          string `json:"projectId"`
-	AuthMethod         string `json:"authMethod"` // "ADC" | "ServiceAccount"
+	AuthMethod         string `json:"authMethod"` // "ADC" | "ServiceAccount" | "OAuth"
 	ServiceAccountPath string `json:"serviceAccountPath,omitempty"`
+	OAuthClientPath    string `json:"oauthClientPath,omitempty"` // Path to OAuth client JSON
+	OAuthEmail         string `json:"oauthEmail,omitempty"`      // Google account email (for display)
 	EmulatorHost       string `json:"emulatorHost,omitempty"`
 	IsDefault          bool   `json:"isDefault"`
 	CreatedAt          string `json:"createdAt"`
@@ -41,11 +43,22 @@ func (cp *ConnectionProfile) Validate() error {
 	if strings.TrimSpace(cp.ProjectID) == "" {
 		return errors.New("project ID cannot be empty")
 	}
-	if cp.AuthMethod != "ADC" && cp.AuthMethod != "ServiceAccount" {
-		return errors.New("auth method must be 'ADC' or 'ServiceAccount'")
+	validAuthMethods := []string{"ADC", "ServiceAccount", "OAuth"}
+	isValid := false
+	for _, method := range validAuthMethods {
+		if cp.AuthMethod == method {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return errors.New("auth method must be 'ADC', 'ServiceAccount', or 'OAuth'")
 	}
 	if cp.AuthMethod == "ServiceAccount" && strings.TrimSpace(cp.ServiceAccountPath) == "" {
 		return errors.New("service account path required when using ServiceAccount auth method")
+	}
+	if cp.AuthMethod == "OAuth" && strings.TrimSpace(cp.OAuthClientPath) == "" {
+		return errors.New("OAuth client path required when using OAuth auth method")
 	}
 	return nil
 }

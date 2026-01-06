@@ -10,6 +10,10 @@ export function ConnectWithADC(arg1) {
   return window['go']['main']['App']['ConnectWithADC'](arg1);
 }
 
+export function ConnectWithOAuth(arg1, arg2) {
+  return window['go']['main']['App']['ConnectWithOAuth'](arg1, arg2);
+}
+
 export function ConnectWithServiceAccount(arg1, arg2) {
   return window['go']['main']['App']['ConnectWithServiceAccount'](arg1, arg2);
 }

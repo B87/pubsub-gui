@@ -1,13 +1,6 @@
 ---
 description: Theme System Architecture and Patterns
-globs:
-  - "frontend/src/themes.css"
-  - "frontend/src/contexts/ThemeContext.tsx"
-  - "frontend/src/hooks/useTheme.ts"
-  - "frontend/src/types/theme.ts"
-  - "frontend/src/utils/monacoThemes.ts"
-  - "internal/models/connection.go"
-  - "app.go"
+alwaysApply: false
 ---
 
 # Theme System Architecture

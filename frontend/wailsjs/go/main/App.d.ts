@@ -10,6 +10,8 @@ export function ClearMessageBuffer(arg1:string):Promise<void>;
 
 export function ConnectWithADC(arg1:string):Promise<void>;
 
+export function ConnectWithOAuth(arg1:string,arg2:string):Promise<void>;
+
 export function ConnectWithServiceAccount(arg1:string,arg2:string):Promise<void>;
 
 export function CreateSubscription(arg1:string,arg2:string,arg3:number):Promise<void>;

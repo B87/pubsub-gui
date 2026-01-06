@@ -1,0 +1,16 @@
+---
+alwaysApply: false
+description: Guidelines for working with authentication in the Pub/Sub GUI - How connections can be created with different authentication methods.
+---
+
+# Authentication Methods
+
+The Pub/Sub GUI supports the following authentication methods:
+
+- ADC (Application Default Credentials)
+- Service Account
+- OAuth
+
+# ADC Authentication
+
+ADC authentication is the default authentication method. It is used when no other authentication method is specified.

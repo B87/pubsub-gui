@@ -4,8 +4,10 @@ export interface ConnectionProfile {
   id: string;
   name: string;
   projectId: string;
-  authMethod: 'ADC' | 'ServiceAccount';
+  authMethod: 'ADC' | 'ServiceAccount' | 'OAuth';
   serviceAccountPath?: string;
+  oauthClientPath?: string;
+  oauthEmail?: string;
   emulatorHost?: string;
   isDefault: boolean;
   createdAt: string;

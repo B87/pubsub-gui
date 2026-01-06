@@ -35,7 +35,7 @@ export default function ConnectionsTab({
           onClick={onCreate}
           style={{
             backgroundColor: 'var(--color-accent-primary)',
-            color: 'white',
+            color: 'var(--color-text-primary)',
           }}
           className="px-4 py-2 rounded-md transition-opacity hover:opacity-90 flex items-center gap-2"
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
@@ -94,7 +94,7 @@ export default function ConnectionsTab({
             onClick={onCreate}
             style={{
               backgroundColor: 'var(--color-accent-primary)',
-              color: 'white',
+              color: 'var(--color-text-primary)',
             }}
             className="px-4 py-2 rounded-md transition-opacity hover:opacity-90"
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
@@ -126,7 +126,7 @@ export default function ConnectionsTab({
                         <span
                           style={{
                             backgroundColor: 'var(--color-accent-primary)',
-                            color: 'white',
+                            color: 'var(--color-text-primary)',
                           }}
                           className="px-2 py-0.5 text-xs rounded-full"
                         >
@@ -137,7 +137,7 @@ export default function ConnectionsTab({
                         <span
                           style={{
                             backgroundColor: 'var(--color-success)',
-                            color: 'white',
+                            color: 'var(--color-text-primary)',
                           }}
                           className="px-2 py-0.5 text-xs rounded-full"
                         >
@@ -154,6 +154,16 @@ export default function ConnectionsTab({
                         {profile.authMethod === 'ServiceAccount' && profile.serviceAccountPath && (
                           <span className="ml-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                             ({profile.serviceAccountPath})
+                          </span>
+                        )}
+                        {profile.authMethod === 'OAuth' && profile.oauthEmail && (
+                          <span className="ml-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            ({profile.oauthEmail})
+                          </span>
+                        )}
+                        {profile.authMethod === 'OAuth' && !profile.oauthEmail && profile.oauthClientPath && (
+                          <span className="ml-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            ({profile.oauthClientPath})
                           </span>
                         )}
                       </p>

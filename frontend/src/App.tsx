@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 import {
   ConnectWithADC,
+  ConnectWithServiceAccount,
+  ConnectWithOAuth,
   GetConnectionStatus,
   GetProfiles,
   Disconnect,
@@ -95,14 +97,26 @@ function App() {
       const errorMessages: string[] = [];
 
       if (errors.topics) {
-        errorMessages.push(`Failed to sync topics: ${errors.topics}`);
+        const topicsErr = errors.topics as string;
+        // Provide user-friendly error messages for common issues
+        if (topicsErr.includes('project not found') || topicsErr.includes('Requested project not found')) {
+          errorMessages.push(`Project not found or access denied. Please verify:\n1. The project ID is correct (not the display name)\n2. Your account has access to this project\n3. The project exists in GCP Console`);
+        } else {
+          errorMessages.push(`Failed to sync topics: ${topicsErr}`);
+        }
       }
       if (errors.subscriptions) {
-        errorMessages.push(`Failed to sync subscriptions: ${errors.subscriptions}`);
+        const subsErr = errors.subscriptions as string;
+        // Provide user-friendly error messages for common issues
+        if (subsErr.includes('project not found') || subsErr.includes('Requested project not found')) {
+          errorMessages.push(`Project not found or access denied. Please verify:\n1. The project ID is correct (not the display name)\n2. Your account has access to this project\n3. The project exists in GCP Console`);
+        } else {
+          errorMessages.push(`Failed to sync subscriptions: ${subsErr}`);
+        }
       }
 
       if (errorMessages.length > 0) {
-        const fullError = errorMessages.join('. ');
+        const fullError = errorMessages.join('\n\n');
         setError(fullError);
         console.error('Resource sync error:', fullError);
       }
@@ -133,6 +147,14 @@ function App() {
       }
     });
 
+    // Listen for connection success events (including OAuth)
+    const unsubscribeConnectionSuccess = EventsOn('connection:success', (data: any) => {
+      if (data?.authMethod === 'OAuth' && data?.userEmail) {
+        console.log(`Connected with OAuth as ${data.userEmail}`);
+        // Optionally show a success notification here
+      }
+    });
+
     return () => {
       unsubscribeResourcesUpdated();
       unsubscribeSyncError();
@@ -141,6 +163,7 @@ function App() {
       unsubscribeSubscriptionUpdated();
       unsubscribeSubscriptionCreated();
       unsubscribeSubscriptionDeleted();
+      unsubscribeConnectionSuccess();
     };
   }, []); // Empty dependency array - only set up once
 
@@ -207,12 +230,24 @@ function App() {
     }
   };
 
-  const handleConnect = async (projectId: string, saveAsProfile?: { name: string; isDefault?: boolean }) => {
+  const handleConnect = async (projectId: string, authMethod: 'ADC' | 'ServiceAccount' | 'OAuth', serviceAccountPath?: string, oauthClientPath?: string, saveAsProfile?: { name: string; isDefault?: boolean }) => {
     setError('');
     setLoading(true);
 
     try {
-      await ConnectWithADC(projectId);
+      if (authMethod === 'ADC') {
+        await ConnectWithADC(projectId);
+      } else if (authMethod === 'ServiceAccount') {
+        if (!serviceAccountPath) {
+          throw new Error('Service account path is required');
+        }
+        await ConnectWithServiceAccount(projectId, serviceAccountPath);
+      } else if (authMethod === 'OAuth') {
+        if (!oauthClientPath) {
+          throw new Error('OAuth client path is required');
+        }
+        await ConnectWithOAuth(projectId, oauthClientPath);
+      }
       await loadStatus();
 
       // Save as profile if requested
@@ -221,7 +256,9 @@ function App() {
           id: Date.now().toString(),
           name: saveAsProfile.name,
           projectId: projectId,
-          authMethod: 'ADC',
+          authMethod: authMethod,
+          serviceAccountPath: authMethod === 'ServiceAccount' ? serviceAccountPath : undefined,
+          oauthClientPath: authMethod === 'OAuth' ? oauthClientPath : undefined,
           isDefault: saveAsProfile.isDefault || false,
           createdAt: new Date().toISOString(),
         };

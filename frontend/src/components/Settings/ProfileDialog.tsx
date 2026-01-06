@@ -13,8 +13,9 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
   const [formData, setFormData] = useState({
     name: profile?.name || '',
     projectId: profile?.projectId || '',
-    authMethod: (profile?.authMethod || 'ADC') as 'ADC' | 'ServiceAccount',
+    authMethod: (profile?.authMethod || 'ADC') as 'ADC' | 'ServiceAccount' | 'OAuth',
     serviceAccountPath: profile?.serviceAccountPath || '',
+    oauthClientPath: profile?.oauthClientPath || '',
     emulatorHost: profile?.emulatorHost || '',
     isDefault: profile?.isDefault || false,
   });
@@ -28,6 +29,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         projectId: profile.projectId,
         authMethod: profile.authMethod,
         serviceAccountPath: profile.serviceAccountPath || '',
+        oauthClientPath: profile.oauthClientPath || '',
         emulatorHost: profile.emulatorHost || '',
         isDefault: profile.isDefault,
       });
@@ -37,6 +39,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         projectId: '',
         authMethod: 'ADC',
         serviceAccountPath: '',
+        oauthClientPath: '',
         emulatorHost: '',
         isDefault: false,
       });
@@ -60,6 +63,10 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
       setError('Service account path is required when using ServiceAccount auth method');
       return;
     }
+    if (formData.authMethod === 'OAuth' && !formData.oauthClientPath.trim()) {
+      setError('OAuth client path is required when using OAuth auth method');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -69,6 +76,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         projectId: formData.projectId.trim(),
         authMethod: formData.authMethod,
         serviceAccountPath: formData.authMethod === 'ServiceAccount' ? formData.serviceAccountPath.trim() : undefined,
+        oauthClientPath: formData.authMethod === 'OAuth' ? formData.oauthClientPath.trim() : undefined,
         emulatorHost: formData.emulatorHost.trim() || undefined,
         isDefault: formData.isDefault,
         createdAt: profile?.createdAt || new Date().toISOString(),
@@ -198,6 +206,27 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
               >
                 Service Account
               </button>
+              <button
+                onClick={() => setFormData({ ...formData, authMethod: 'OAuth' })}
+                disabled={saving}
+                style={{
+                  backgroundColor: formData.authMethod === 'OAuth' ? 'var(--color-accent-primary)' : 'var(--color-bg-tertiary)',
+                  color: formData.authMethod === 'OAuth' ? 'white' : 'var(--color-text-primary)',
+                }}
+                className="flex-1 px-4 py-2 rounded-md text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+                onMouseEnter={(e) => {
+                  if (formData.authMethod !== 'OAuth') {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (formData.authMethod !== 'OAuth') {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+                  }
+                }}
+              >
+                OAuth
+              </button>
             </div>
           </div>
 
@@ -223,6 +252,44 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
                 onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
                 onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
               />
+            </div>
+          )}
+
+          {/* OAuth Client Path */}
+          {formData.authMethod === 'OAuth' && (
+            <div>
+              <label htmlFor="oauth-client-path" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                OAuth Client JSON Path *
+              </label>
+              <input
+                id="oauth-client-path"
+                type="text"
+                value={formData.oauthClientPath}
+                onChange={(e) => setFormData({ ...formData, oauthClientPath: e.target.value })}
+                placeholder="/path/to/client_secret_*.json"
+                disabled={saving}
+                style={{
+                  backgroundColor: 'var(--color-bg-input)',
+                  color: 'var(--color-text-primary)',
+                  borderColor: 'var(--color-border-primary)',
+                }}
+                className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
+                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
+              />
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                Download from{' '}
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open('https://console.cloud.google.com/apis/credentials', '_blank');
+                  }}
+                  className="text-blue-400 hover:underline"
+                >
+                  GCP Console - APIs & Services - Credentials
+                </a>
+              </p>
             </div>
           )}
 
@@ -301,7 +368,13 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !formData.name.trim() || !formData.projectId.trim() || (formData.authMethod === 'ServiceAccount' && !formData.serviceAccountPath.trim())}
+            disabled={
+              saving ||
+              !formData.name.trim() ||
+              !formData.projectId.trim() ||
+              (formData.authMethod === 'ServiceAccount' && !formData.serviceAccountPath.trim()) ||
+              (formData.authMethod === 'OAuth' && !formData.oauthClientPath.trim())
+            }
             style={{
               backgroundColor: 'var(--color-accent-primary)',
               color: 'white',

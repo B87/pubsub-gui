@@ -169,6 +169,8 @@ export namespace models {
 	    projectId: string;
 	    authMethod: string;
 	    serviceAccountPath?: string;
+	    oauthClientPath?: string;
+	    oauthEmail?: string;
 	    emulatorHost?: string;
 	    isDefault: boolean;
 	    createdAt: string;
@@ -184,6 +186,8 @@ export namespace models {
 	        this.projectId = source["projectId"];
 	        this.authMethod = source["authMethod"];
 	        this.serviceAccountPath = source["serviceAccountPath"];
+	        this.oauthClientPath = source["oauthClientPath"];
+	        this.oauthEmail = source["oauthEmail"];
 	        this.emulatorHost = source["emulatorHost"];
 	        this.isDefault = source["isDefault"];
 	        this.createdAt = source["createdAt"];

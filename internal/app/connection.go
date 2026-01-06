@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"pubsub-gui/internal/auth"
 	"pubsub-gui/internal/config"
 	"pubsub-gui/internal/models"
@@ -106,6 +108,69 @@ func (h *ConnectionHandler) ConnectWithServiceAccount(projectID, keyPath string)
 	return nil
 }
 
+// ConnectWithOAuth connects to Pub/Sub using OAuth2 credentials
+func (h *ConnectionHandler) ConnectWithOAuth(projectID, oauthClientPath string) error {
+	if projectID == "" {
+		return fmt.Errorf("project ID cannot be empty")
+	}
+
+	if oauthClientPath == "" {
+		return fmt.Errorf("OAuth client path cannot be empty")
+	}
+
+	// Get config directory for token store
+	configDir := filepath.Dir(h.configManager.GetConfigPath())
+
+	// Create token store
+	tokenStore, err := auth.NewTokenStore(configDir)
+	if err != nil {
+		return fmt.Errorf("failed to initialize token store: %w", err)
+	}
+
+	// Get or create profile ID for token storage
+	profileID := h.getOrCreateOAuthProfileID(projectID, oauthClientPath)
+
+	// Connect with OAuth
+	client, userEmail, err := auth.ConnectWithOAuth(h.ctx, projectID, oauthClientPath, profileID, tokenStore)
+	if err != nil {
+		return err
+	}
+
+	if err := h.clientManager.SetClient(client, projectID); err != nil {
+		client.Close()
+		return fmt.Errorf("failed to set client: %w", err)
+	}
+
+	// Sync resources after successful connection
+	if h.syncResources != nil {
+		go h.syncResources()
+	}
+
+	// Emit connection success event with OAuth metadata
+	runtime.EventsEmit(h.ctx, "connection:success", map[string]interface{}{
+		"projectId":  projectID,
+		"authMethod": "OAuth",
+		"userEmail":   userEmail,
+	})
+
+	return nil
+}
+
+// getOrCreateOAuthProfileID finds existing profile or generates new ID for OAuth connection
+func (h *ConnectionHandler) getOrCreateOAuthProfileID(projectID, oauthClientPath string) string {
+	// Find existing profile with matching project and OAuth client
+	for _, profile := range h.config.Profiles {
+		if profile.AuthMethod == "OAuth" &&
+			profile.ProjectID == projectID &&
+			profile.OAuthClientPath == oauthClientPath {
+			return profile.ID
+		}
+	}
+
+	// Generate new profile ID
+	return models.GenerateID()
+}
+
 // GetProfiles returns all saved connection profiles
 func (h *ConnectionHandler) GetProfiles() []models.ConnectionProfile {
 	if h.config == nil {
@@ -168,10 +233,12 @@ func (h *ConnectionHandler) DeleteProfile(profileID string, disconnect func() er
 
 	// Find and remove the profile
 	newProfiles := make([]models.ConnectionProfile, 0)
+	var deletedProfile *models.ConnectionProfile
 	found := false
 	for _, p := range h.config.Profiles {
 		if p.ID == profileID {
 			found = true
+			deletedProfile = &p
 			// Disconnect if this is the active profile
 			if h.config.ActiveProfileID == profileID {
 				if disconnect != nil {
@@ -186,6 +253,16 @@ func (h *ConnectionHandler) DeleteProfile(profileID string, disconnect func() er
 
 	if !found {
 		return models.ErrProfileNotFound
+	}
+
+	// Delete OAuth token if this was an OAuth profile
+	if deletedProfile != nil && deletedProfile.AuthMethod == "OAuth" {
+		configDir := filepath.Dir(h.configManager.GetConfigPath())
+		tokenStore, err := auth.NewTokenStore(configDir)
+		if err == nil {
+			// Non-fatal error - continue even if token store creation fails
+			tokenStore.DeleteToken(profileID)
+		}
 	}
 
 	h.config.Profiles = newProfiles
@@ -252,6 +329,8 @@ func (h *ConnectionHandler) connectWithProfile(profile *models.ConnectionProfile
 		return h.ConnectWithADC(profile.ProjectID)
 	case "ServiceAccount":
 		return h.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath)
+	case "OAuth":
+		return h.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath)
 	default:
 		return fmt.Errorf("unsupported auth method: %s", profile.AuthMethod)
 	}
