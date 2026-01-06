@@ -22,10 +22,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14
-            platform: darwin/amd64
-            artifact_name: darwin_amd64
-          - os: macos-14
+          - os: macos-15
             platform: darwin/arm64
             artifact_name: darwin_arm64
           - os: ubuntu-latest
@@ -67,10 +64,43 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            pkg-config
+          # Create symlink for webkit2gtk-4.0 if it doesn't exist (Wails looks for 4.0)
+          # Check common pkg-config locations
+          for PKG_DIR in /usr/lib/x86_64-linux-gnu/pkgconfig /usr/lib/pkgconfig /usr/share/pkgconfig; do
+            if [ -d "$PKG_DIR" ] && [ -f "${PKG_DIR}/webkit2gtk-4.1.pc" ] && [ ! -f "${PKG_DIR}/webkit2gtk-4.0.pc" ]; then
+              sudo ln -sf "${PKG_DIR}/webkit2gtk-4.1.pc" "${PKG_DIR}/webkit2gtk-4.0.pc"
+              echo "Created symlink: ${PKG_DIR}/webkit2gtk-4.0.pc -> webkit2gtk-4.1.pc"
+            fi
+          done
+          # Verify pkg-config can find it
+          pkg-config --exists webkit2gtk-4.0 && echo "✓ webkit2gtk-4.0 found" || echo "⚠ webkit2gtk-4.0 not found, but continuing..."
+
+      - name: Verify Windows dependencies
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Check if WebView2 runtime is available (usually pre-installed on Windows 10+)
+          $webview2Path = "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe"
+          if (Test-Path $webview2Path) {
+            Write-Host "✓ WebView2 runtime found"
+          } else {
+            Write-Host "⚠ WebView2 runtime not found, but Wails may still work if Edge is installed"
+          }
+          # Verify Go and CGO are available
+          go version
+          $env:CGO_ENABLED = "1"
+          Write-Host "✓ CGO enabled for Windows build"
 
       - name: Set version from tag
         id: version
+        shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
@@ -88,7 +118,8 @@ jobs:
         run: |
           wails build -platform ${{ matrix.platform }} -clean
 
-      - name: Package artifacts
+      - name: Package artifacts (macOS/Linux)
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -101,17 +132,28 @@ jobs:
             cd build/bin
             tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.tar.gz" pubsub-gui.app
             cd ../..
-          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
-            # Package .exe for Windows
-            cd build/bin
-            zip -r "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.zip" pubsub-gui.exe
-            cd ../..
           else
             # Package binary for Linux
             cd build/bin
             tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.tar.gz" pubsub-gui
             cd ../..
           fi
+
+      - name: Package artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.version.outputs.version }}"
+          # Remove 'v' prefix from version for archive name (e.g., v0.0.4 -> 0.0.4)
+          $VERSION_NO_V = $VERSION -replace '^v', ''
+          $ARTIFACT_NAME = "${{ matrix.artifact_name }}"
+
+          # Package .exe for Windows
+          Set-Location build/bin
+          $zipName = "..\..\pubsub-gui_${ARTIFACT_NAME}_${VERSION_NO_V}.zip"
+          Compress-Archive -Path pubsub-gui.exe -DestinationPath $zipName -Force
+          Set-Location ..\..
+          Write-Host "Created: $zipName"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
