@@ -136,6 +136,7 @@ jobs:
           wails build -platform ${{ matrix.platform }} -clean
 
       - name: Verify build artifact
+        shell: bash
         run: |
           if [[ "${{ matrix.os }}" =~ ^macos- ]]; then
             test -d build/bin/pubsub-gui.app && echo "✅ macOS app bundle created" || (echo "❌ macOS app bundle not found" && exit 1)
