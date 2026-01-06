@@ -221,7 +221,7 @@ tasks:
           export GITHUB_OWNER=${GITHUB_OWNER:-b87}
           export GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-pubsub-gui}
         fi
-      - goreleaser release --snapshot --clean
+        goreleaser release --snapshot --clean
 
   release:test:
     desc: Test build for macOS only (local testing)
@@ -237,7 +237,7 @@ tasks:
           export GITHUB_OWNER=${GITHUB_OWNER:-b87}
           export GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-pubsub-gui}
         fi
-      - goreleaser release --snapshot --clean --skip-publish
+        goreleaser release --snapshot --clean
 
   # ============================================================================
   # Cleanup
