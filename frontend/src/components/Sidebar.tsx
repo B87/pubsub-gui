@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StatusIndicator from './StatusIndicator';
 import ConnectionDropdown from './ConnectionDropdown';
 import type { Topic, Subscription, ConnectionStatus } from '../types';
+import { GetVersion } from '../../wailsjs/go/main/App';
 
 interface SidebarProps {
   status: ConnectionStatus;
@@ -44,6 +45,21 @@ export default function Sidebar({
   const [subscriptionsExpanded, setSubscriptionsExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredSubscription, setHoveredSubscription] = useState<string | null>(null);
+  const [version, setVersion] = useState<string>('');
+
+  // Fetch version on component mount
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const v = await GetVersion();
+        setVersion(v || 'dev');
+      } catch (error) {
+        console.error('Failed to fetch version:', error);
+        setVersion('dev');
+      }
+    };
+    fetchVersion();
+  }, []);
 
   const filteredTopics = topics.filter((topic) =>
     topic.displayName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -272,7 +288,7 @@ export default function Sidebar({
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs text-slate-400">
             <p>Pub/Sub Desktop GUI</p>
-            <p className="mt-1">Milestone 2: Resource Explorer</p>
+            {version && <p className="mt-1">Version {version}</p>}
           </div>
           {onOpenSettings && (
             <button

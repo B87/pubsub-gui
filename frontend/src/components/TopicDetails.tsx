@@ -6,6 +6,7 @@ import TemplateManager from './TemplateManager';
 import TopicMonitor from './TopicMonitor';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 import JsonEditor from './JsonEditor';
+import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
 
 interface TopicDetailsProps {
   topic: Topic;
@@ -207,6 +208,22 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
       setLoadingMonitorSubscriptions(false);
     }
   }, [activeTab, subscriptions]);
+
+  // Keyboard shortcut for publishing (Cmd/Ctrl+Enter when publish tab is active)
+  useKeyboardShortcuts([
+    {
+      key: 'Enter',
+      ctrlOrCmd: true,
+      action: () => {
+        // Only trigger if publish tab is active and not typing in an input
+        if (activeTab === 'publish' && !isInputFocused() && !isPublishing && payload.trim()) {
+          handlePublish();
+        }
+      },
+      enabled: activeTab === 'publish' && !isPublishing && !!payload.trim(),
+      description: 'Publish message',
+    },
+  ]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -594,6 +611,7 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                 onClick={handlePublish}
                 disabled={isPublishing || !payload.trim()}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded font-medium transition-colors"
+                title={isPublishing ? 'Publishing...' : `Publish message (${formatShortcut({ key: 'Enter', ctrlOrCmd: true })})`}
               >
                 {isPublishing ? 'Publishing...' : 'Publish'}
               </button>

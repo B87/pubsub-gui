@@ -74,6 +74,10 @@ export function GetTopicMetadata(arg1) {
   return window['go']['main']['App']['GetTopicMetadata'](arg1);
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function ListSubscriptions() {
   return window['go']['main']['App']['ListSubscriptions']();
 }
@@ -100,6 +104,10 @@ export function SaveTemplate(arg1) {
 
 export function SetAutoAck(arg1) {
   return window['go']['main']['App']['SetAutoAck'](arg1);
+}
+
+export function SetVersion(arg1) {
+  return window['go']['main']['App']['SetVersion'](arg1);
 }
 
 export function StartMonitor(arg1) {

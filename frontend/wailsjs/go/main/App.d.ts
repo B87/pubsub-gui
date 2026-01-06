@@ -41,6 +41,8 @@ export function GetTemplates(arg1:string):Promise<Array<models.MessageTemplate>>
 
 export function GetTopicMetadata(arg1:string):Promise<admin.TopicInfo>;
 
+export function GetVersion():Promise<string>;
+
 export function ListSubscriptions():Promise<Array<admin.SubscriptionInfo>>;
 
 export function ListTopics():Promise<Array<admin.TopicInfo>>;
@@ -54,6 +56,8 @@ export function SaveProfile(arg1:models.ConnectionProfile):Promise<void>;
 export function SaveTemplate(arg1:models.MessageTemplate):Promise<void>;
 
 export function SetAutoAck(arg1:boolean):Promise<void>;
+
+export function SetVersion(arg1:string):Promise<void>;
 
 export function StartMonitor(arg1:string):Promise<void>;
 

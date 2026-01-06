@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 import {
   ConnectWithADC,
@@ -29,6 +29,9 @@ import TopicCreateDialog from './components/TopicCreateDialog';
 import SubscriptionDialog from './components/SubscriptionDialog';
 import SettingsDialog from './components/SettingsDialog';
 import EmptyState from './components/EmptyState';
+import CommandBar from './components/CommandBar';
+import { useKeyboardShortcuts, formatShortcut } from './hooks/useKeyboardShortcuts';
+import type { CommandBarAction } from './utils/commandBarActions';
 
 function App() {
   const [status, setStatus] = useState<ConnectionStatus>({ isConnected: false, projectId: '' });
@@ -46,6 +49,7 @@ function App() {
   const [subscriptionDialogMode, setSubscriptionDialogMode] = useState<'create' | 'edit'>('create');
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showCommandBar, setShowCommandBar] = useState(false);
 
   // Use ref to track selectedResource in event listeners without causing re-renders
   const selectedResourceRef = useRef(selectedResource);
@@ -380,6 +384,169 @@ function App() {
     setShowSubscriptionDialog(true);
   };
 
+  // Command bar actions
+  const commandBarActions = useMemo<CommandBarAction[]>(() => {
+    if (!status.isConnected) {
+      return [];
+    }
+
+    const actions: CommandBarAction[] = [
+      {
+        id: 'refresh',
+        type: 'action',
+        label: 'Refresh Resources',
+        description: 'Reload topics and subscriptions',
+        keywords: ['refresh', 'reload', 'sync', 'update'],
+        icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+        shortcut: formatShortcut({ key: 'r', ctrlOrCmd: true }),
+        execute: () => {
+          loadResources();
+          setShowCommandBar(false);
+        },
+        enabled: !loadingResources,
+      },
+      {
+        id: 'create-topic',
+        type: 'action',
+        label: 'Create Topic',
+        description: 'Create a new topic',
+        keywords: ['create', 'topic', 'new'],
+        icon: 'M12 4v16m8-8H4',
+        shortcut: formatShortcut({ key: 'n', ctrlOrCmd: true }),
+        execute: () => {
+          setShowTopicCreateDialog(true);
+          setShowCommandBar(false);
+        },
+      },
+      {
+        id: 'create-subscription',
+        type: 'action',
+        label: 'Create Subscription',
+        description: 'Create a new subscription',
+        keywords: ['create', 'subscription', 'new', 'sub'],
+        icon: 'M12 4v16m8-8H4',
+        shortcut: formatShortcut({ key: 'n', ctrlOrCmd: true, shift: true }),
+        execute: () => {
+          setEditingSubscription(null);
+          setSubscriptionDialogMode('create');
+          setShowSubscriptionDialog(true);
+          setShowCommandBar(false);
+        },
+      },
+      {
+        id: 'settings',
+        type: 'action',
+        label: 'Open Settings',
+        description: 'Open application settings',
+        keywords: ['settings', 'preferences', 'config'],
+        icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
+        shortcut: formatShortcut({ key: ',', ctrlOrCmd: true }),
+        execute: () => {
+          setShowSettingsDialog(true);
+          setShowCommandBar(false);
+        },
+      },
+      {
+        id: 'disconnect',
+        type: 'action',
+        label: 'Disconnect',
+        description: 'Disconnect from current project',
+        keywords: ['disconnect', 'logout', 'close'],
+        icon: 'M6 18L18 6M6 6l12 12',
+        execute: () => {
+          handleDisconnect();
+          setShowCommandBar(false);
+        },
+      },
+      {
+        id: 'switch-profile',
+        type: 'action',
+        label: 'Switch Profile',
+        description: 'Switch to a different connection profile',
+        keywords: ['switch', 'profile', 'change', 'connect'],
+        icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+        execute: () => {
+          handleProfileSwitch();
+          setShowCommandBar(false);
+        },
+      },
+    ];
+
+    return actions;
+  }, [status.isConnected, loadingResources]);
+
+  // Command bar action handler
+  const handleCommandBarAction = (action: CommandBarAction) => {
+    setShowCommandBar(false);
+
+    if (action.type === 'topic') {
+      const topicName = action.id.replace('topic-', '');
+      const topic = topics.find(t => t.name === topicName);
+      if (topic) {
+        handleSelectTopic(topic);
+      }
+    } else if (action.type === 'subscription') {
+      const subscriptionName = action.id.replace('subscription-', '');
+      const subscription = subscriptions.find(s => s.name === subscriptionName);
+      if (subscription) {
+        handleSelectSubscription(subscription);
+      }
+    } else {
+      action.execute();
+    }
+  };
+
+  // Global keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: 'p',
+      ctrlOrCmd: true,
+      action: () => {
+        if (status.isConnected || !dialogOpen) {
+          setShowCommandBar(true);
+        }
+      },
+      description: 'Open command bar',
+    },
+    {
+      key: 'r',
+      ctrlOrCmd: true,
+      action: () => {
+        if (status.isConnected && !loadingResources) {
+          loadResources();
+        }
+      },
+      enabled: status.isConnected && !loadingResources,
+      description: 'Refresh resources',
+    },
+    {
+      key: ',',
+      ctrlOrCmd: true,
+      action: () => {
+        setShowSettingsDialog(true);
+      },
+      description: 'Open settings',
+    },
+    {
+      key: 'Escape',
+      action: () => {
+        // Close command bar first, then other dialogs
+        if (showCommandBar) {
+          setShowCommandBar(false);
+        } else if (showSettingsDialog) {
+          setShowSettingsDialog(false);
+        } else if (showTopicCreateDialog) {
+          setShowTopicCreateDialog(false);
+        } else if (showSubscriptionDialog) {
+          setShowSubscriptionDialog(false);
+        } else if (dialogOpen) {
+          setDialogOpen(false);
+        }
+      },
+      description: 'Close dialogs',
+    },
+  ]);
+
   const renderMainContent = () => {
     // Show connection dialog if not connected
     if (!status.isConnected) {
@@ -536,6 +703,15 @@ function App() {
       <SettingsDialog
         open={showSettingsDialog}
         onClose={() => setShowSettingsDialog(false)}
+      />
+
+      <CommandBar
+        open={showCommandBar}
+        onClose={() => setShowCommandBar(false)}
+        onExecute={handleCommandBarAction}
+        actions={commandBarActions}
+        topics={topics}
+        subscriptions={subscriptions}
       />
     </ThemeProvider>
   );

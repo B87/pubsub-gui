@@ -14,6 +14,7 @@ import MessageRow from './MessageRow';
 import MessageDetailDialog from './MessageDetailDialog';
 import type { PubSubMessage } from '../types';
 import type { Subscription } from '../types';
+import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
 
 interface SubscriptionMonitorProps {
   subscription: Subscription;
@@ -176,6 +177,26 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
     setTimeout(() => setSelectedMessage(null), 200);
   };
 
+  // Keyboard shortcut for start/stop monitoring (Cmd/Ctrl+M)
+  useKeyboardShortcuts([
+    {
+      key: 'm',
+      ctrlOrCmd: true,
+      action: () => {
+        // Only trigger if not typing in an input
+        if (!isInputFocused() && !isLoading) {
+          if (isMonitoring) {
+            handleStopMonitoring();
+          } else {
+            handleStartMonitoring();
+          }
+        }
+      },
+      enabled: !isLoading,
+      description: 'Start/stop monitoring',
+    },
+  ]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -217,6 +238,7 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
                 onClick={handleStopMonitoring}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded transition-colors"
+                title={`Stop monitoring (${formatShortcut({ key: 'm', ctrlOrCmd: true })})`}
               >
                 {isLoading ? 'Stopping...' : 'Stop Monitoring'}
               </button>
@@ -225,6 +247,7 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
                 onClick={handleStartMonitoring}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded transition-colors"
+                title={`Start monitoring (${formatShortcut({ key: 'm', ctrlOrCmd: true })})`}
               >
                 {isLoading ? 'Starting...' : 'Start Monitoring'}
               </button>

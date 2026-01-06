@@ -12,15 +12,21 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is set via ldflags during build
+// Default to "dev" for development builds
+var version = "dev"
+
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
+	// Set version in app
+	app.SetVersion(version)
 
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:      "pubsub-gui",
-		Width:      2048,
-		Height:     1024,
+		Width:      1728,
+		Height:     972,
 		Fullscreen: false,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

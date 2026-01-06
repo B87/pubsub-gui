@@ -34,6 +34,9 @@ type App struct {
 	resourceMu    sync.RWMutex
 	topics        []admin.TopicInfo
 	subscriptions []admin.SubscriptionInfo
+
+	// Application version
+	version string
 }
 
 // NewApp creates a new App application struct
@@ -104,6 +107,19 @@ func (a *App) GetConnectionStatus() ConnectionStatus {
 		ProjectID:    a.clientManager.GetProjectID(),
 		EmulatorHost: emulatorHost,
 	}
+}
+
+// SetVersion sets the application version
+func (a *App) SetVersion(v string) {
+	a.version = v
+}
+
+// GetVersion returns the application version
+func (a *App) GetVersion() string {
+	if a.version == "" {
+		return "dev"
+	}
+	return a.version
 }
 
 // ConnectWithADC connects to Pub/Sub using Application Default Credentials
