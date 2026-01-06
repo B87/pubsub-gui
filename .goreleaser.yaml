@@ -2,12 +2,11 @@
 version: 2
 project_name: pubsub-gui
 
-# Build hooks - ensure frontend is built before Go compilation
-# Also run go mod tidy to avoid parallel dependency download issues
+# Build hooks - ensure dependencies are tidy before Go compilation
+# Note: Frontend is built in GitHub Actions workflow before GoReleaser runs
 before:
   hooks:
     - go mod tidy
-    - "cd frontend && npm ci && npm run build && cd .."
 
 # Build configuration
 # Note: Frontend must be built before running Goreleaser (see GitHub Actions workflow)
