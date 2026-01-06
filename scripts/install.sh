@@ -139,9 +139,7 @@ install_binary() {
 
     # Construct download URL (normalize GitHub URL first)
     local normalized_url=$(normalize_github_url "$REPO_URL")
-    # Strip 'v' prefix from version for archive name (e.g., v0.0.4 -> 0.0.4)
-    local version_no_v="${version#v}"
-    local archive_name="${BINARY_NAME}_${os}_${arch}_${version_no_v}.${ext}"
+    local archive_name="${BINARY_NAME}_${os}_${arch}_${version}.${ext}"
     local download_url="${normalized_url%/}/releases/download/${version}/${archive_name}"
 
     # Determine install directory
