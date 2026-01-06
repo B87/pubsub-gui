@@ -474,7 +474,7 @@ function App() {
       >
         {/* Global Error Banner */}
         {error && (
-          <div className="p-4 bg-red-900/20 border-b border-red-700/50">
+          <div className="bg-red-900/20 border-b border-red-700/50 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-start gap-3 max-w-7xl mx-auto">
               <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
