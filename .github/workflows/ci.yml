@@ -36,6 +36,12 @@ jobs:
           npm ci
           cd ..
 
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+          cd ..
+
       - name: Check Go code formatting
         run: |
           if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
@@ -48,12 +54,6 @@ jobs:
 
       - name: Run Go unit tests
         run: go test -short -v ./...
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
-          cd ..
 
   build:
     name: Build
