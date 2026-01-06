@@ -24,16 +24,16 @@ type ConnectionProfile struct {
 // AppConfig represents the application configuration stored in ~/.pubsub-gui/config.json
 type AppConfig struct {
 	Profiles                []ConnectionProfile `json:"profiles"`
-	ActiveProfileID         string             `json:"activeProfileId,omitempty"`
-	MessageBufferSize       int                `json:"messageBufferSize"`
-	AutoAck                 bool               `json:"autoAck"`
-	Theme                   string             `json:"theme"`     // "light" | "dark" | "auto" | "dracula" | "monokai"
-	FontSize                string             `json:"fontSize"`  // "small" | "medium" | "large"
-	Templates               []MessageTemplate  `json:"templates"` // Message templates
-	AutoCheckUpgrades       bool               `json:"autoCheckUpgrades"`
-	UpgradeCheckInterval    int                `json:"upgradeCheckInterval"` // hours
-	LastUpgradeCheck        time.Time          `json:"lastUpgradeCheck,omitempty"`
-	DismissedUpgradeVersion string             `json:"dismissedUpgradeVersion,omitempty"`
+	ActiveProfileID         string              `json:"activeProfileId,omitempty"`
+	MessageBufferSize       int                 `json:"messageBufferSize"`
+	AutoAck                 bool                `json:"autoAck"`
+	Theme                   string              `json:"theme"`     // "light" | "dark" | "auto" | "dracula" | "monokai"
+	FontSize                string              `json:"fontSize"`  // "small" | "medium" | "large"
+	Templates               []MessageTemplate   `json:"templates"` // Message templates
+	AutoCheckUpgrades       bool                `json:"autoCheckUpgrades"`
+	UpgradeCheckInterval    int                 `json:"upgradeCheckInterval"` // hours
+	LastUpgradeCheck        time.Time           `json:"lastUpgradeCheck,omitempty"`
+	DismissedUpgradeVersion string              `json:"dismissedUpgradeVersion,omitempty"`
 }
 
 // Validate checks if the ConnectionProfile has all required fields
