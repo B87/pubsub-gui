@@ -247,6 +247,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/b87/pubsub-gui/issues)
 - 💡 **Feature Requests**: [GitHub Discussions](https://github.com/b87/pubsub-gui/discussions)
 
+## Roadmap:
+
+- [ ]
+
 ---
 
 Made with ❤️ for the Google Cloud Pub/Sub community

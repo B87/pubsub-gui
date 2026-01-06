@@ -1,0 +1,31 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with GCP blue gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4285F4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1A73E8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#bgGradient)"/>
+
+  <!-- Cloud shape (representing GCP) -->
+  <path d="M 160 280 Q 130 280 130 310 Q 130 340 160 340 L 340 340 Q 370 340 370 310 Q 370 280 340 280 L 330 280 Q 330 250 300 250 Q 300 220 270 220 Q 240 220 240 250 Q 210 250 210 280 Z"
+        fill="#FFFFFF"
+        stroke="#E8EAED"
+        stroke-width="3"/>
+
+  <!-- Message bubbles (representing Pub/Sub messaging) -->
+  <!-- Top-left message (green) -->
+  <circle cx="200" cy="200" r="24" fill="#34A853"/>
+  <path d="M 200 224 L 188 240 L 212 240 Z" fill="#34A853"/>
+
+  <!-- Top-right message (red) -->
+  <circle cx="300" cy="220" r="22" fill="#EA4335"/>
+  <path d="M 300 242 L 290 258 L 310 258 Z" fill="#EA4335"/>
+
+  <!-- Bottom message (yellow) -->
+  <circle cx="250" cy="300" r="20" fill="#FBBC04"/>
+  <path d="M 250 320 L 240 336 L 260 336 Z" fill="#FBBC04"/>
+</svg>
