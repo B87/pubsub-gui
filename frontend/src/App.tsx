@@ -17,7 +17,7 @@ import {
   SyncResources
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime/runtime";
-import { main } from "../wailsjs/go/models";
+import { app } from "../wailsjs/go/models";
 import type { ConnectionProfile, ConnectionStatus, Topic, Subscription } from './types';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
@@ -342,7 +342,7 @@ function App() {
       // Use short ID - UpdateSubscription will normalize it
       // Convert plain object to Wails-generated class instance
       if (Object.keys(params).length > 0) {
-        const wailsParams = main.SubscriptionUpdateParams.createFrom(params);
+        const wailsParams = app.SubscriptionUpdateParams.createFrom(params);
         await UpdateSubscription(shortSubID, wailsParams);
       }
 
@@ -355,7 +355,7 @@ function App() {
   const handleUpdateSubscription = async (subID: string, params: any) => {
     try {
       // Convert plain object to Wails-generated class instance
-      const wailsParams = main.SubscriptionUpdateParams.createFrom(params);
+      const wailsParams = app.SubscriptionUpdateParams.createFrom(params);
       await UpdateSubscription(subID, wailsParams);
       await loadResources();
     } catch (e: any) {

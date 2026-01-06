@@ -79,7 +79,7 @@ export namespace admin {
 
 }
 
-export namespace main {
+export namespace app {
 	
 	export class ConnectionStatus {
 	    isConnected: boolean;
@@ -97,20 +97,6 @@ export namespace main {
 	        this.projectId = source["projectId"];
 	        this.authMethod = source["authMethod"];
 	        this.emulatorHost = source["emulatorHost"];
-	    }
-	}
-	export class PublishResult {
-	    messageId: string;
-	    timestamp: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PublishResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.messageId = source["messageId"];
-	        this.timestamp = source["timestamp"];
 	    }
 	}
 	export class SubscriptionUpdateParams {
@@ -152,6 +138,25 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace main {
+	
+	export class PublishResult {
+	    messageId: string;
+	    timestamp: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublishResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageId = source["messageId"];
+	        this.timestamp = source["timestamp"];
+	    }
 	}
 
 }

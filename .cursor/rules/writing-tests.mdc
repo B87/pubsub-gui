@@ -1,0 +1,680 @@
+---
+globs: *_test.go
+description: Best practices for writing Go tests based on Google's Go testing guidelines and established patterns
+---
+
+# Go Testing Best Practices
+
+This rule defines best practices for writing tests in Go, based on Google's Go testing guidelines and established patterns in this codebase.
+
+## Philosophy: Write Clear, Maintainable Tests
+
+Tests should be:
+
+* **Precise**: Clearly indicate what went wrong and what went right
+* **Complete**: Test all relevant properties, not just one
+* **Readable**: Use clear variable names and descriptive test case names
+* **Maintainable**: Don't depend on unstable external package outputs
+
+## Avoid Assert Libraries
+
+**❌ Don't**: Use assert libraries that create a mini-language
+
+```go
+// BAD: Assert libraries obscure what's being tested
+assert.IsNotNil(t, "obj", obj)
+assert.StringEq(t, "obj.Type", obj.Type, "blogPost")
+assert.IntEq(t, "obj.Comments", obj.Comments, 2)
+```
+
+**✅ Do**: Use Go's built-in comparison and clear error messages
+
+```go
+// GOOD: Clear, precise, and uses Go itself
+if obj == nil || obj.Type != "blogPost" || obj.Comments != 2 || obj.Body == "" {
+    t.Errorf("AddPost() = %+v", obj)
+}
+```
+
+**Why avoid assert libraries**:
+
+* They stop tests early, hiding information about what went right
+* They create a sub-language instead of using Go itself
+* They make it easy to write imprecise tests
+* Go has excellent support for printing structures built-in
+
+## Test Structure and Naming
+
+### Table-Driven Tests
+
+**✅ Do**: Use table-driven tests for similar test logic
+
+```go
+func TestProductCreation(t *testing.T) {
+    tests := []struct {
+        name    string
+        input   CreateProductRequest
+        want    *Product
+        wantErr bool
+    }{
+        {
+            name: "valid product",
+            input: CreateProductRequest{
+                Name: "Test Product",
+                SKU:  "TEST-001",
+            },
+            want: &Product{
+                Name: "Test Product",
+                SKU:  "TEST-001",
+            },
+            wantErr: false,
+        },
+        {
+            name: "missing name",
+            input: CreateProductRequest{
+                SKU: "TEST-001",
+            },
+            want:    nil,
+            wantErr: true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got, err := CreateProduct(tt.input)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("CreateProduct() error = %v, wantErr %v", err, tt.wantErr)
+                return
+            }
+            if !cmp.Equal(got, tt.want) {
+                t.Errorf("CreateProduct() diff:\n%s", cmp.Diff(tt.want, got))
+            }
+        })
+    }
+}
+```
+
+### Multiple Test Functions
+
+**✅ Do**: Write separate test functions when logic differs significantly
+
+```go
+// Test normal (non-error) outputs
+func TestProductCreation_Success(t *testing.T) {
+    // Test exact output matching
+}
+
+// Test error conditions
+func TestProductCreation_Errors(t *testing.T) {
+    // Test error semantics
+}
+```
+
+### Subtest Names
+
+**✅ Do**: Use human-readable subtest names
+
+```go
+t.Run("valid product with all fields", func(t *testing.T) {
+    // Test logic
+})
+
+// Include inputs in test body or failure messages
+t.Run("product creation", func(t *testing.T) {
+    t.Logf("testing with input: %+v", input)
+    // Test logic
+})
+```
+
+**❌ Don't**: Use test indices as names
+
+```go
+// BAD: Hard to identify which test failed
+for i, test := range tests {
+    t.Run(fmt.Sprintf("test %d", i), func(t *testing.T) {
+        // ...
+    })
+}
+```
+
+## Comparison and Equality
+
+### Use cmp Package
+
+**✅ Do**: Use the `cmp` package for complex comparisons
+
+```go
+import "github.com/google/go-cmp/cmp"
+
+// Compare full structures
+if !cmp.Equal(got, want) {
+    t.Errorf("CreateProduct() diff:\n%s", cmp.Diff(want, got))
+}
+```
+
+**Why use cmp**:
+
+* Handles complex structures automatically
+* Provides human-readable diffs
+* Configurable with options (e.g., `cmpopts.IgnoreInterfaces`)
+* Stable across Go versions
+* Better than `reflect.DeepEqual` (which is sensitive to unexported fields)
+
+**For protocol buffers**:
+
+```go
+import "github.com/google/go-cmp/cmp"
+import "github.com/google/go-cmp/cmp/cmpopts"
+import "google.golang.org/protobuf/proto"
+
+if !cmp.Equal(got, want, cmp.Comparer(proto.Equal)) {
+    t.Errorf("GetProduct() diff:\n%s", cmp.Diff(want, got, cmp.Comparer(proto.Equal)))
+}
+```
+
+### Compare Full Structures
+
+**✅ Do**: Compare entire structs at once
+
+```go
+want := &Product{
+    ID:   uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+    Name: "Test Product",
+    SKU:  "TEST-001",
+}
+
+if !cmp.Equal(got, want) {
+    t.Errorf("CreateProduct() diff:\n%s", cmp.Diff(want, got))
+}
+```
+
+**❌ Don't**: Compare individual fields
+
+```go
+// BAD: Easy to miss fields, verbose
+if got.ID != want.ID {
+    t.Errorf("ID mismatch: got %v, want %v", got.ID, want.ID)
+}
+if got.Name != want.Name {
+    t.Errorf("Name mismatch: got %v, want %v", got.Name, want.Name)
+}
+// ... repeated for each field
+```
+
+### Multiple Return Values
+
+**✅ Do**: Compare return values individually
+
+```go
+gotProduct, gotErr := CreateProduct(input)
+if gotErr != nil {
+    t.Errorf("CreateProduct() error = %v, want nil", gotErr)
+}
+if !cmp.Equal(gotProduct, wantProduct) {
+    t.Errorf("CreateProduct() diff:\n%s", cmp.Diff(wantProduct, gotProduct))
+}
+```
+
+## Test Error Messages
+
+### Got Before Want
+
+**✅ Do**: Output actual value before expected value
+
+```go
+t.Errorf("CreateProduct(%v) = %v, want %v", input, got, want)
+```
+
+**Format**: `"YourFunc(%v) = %v, want %v"`
+
+### Identify the Function
+
+**✅ Do**: Include function name in failure messages
+
+```go
+// GOOD: Function name is clear
+t.Errorf("CreateProduct(%v) = %v, want %v", input, got, want)
+
+// BAD: Function name is missing
+t.Errorf("got %v, want %v", got, want)
+```
+
+### Identify the Input
+
+**✅ Do**: Include inputs in failure messages (if short)
+
+```go
+t.Errorf("CreateProduct(input=%v) = %v, want %v", input, got, want)
+```
+
+**For large inputs**: Use descriptive test case names and print them in the error
+
+```go
+t.Run("product with missing required fields", func(t *testing.T) {
+    input := CreateProductRequest{/* large struct */}
+    t.Logf("testing with input: %+v", input)
+
+    got, err := CreateProduct(input)
+    if err == nil {
+        t.Errorf("CreateProduct() = %v, want error", got)
+    }
+})
+```
+
+### Print Diffs
+
+**✅ Do**: Use diffs for large outputs
+
+```go
+if !cmp.Equal(got, want) {
+    t.Errorf("CreateProduct() diff (-want +got):\n%s", cmp.Diff(want, got))
+}
+```
+
+**Format**: `"diff (-want +got)"` matches the diff output format
+
+## Error Handling in Tests
+
+### Keep Going
+
+**✅ Do**: Use `t.Error` to continue testing after failures
+
+```go
+t.Error("first failure")
+t.Error("second failure") // Still runs
+t.Error("third failure")  // Still runs
+```
+
+**❌ Don't**: Use `t.Fatal` unless setup fails
+
+```go
+// BAD: Stops after first failure
+t.Fatal("first failure")
+t.Error("second failure") // Never runs
+```
+
+**When to use `t.Fatal`**:
+
+* Test setup failures (before the test loop)
+* Failures that make the test impossible to continue
+* Inside subtests (t.Fatal ends only the current subtest)
+
+**Table-driven tests**:
+
+```go
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        // Use t.Error for comparisons that don't stop the test
+        if got != tt.want {
+            t.Error("first comparison failed")
+        }
+
+        // Use t.Error + continue for table-driven tests without subtests
+        // (but prefer subtests)
+
+        // Use t.Fatal inside subtests for fatal errors
+        if tt.setupError != nil {
+            t.Fatal(tt.setupError)
+        }
+    })
+}
+```
+
+## Test Helpers
+
+**✅ Do**: Mark test helpers with `t.Helper()`
+
+```go
+func readTestData(t *testing.T, filename string) []byte {
+    t.Helper() // This marks the function as a helper
+
+    data, err := os.ReadFile(filename)
+    if err != nil {
+        t.Fatalf("failed to read test data: %v", err)
+    }
+    return data
+}
+
+func TestSomething(t *testing.T) {
+    data := readTestData(t, "testdata/input.json")
+    // If readTestData fails, the error points to this line, not inside readTestData
+}
+```
+
+**❌ Don't**: Use `t.Helper()` to implement assert libraries
+
+```go
+// BAD: Obscures the connection between failure and test
+func assertEqual(t *testing.T, got, want interface{}) {
+    t.Helper() // Don't do this for assert-like functions
+    if got != want {
+        t.Errorf("got %v, want %v", got, want)
+    }
+}
+```
+
+## Testing Error Semantics
+
+### Don't Test Exact Error Strings
+
+**❌ Don't**: Compare error strings directly
+
+```go
+// BAD: Fragile if error message changes
+if err.Error() != "product not found" {
+    t.Errorf("got error %q, want %q", err.Error(), "product not found")
+}
+```
+
+**✅ Do**: Test error properties or use error types
+
+```go
+// GOOD: Test that error includes relevant information
+if err == nil {
+    t.Fatal("expected error, got nil")
+}
+if !strings.Contains(err.Error(), "product ID") {
+    t.Errorf("error message should include 'product ID', got: %q", err.Error())
+}
+
+// BETTER: Test error types
+var wantErr *ProductNotFoundError
+if !errors.As(err, &wantErr) {
+    t.Errorf("got error type %T, want %T", err, wantErr)
+}
+```
+
+**When string comparison is OK**:
+
+* Checking that error messages include parameter names
+* Checking that error messages satisfy properties (e.g., length, format)
+
+### Don't Use fmt.Errorf for Semantic Errors
+
+**✅ Do**: Preserve error types for programmatic use
+
+```go
+type ProductNotFoundError struct {
+    ProductID uuid.UUID
+}
+
+func (e *ProductNotFoundError) Error() string {
+    return fmt.Sprintf("product %s not found", e.ProductID)
+}
+
+// In tests, check the type
+var err *ProductNotFoundError
+if !errors.As(actualErr, &err) {
+    t.Errorf("got error type %T, want *ProductNotFoundError", actualErr)
+}
+```
+
+**If you don't care about error types**:
+
+```go
+// Simple check: is error nil or not?
+if (err != nil) != tt.wantErr {
+    t.Errorf("CreateProduct() error = %v, wantErr %v", err, tt.wantErr)
+}
+```
+
+## Stable Comparisons
+
+### Don't Compare Unstable Outputs
+
+**❌ Don't**: Compare JSON strings directly
+
+```go
+// BAD: JSON output format may change
+gotJSON := json.Marshal(obj)
+wantJSON := `{"name":"test","id":"123"}`
+if string(gotJSON) != wantJSON {
+    t.Errorf("got %q, want %q", gotJSON, wantJSON)
+}
+```
+
+**✅ Do**: Compare semantic content
+
+```go
+// GOOD: Parse and compare structures
+var got, want Product
+json.Unmarshal(gotJSON, &got)
+json.Unmarshal([]byte(wantJSON), &want)
+
+if !cmp.Equal(got, want) {
+    t.Errorf("CreateProduct() diff:\n%s", cmp.Diff(want, got))
+}
+```
+
+**This applies to**:
+
+* JSON/XML serialization
+* String formatting
+* Any output from external packages you don't control
+
+## Project-Specific Patterns
+
+### Test Isolation
+
+This project uses isolated tests (see [test/TEST\_ISOLATION\_ANALYSIS.md](mdc:test/TEST_ISOLATION_ANALYSIS.md)). Each test should:
+
+```go
+func TestProductCreation(t *testing.T) {
+    // Setup: Use test database or mocks
+    db := setupTestDB(t)
+    defer cleanupTestDB(t, db)
+
+    // Test logic
+    service := product.NewService(db)
+    // ...
+}
+```
+
+### Test Data Location
+
+* Test data files: `test/data/`
+* Test fixtures: `test/data/*.sql`, `test/data/*.json`
+* Test helpers: Alongside test files or in `test/` package
+
+### Mocking
+
+This project uses [mockery](https://github.com/vektra/mockery) for generating mocks:
+
+```go
+// Use generated mocks from test/mocks/
+import "bitbucket.org/gindumac/product-api/internal/product/test/mocks"
+
+func TestProductService(t *testing.T) {
+    mockRepo := mocks.NewMockRepository(t)
+    service := product.NewService(mockRepo)
+    // ...
+}
+```
+
+## Complete Test Example
+
+Here's a complete example following all best practices:
+
+```go
+package product_test
+
+import (
+    "testing"
+
+    "github.com/google/go-cmp/cmp"
+    "github.com/google/uuid"
+
+    "bitbucket.org/gindumac/product-api/internal/product"
+)
+
+func TestCreateProduct(t *testing.T) {
+    tests := []struct {
+        name    string
+        input   product.CreateRequest
+        want    *product.Product
+        wantErr bool
+    }{
+        {
+            name: "valid product with all fields",
+            input: product.CreateRequest{
+                Name: "Test Product",
+                SKU:  "TEST-001",
+            },
+            want: &product.Product{
+                Name: "Test Product",
+                SKU:  "TEST-001",
+            },
+            wantErr: false,
+        },
+        {
+            name: "missing required name field",
+            input: product.CreateRequest{
+                SKU: "TEST-001",
+            },
+            want:    nil,
+            wantErr: true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Logf("testing with input: %+v", tt.input)
+
+            got, err := product.Create(tt.input)
+
+            // Check error condition
+            if (err != nil) != tt.wantErr {
+                t.Errorf("CreateProduct(input=%+v) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+                return
+            }
+
+            // If we expected an error, don't check the result
+            if tt.wantErr {
+                return
+            }
+
+            // Compare full structures
+            if !cmp.Equal(got, tt.want) {
+                t.Errorf("CreateProduct(input=%+v) diff (-want +got):\n%s", tt.input, cmp.Diff(tt.want, got))
+            }
+        })
+    }
+}
+
+func TestCreateProduct_ErrorSemantics(t *testing.T) {
+    tests := []struct {
+        name        string
+        input       product.CreateRequest
+        wantErrType string
+    }{
+        {
+            name:        "missing name returns validation error",
+            input:       product.CreateRequest{SKU: "TEST-001"},
+            wantErrType: "*product.ValidationError",
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            _, err := product.Create(tt.input)
+            if err == nil {
+                t.Errorf("CreateProduct(input=%+v) error = nil, want error of type %s", tt.input, tt.wantErrType)
+                return
+            }
+
+            // Check error type, not exact message
+            if !strings.Contains(err.Error(), "name") {
+                t.Errorf("CreateProduct(input=%+v) error message should include 'name', got: %q", tt.input, err.Error())
+            }
+        })
+    }
+}
+```
+
+## Quick Reference
+
+### Test Structure Checklist
+
+* \[ ] Use table-driven tests when logic is similar
+* \[ ] Use separate test functions when logic differs significantly
+* \[ ] Include function name in error messages
+* \[ ] Include inputs in error messages (if short)
+* \[ ] Use `t.Error` instead of `t.Fatal` for comparisons
+* \[ ] Use `t.Helper()` for test helper functions
+* \[ ] Compare full structures, not individual fields
+* \[ ] Use `cmp` package for complex comparisons
+
+### Error Message Format
+
+```
+"FunctionName(input=%v) = %v, want %v"
+"FunctionName(input=%+v) diff (-want +got):\n%s"
+```
+
+### Comparison Checklist
+
+* \[ ] Use `cmp.Equal` for equality checks
+* \[ ] Use `cmp.Diff` for human-readable diffs
+* \[ ] Compare entire structures, not fields individually
+* \[ ] Don't compare unstable outputs (JSON strings, etc.)
+* \[ ] Parse and compare semantic content instead
+
+### Error Testing Checklist
+
+* \[ ] Don't compare exact error strings
+* \[ ] Test error types or properties
+* \[ ] Use `errors.As` for typed errors
+* \[ ] Check error properties (contains, length, etc.)
+
+## Common Anti-Patterns to Avoid
+
+**❌ Don't**: Use assert libraries
+
+```go
+assert.Equal(t, got, want)
+```
+
+**❌ Don't**: Stop tests early unnecessarily
+
+```go
+if got != want {
+    t.Fatal("mismatch") // BAD: stops other comparisons
+}
+```
+
+**❌ Don't**: Compare individual fields
+
+```go
+if got.ID != want.ID {
+    t.Errorf("ID mismatch")
+}
+if got.Name != want.Name {
+    t.Errorf("Name mismatch")
+}
+```
+
+**❌ Don't**: Compare unstable outputs
+
+```go
+if string(json.Marshal(obj)) != `{"expected":"json"}` {
+    t.Error("mismatch")
+}
+```
+
+**❌ Don't**: Compare exact error strings
+
+```go
+if err.Error() != "exact error message" {
+    t.Error("mismatch")
+}
+```
+
+**❌ Don't**: Use test indices as names
+
+```go
+t.Run(fmt.Sprintf("test %d", i), func(t *testing.T) {
+    // ...
+})
+```
+
+This rule ensures tests are precise, maintainable, and follow Go testing best practices established by the Go team at Google.
