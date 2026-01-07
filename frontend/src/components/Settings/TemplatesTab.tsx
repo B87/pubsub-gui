@@ -36,11 +36,9 @@ export default function TemplatesTab({
           onClick={onCreate}
           style={{
             backgroundColor: 'var(--color-accent-primary)',
-            color: 'var(--primary-foreground)',
+            color: 'var(--color-text-primary)',
           }}
-          className="px-4 py-2 rounded-md transition-opacity hover:opacity-90 flex items-center gap-2"
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)'}
+          className="px-4 py-2 rounded-md transition-opacity hover:opacity-90 flex items-center gap-2 hover:[background-color:var(--color-accent-hover)]"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

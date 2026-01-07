@@ -154,8 +154,8 @@ export interface TemplateOverrides {
 
 export interface TemplateCreateResult {
   success: boolean;
-  topicId: string;
-  subscriptionIds: string[];
+  topicId?: string;
+  subscriptionIds?: string[];
   deadLetterTopicId?: string;
   deadLetterSubId?: string;
   warnings?: string[];

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   GetTopicSubscriptionTemplates,
   CreateFromTemplate,
@@ -23,9 +23,30 @@ export default function TemplateSelector({ open, onClose, onSuccess }: TemplateS
   const [error, setError] = useState('');
   const [result, setResult] = useState<models.TemplateCreateResult | null>(null);
 
+  // Refs for cleanup
+  const isMountedRef = useRef(true);
+  const timerIdRef = useRef<number | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (timerIdRef.current) {
+        clearTimeout(timerIdRef.current);
+      }
+    };
+  }, []);
+
   // Load templates when dialog opens
   useEffect(() => {
     if (open) {
+      // Reset mount state when dialog opens
+      isMountedRef.current = true;
+      // Clear any pending timeout
+      if (timerIdRef.current) {
+        clearTimeout(timerIdRef.current);
+        timerIdRef.current = null;
+      }
       loadTemplates();
       // Reset state
       setStep('select');
@@ -34,6 +55,12 @@ export default function TemplateSelector({ open, onClose, onSuccess }: TemplateS
       setEnvironment('');
       setError('');
       setResult(null);
+    } else {
+      // Clear timeout when dialog closes
+      if (timerIdRef.current) {
+        clearTimeout(timerIdRef.current);
+        timerIdRef.current = null;
+      }
     }
   }, [open]);
 
@@ -103,11 +130,13 @@ export default function TemplateSelector({ open, onClose, onSuccess }: TemplateS
       if (createResult.success) {
         setStep('creating');
         // Call onSuccess after a short delay to show result
-        setTimeout(() => {
-          if (onSuccess) {
-            onSuccess();
+        timerIdRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            if (onSuccess) {
+              onSuccess();
+            }
+            onClose();
           }
-          onClose();
         }, 2000);
       } else {
         setError(createResult.error || 'Failed to create resources');
@@ -454,6 +483,38 @@ interface CreationResultStepProps {
 }
 
 function CreationResultStep({ result }: CreationResultStepProps) {
+  // Only show success content if creation was successful
+  if (!result.success) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <svg className="w-8 h-8" style={{ color: 'var(--color-error)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Creation Failed
+          </h3>
+        </div>
+        {result.error && (
+          <div
+            style={{
+              backgroundColor: 'var(--color-error-bg)',
+              borderColor: 'var(--color-error-border)',
+              color: 'var(--color-error)',
+            }}
+            className="border rounded-md p-3 text-sm"
+          >
+            {result.error}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Safe access with fallbacks for optional properties
+  const topicId = result.topicId || 'N/A';
+  const subscriptionIds = result.subscriptionIds || [];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -473,9 +534,9 @@ function CreationResultStep({ result }: CreationResultStepProps) {
         className="border rounded-lg p-4 space-y-2"
       >
         <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          <strong style={{ color: 'var(--color-text-primary)' }}>Topic:</strong> {result.topicId}
+          <strong style={{ color: 'var(--color-text-primary)' }}>Topic:</strong> {topicId}
         </div>
-        {result.subscriptionIds.map((id, i) => (
+        {subscriptionIds.map((id, i) => (
           <div key={i} className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             <strong style={{ color: 'var(--color-text-primary)' }}>Subscription {i + 1}:</strong> {id}
           </div>
