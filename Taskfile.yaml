@@ -39,6 +39,8 @@ tasks:
       - go mod tidy
       - echo "🔄 Updating frontend dependencies..."
       - cd {{.FRONTEND_DIR}} && npm update && cd ..
+      - echo "🔄 Updating shadcn/ui components..."
+      - cd {{.FRONTEND_DIR}} && npx shadcn@latest add dialog input label select card alert checkbox radio-group badge separator button --yes --overwrite && cd ..
 
   wails-install:
     desc: Install Wails CLI

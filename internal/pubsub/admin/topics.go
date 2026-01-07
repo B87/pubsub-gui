@@ -138,6 +138,72 @@ func DeleteTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, top
 	return nil
 }
 
+// TopicTemplateConfig represents topic configuration for template-based creation
+type TopicTemplateConfig struct {
+	MessageRetentionDuration string                `json:"messageRetentionDuration,omitempty"`
+	Labels                   map[string]string     `json:"labels,omitempty"`
+	KMSKeyName               string                `json:"kmsKeyName,omitempty"`
+	MessageStoragePolicy     *MessageStoragePolicy `json:"messageStoragePolicy,omitempty"`
+}
+
+// MessageStoragePolicy represents message storage policy for topics
+type MessageStoragePolicy struct {
+	AllowedPersistenceRegions []string `json:"allowedPersistenceRegions,omitempty"`
+}
+
+// CreateTopicWithConfig creates a new topic with full configuration support
+func CreateTopicWithConfig(ctx context.Context, client *pubsub.Client, projectID, topicID string, config TopicTemplateConfig) error {
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
+
+	// Build full resource name
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Create topic using Topic object directly (v2 API pattern)
+	req := &pubsubpb.Topic{
+		Name: topicName,
+	}
+
+	// Set message retention duration if provided
+	if config.MessageRetentionDuration != "" {
+		duration, err := time.ParseDuration(config.MessageRetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid message retention duration format: %w", err)
+		}
+		req.MessageRetentionDuration = durationpb.New(duration)
+	}
+
+	// Set labels if provided
+	if len(config.Labels) > 0 {
+		req.Labels = config.Labels
+	}
+
+	// Set KMS key name if provided
+	if config.KMSKeyName != "" {
+		req.KmsKeyName = config.KMSKeyName
+	}
+
+	// Set message storage policy if provided
+	if config.MessageStoragePolicy != nil && len(config.MessageStoragePolicy.AllowedPersistenceRegions) > 0 {
+		req.MessageStoragePolicy = &pubsubpb.MessageStoragePolicy{
+			AllowedPersistenceRegions: config.MessageStoragePolicy.AllowedPersistenceRegions,
+		}
+	}
+
+	_, err := client.TopicAdminClient.CreateTopic(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to create topic %s: %w. Ensure you have 'pubsub.topics.create' permission", topicName, err)
+	}
+
+	return nil
+}
+
 // extractDisplayName extracts the topic/subscription name from the full resource path
 // e.g., "projects/my-project/topics/my-topic" -> "my-topic"
 func extractDisplayName(fullName string) string {

@@ -89,17 +89,15 @@ export default function AppearanceTab({
                   >
                     <div className="space-y-2">
                       {/* Preview button */}
-                      <button
-                        className="w-full px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                      <div
+                        className="w-full px-3 py-1.5 rounded text-xs font-medium transition-colors pointer-events-none"
                         style={{
                           backgroundColor: colors.accent,
                           color: colors.bg,
                         }}
-                        disabled
-                        onClick={(e) => e.preventDefault()}
                       >
                         Button
-                      </button>
+                      </div>
                       {/* Preview text */}
                       <div className="space-y-1">
                         <div
@@ -142,7 +140,7 @@ export default function AppearanceTab({
                 disabled={saving}
                 style={{
                   backgroundColor: isSelected ? 'var(--color-accent-primary)' : 'var(--color-bg-tertiary)',
-                  color: isSelected ? 'white' : 'var(--color-text-primary)',
+                  color: isSelected ? 'var(--primary-foreground)' : 'var(--color-text-primary)',
                 }}
                 className="px-6 py-3 rounded-md font-medium transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 onMouseEnter={(e) => {

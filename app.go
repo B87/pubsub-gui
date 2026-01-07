@@ -36,11 +36,12 @@ type App struct {
 	subscriptions []admin.SubscriptionInfo
 
 	// Handlers
-	connection *app.ConnectionHandler
-	resources  *app.ResourceHandler
-	templates  *app.TemplateHandler
-	monitoring *app.MonitoringHandler
-	configH    *app.ConfigHandler
+	connection                 *app.ConnectionHandler
+	resources                  *app.ResourceHandler
+	templates                  *app.TemplateHandler
+	topicSubscriptionTemplates *app.TopicSubscriptionTemplateHandler
+	monitoring                 *app.MonitoringHandler
+	configH                    *app.ConfigHandler
 
 	// Application version
 	version string
@@ -103,6 +104,12 @@ func (a *App) startup(ctx context.Context) {
 		func() { go a.resources.SyncResources() },
 	)
 	a.templates = app.NewTemplateHandler(a.config, a.configManager)
+	a.topicSubscriptionTemplates = app.NewTopicSubscriptionTemplateHandler(
+		a.ctx,
+		a.clientManager,
+		a.config,
+		a.configManager,
+	)
 	a.monitoring = app.NewMonitoringHandler(
 		a.ctx,
 		a.config,
@@ -391,23 +398,76 @@ func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error {
 // Disconnect closes the current Pub/Sub connection
 func (a *App) Disconnect() error {
 	// Stop all active monitors before disconnecting
+	// Stop them asynchronously to avoid blocking if streamers are stuck
 	a.monitorsMu.Lock()
+	monitorsToStop := make(map[string]*subscriber.MessageStreamer)
 	for subscriptionID, streamer := range a.activeMonitors {
-		// Stop streamer (ignore errors during disconnect)
-		streamer.Stop()
+		monitorsToStop[subscriptionID] = streamer
 		delete(a.activeMonitors, subscriptionID)
 	}
+	a.monitorsMu.Unlock()
+
+	// Stop monitors asynchronously with timeout to prevent blocking
+	// This prevents Disconnect() from hanging if streamers are stuck
+	go func() {
+		for subscriptionID, streamer := range monitorsToStop {
+			// Use a channel with timeout to prevent indefinite blocking
+			done := make(chan error, 1)
+			go func(subID string, s *subscriber.MessageStreamer) {
+				done <- s.Stop()
+			}(subscriptionID, streamer)
+
+			select {
+			case <-done:
+				// Streamer stopped successfully
+			case <-time.After(2 * time.Second):
+				// Timeout - log but continue (streamer will be cleaned up when client closes)
+				fmt.Printf("Warning: timeout stopping monitor %s during disconnect\n", subscriptionID)
+			}
+		}
+	}()
+
+	// Give monitors a brief moment to start stopping, but don't wait for completion
+	// The client.Close() will also signal them to stop via context cancellation
+	time.Sleep(100 * time.Millisecond)
 
 	// Cleanup temporary topic subscriptions
+	a.monitorsMu.Lock()
 	client := a.clientManager.GetClient()
 	projectID := a.clientManager.GetProjectID()
-	if client != nil {
-		for topicID, subID := range a.topicMonitors {
-			_ = admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, subID)
-			delete(a.topicMonitors, topicID)
-		}
+	topicMonitorsCopy := make(map[string]string)
+	for k, v := range a.topicMonitors {
+		topicMonitorsCopy[k] = v
 	}
 	a.monitorsMu.Unlock()
+
+	// Delete subscriptions asynchronously with timeout to prevent blocking
+	// if gRPC connections are stuck
+	if client != nil && len(topicMonitorsCopy) > 0 {
+		go func() {
+			for topicID, subID := range topicMonitorsCopy {
+				done := make(chan error, 1)
+				go func(tid, sid string) {
+					done <- admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, sid)
+				}(topicID, subID)
+
+				select {
+				case <-done:
+					// Subscription deleted successfully
+				case <-time.After(2 * time.Second):
+					// Timeout - log but continue (subscription will be cleaned up by TTL)
+					fmt.Printf("Warning: timeout deleting temporary subscription %s during disconnect\n", subID)
+				}
+			}
+		}()
+
+		// Clear the map immediately (don't wait for async deletion)
+		a.monitorsMu.Lock()
+		for topicID := range topicMonitorsCopy {
+			delete(a.topicMonitors, topicID)
+		}
+		a.monitorsMu.Unlock()
+	}
 
 	// Clear resource store (initialize to empty slices instead of nil to avoid race conditions)
 	a.resourceMu.Lock()
@@ -416,26 +476,40 @@ func (a *App) Disconnect() error {
 	a.resourceMu.Unlock()
 
 	// Stop upgrade check ticker and timer if running, and signal goroutine to exit
-	a.upgradeCheckMu.Lock()
-	if a.upgradeCheckTicker != nil {
-		a.upgradeCheckTicker.Stop()
-		a.upgradeCheckTicker = nil
-	}
-	if a.upgradeCheckTimer != nil {
-		a.upgradeCheckTimer.Stop()
-		a.upgradeCheckTimer = nil
-	}
-	// Close done channel to signal goroutine to exit (only if not already closed)
-	if a.upgradeCheckDone != nil {
-		select {
-		case <-a.upgradeCheckDone:
-			// Already closed, do nothing
-		default:
-			close(a.upgradeCheckDone)
+	// Use a timeout to prevent blocking if upgrade check goroutine is stuck
+	// Try to acquire lock with timeout to prevent blocking if upgrade check is stuck
+	lockAcquired := make(chan bool, 1)
+	go func() {
+		a.upgradeCheckMu.Lock()
+		lockAcquired <- true
+	}()
+
+	select {
+	case <-lockAcquired:
+		// Lock acquired successfully
+		if a.upgradeCheckTicker != nil {
+			a.upgradeCheckTicker.Stop()
+			a.upgradeCheckTicker = nil
 		}
-		a.upgradeCheckDone = nil
+		if a.upgradeCheckTimer != nil {
+			a.upgradeCheckTimer.Stop()
+			a.upgradeCheckTimer = nil
+		}
+		// Close done channel to signal goroutine to exit (only if not already closed)
+		if a.upgradeCheckDone != nil {
+			select {
+			case <-a.upgradeCheckDone:
+				// Already closed, do nothing
+			default:
+				close(a.upgradeCheckDone)
+			}
+			a.upgradeCheckDone = nil
+		}
+		a.upgradeCheckMu.Unlock()
+	case <-time.After(500 * time.Millisecond):
+		// Timeout - log warning but continue (upgrade check will be cleaned up when app exits)
+		fmt.Printf("Warning: timeout acquiring upgrade check lock during disconnect (upgrade check may be stuck)\n")
 	}
-	a.upgradeCheckMu.Unlock()
 
 	return a.clientManager.Close()
 }
@@ -658,4 +732,50 @@ func (a *App) SaveConfigFileContent(content string) error {
 		}
 	}
 	return err
+}
+
+// GetTopicSubscriptionTemplates returns all topic/subscription templates (built-in and custom)
+func (a *App) GetTopicSubscriptionTemplates() ([]*models.TopicSubscriptionTemplate, error) {
+	return a.topicSubscriptionTemplates.GetTemplates()
+}
+
+// GetTopicSubscriptionTemplatesByCategory returns templates filtered by category
+func (a *App) GetTopicSubscriptionTemplatesByCategory(category string) ([]*models.TopicSubscriptionTemplate, error) {
+	return a.topicSubscriptionTemplates.GetTemplatesByCategory(category)
+}
+
+// CreateFromTemplate creates resources from a topic/subscription template
+func (a *App) CreateFromTemplate(request models.TemplateCreateRequest) (models.TemplateCreateResult, error) {
+	result, err := a.topicSubscriptionTemplates.CreateFromTemplate(&request)
+	if err != nil {
+		return models.TemplateCreateResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// If successful, trigger resource sync and emit event
+	if result.Success {
+		// Trigger background sync to update local store
+		go a.resources.SyncResources()
+
+		// Emit event for frontend
+		runtime.EventsEmit(a.ctx, "template:created", map[string]interface{}{
+			"templateId":      request.TemplateID,
+			"topicId":         result.TopicID,
+			"subscriptionIds": result.SubscriptionIDs,
+		})
+	}
+
+	return *result, nil
+}
+
+// SaveCustomTopicSubscriptionTemplate saves a custom topic/subscription template
+func (a *App) SaveCustomTopicSubscriptionTemplate(template models.TopicSubscriptionTemplate) error {
+	return a.topicSubscriptionTemplates.SaveCustomTemplate(&template)
+}
+
+// DeleteCustomTopicSubscriptionTemplate deletes a custom topic/subscription template
+func (a *App) DeleteCustomTopicSubscriptionTemplate(templateID string) error {
+	return a.topicSubscriptionTemplates.DeleteCustomTemplate(templateID)
 }

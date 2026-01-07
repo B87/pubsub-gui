@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ConnectionProfile } from '../../types';
+import { Button, Input, Label, FormField, Checkbox, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Alert, AlertDescription } from '../ui';
 
 interface ProfileDialogProps {
   profile: ConnectionProfile | null;
@@ -90,283 +91,176 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
-        zIndex: 60,
-      }}
-      className="fixed inset-0 flex items-center justify-center"
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--color-bg-secondary)',
-          borderColor: 'var(--color-border-primary)',
-          color: 'var(--color-text-primary)',
-        }}
-        className="border rounded-lg p-6 max-w-md w-full mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          {isEdit ? 'Edit Connection Profile' : 'Create Connection Profile'}
-        </h3>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {isEdit ? 'Edit Connection Profile' : 'Create Connection Profile'}
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="space-y-4">
           {/* Name */}
-          <div>
-            <label htmlFor="profile-name" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Profile Name *
-            </label>
-            <input
+          <FormField
+            label="Profile Name"
+            required
+          >
+            <Input
               id="profile-name"
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Production, Staging, etc."
               disabled={saving}
-              style={{
-                backgroundColor: 'var(--color-bg-input)',
-                color: 'var(--color-text-primary)',
-                borderColor: 'var(--color-border-primary)',
-              }}
-              className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
-              onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
             />
-          </div>
+          </FormField>
 
           {/* Project ID */}
-          <div>
-            <label htmlFor="project-id" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              GCP Project ID *
-            </label>
-            <input
+          <FormField
+            label="GCP Project ID"
+            required
+          >
+            <Input
               id="project-id"
               type="text"
               value={formData.projectId}
               onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
               placeholder="my-gcp-project"
               disabled={saving}
-              style={{
-                backgroundColor: 'var(--color-bg-input)',
-                color: 'var(--color-text-primary)',
-                borderColor: 'var(--color-border-primary)',
-              }}
-              className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
-              onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
             />
-          </div>
+          </FormField>
 
           {/* Auth Method */}
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Authentication Method *
-            </label>
+          <FormField
+            label="Authentication Method"
+            required
+          >
             <div className="flex gap-2">
-              <button
+              <Button
+                type="button"
+                variant={formData.authMethod === 'ADC' ? 'default' : 'outline'}
                 onClick={() => setFormData({ ...formData, authMethod: 'ADC' })}
                 disabled={saving}
-                style={{
-                  backgroundColor: formData.authMethod === 'ADC' ? 'var(--color-accent-primary)' : 'var(--color-bg-tertiary)',
-                  color: formData.authMethod === 'ADC' ? 'white' : 'var(--color-text-primary)',
-                }}
-                className="flex-1 px-4 py-2 rounded-md text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
-                onMouseEnter={(e) => {
-                  if (formData.authMethod !== 'ADC') {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (formData.authMethod !== 'ADC') {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                  }
-                }}
+                className="flex-1"
               >
                 ADC
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant={formData.authMethod === 'ServiceAccount' ? 'default' : 'outline'}
                 onClick={() => setFormData({ ...formData, authMethod: 'ServiceAccount' })}
                 disabled={saving}
-                style={{
-                  backgroundColor: formData.authMethod === 'ServiceAccount' ? 'var(--color-accent-primary)' : 'var(--color-bg-tertiary)',
-                  color: formData.authMethod === 'ServiceAccount' ? 'white' : 'var(--color-text-primary)',
-                }}
-                className="flex-1 px-4 py-2 rounded-md text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
-                onMouseEnter={(e) => {
-                  if (formData.authMethod !== 'ServiceAccount') {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (formData.authMethod !== 'ServiceAccount') {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                  }
-                }}
+                className="flex-1"
               >
                 Service Account
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant={formData.authMethod === 'OAuth' ? 'default' : 'outline'}
                 onClick={() => setFormData({ ...formData, authMethod: 'OAuth' })}
                 disabled={saving}
-                style={{
-                  backgroundColor: formData.authMethod === 'OAuth' ? 'var(--color-accent-primary)' : 'var(--color-bg-tertiary)',
-                  color: formData.authMethod === 'OAuth' ? 'white' : 'var(--color-text-primary)',
-                }}
-                className="flex-1 px-4 py-2 rounded-md text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
-                onMouseEnter={(e) => {
-                  if (formData.authMethod !== 'OAuth') {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (formData.authMethod !== 'OAuth') {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                  }
-                }}
+                className="flex-1"
               >
                 OAuth
-              </button>
+              </Button>
             </div>
-          </div>
+          </FormField>
 
           {/* Service Account Path */}
           {formData.authMethod === 'ServiceAccount' && (
-            <div>
-              <label htmlFor="service-account-path" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                Service Account JSON Path *
-              </label>
-              <input
+            <FormField
+              label="Service Account JSON Path"
+              required
+            >
+              <Input
                 id="service-account-path"
                 type="text"
                 value={formData.serviceAccountPath}
                 onChange={(e) => setFormData({ ...formData, serviceAccountPath: e.target.value })}
                 placeholder="/path/to/service-account.json"
                 disabled={saving}
-                style={{
-                  backgroundColor: 'var(--color-bg-input)',
-                  color: 'var(--color-text-primary)',
-                  borderColor: 'var(--color-border-primary)',
-                }}
-                className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
-                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
               />
-            </div>
+            </FormField>
           )}
 
           {/* OAuth Client Path */}
           {formData.authMethod === 'OAuth' && (
-            <div>
-              <label htmlFor="oauth-client-path" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                OAuth Client JSON Path *
-              </label>
-              <input
+            <FormField
+              label="OAuth Client JSON Path"
+              required
+              helperText={
+                <>
+                  Download from{' '}
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.open('https://console.cloud.google.com/apis/credentials', '_blank');
+                    }}
+                    className="text-blue-400 hover:underline"
+                  >
+                    GCP Console - APIs & Services - Credentials
+                  </a>
+                </>
+              }
+            >
+              <Input
                 id="oauth-client-path"
                 type="text"
                 value={formData.oauthClientPath}
                 onChange={(e) => setFormData({ ...formData, oauthClientPath: e.target.value })}
                 placeholder="/path/to/client_secret_*.json"
                 disabled={saving}
-                style={{
-                  backgroundColor: 'var(--color-bg-input)',
-                  color: 'var(--color-text-primary)',
-                  borderColor: 'var(--color-border-primary)',
-                }}
-                className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
-                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
               />
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                Download from{' '}
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open('https://console.cloud.google.com/apis/credentials', '_blank');
-                  }}
-                  className="text-blue-400 hover:underline"
-                >
-                  GCP Console - APIs & Services - Credentials
-                </a>
-              </p>
-            </div>
+            </FormField>
           )}
 
           {/* Emulator Host */}
-          <div>
-            <label htmlFor="emulator-host" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Emulator Host (optional)
-            </label>
-            <input
+          <FormField
+            label="Emulator Host"
+            helperText="Leave empty for production GCP"
+          >
+            <Input
               id="emulator-host"
               type="text"
               value={formData.emulatorHost}
               onChange={(e) => setFormData({ ...formData, emulatorHost: e.target.value })}
               placeholder="localhost:8085"
               disabled={saving}
-              style={{
-                backgroundColor: 'var(--color-bg-input)',
-                color: 'var(--color-text-primary)',
-                borderColor: 'var(--color-border-primary)',
-              }}
-              className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
-              onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
             />
-            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              Leave empty for production GCP
-            </p>
-          </div>
+          </FormField>
 
           {/* Is Default */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="is-default"
               checked={formData.isDefault}
-              onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
+              onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked === true })}
               disabled={saving}
-              className="w-4 h-4 rounded"
-              style={{
-                backgroundColor: formData.isDefault ? 'var(--color-accent-primary)' : 'var(--color-bg-input)',
-                borderColor: 'var(--color-border-primary)',
-              }}
             />
-            <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            <Label htmlFor="is-default" className="text-sm">
               Set as default connection profile
-            </span>
-          </label>
+            </Label>
+          </div>
 
           {/* Error */}
           {(error || externalError) && (
-            <div
-              style={{
-                backgroundColor: 'var(--color-error-bg)',
-                borderColor: 'var(--color-error-border)',
-                color: 'var(--color-error)',
-              }}
-              className="p-3 border rounded-md text-sm"
-            >
-              {error || externalError}
-            </div>
+            <Alert variant="destructive" showIcon>
+              <AlertDescription>{error || externalError}</AlertDescription>
+            </Alert>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 justify-end mt-6">
-          <button
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
             onClick={onClose}
             disabled={saving}
-            style={{
-              color: 'var(--color-text-secondary)',
-            }}
-            className="px-4 py-2 rounded-md transition-colors hover:opacity-80 disabled:opacity-50"
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-text-primary)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={
               saving ||
@@ -375,26 +269,12 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
               (formData.authMethod === 'ServiceAccount' && !formData.serviceAccountPath.trim()) ||
               (formData.authMethod === 'OAuth' && !formData.oauthClientPath.trim())
             }
-            style={{
-              backgroundColor: 'var(--color-accent-primary)',
-              color: 'white',
-            }}
-            className="px-4 py-2 rounded-md transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            onMouseEnter={(e) => {
-              if (!e.currentTarget.disabled) {
-                e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!e.currentTarget.disabled) {
-                e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)';
-              }
-            }}
+            loading={saving}
           >
-            {saving ? 'Saving...' : isEdit ? 'Save' : 'Create'}
-          </button>
-        </div>
-      </div>
-    </div>
+            {isEdit ? 'Save' : 'Create'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

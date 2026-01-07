@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import type { MessageTemplate } from '../types';
 import { GetTemplates, UpdateTemplate, DeleteTemplate } from '../../wailsjs/go/main/App';
 import JsonEditor from './JsonEditor';
+import { Button, Input, FormField, Badge, Alert, AlertDescription } from './ui';
+import { X } from 'lucide-react';
 
 interface TemplateManagerProps {
   open: boolean;
@@ -128,50 +130,41 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Manage Templates</h2>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 transition-colors"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            <X className="w-6 h-6" />
+          </Button>
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-900/20 border border-red-700 rounded text-red-400">
-            {error}
-          </div>
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {editingTemplate ? (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Edit Template</h3>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
-                Template Name *
-              </label>
-              <input
+            <FormField label="Template Name" required>
+              <Input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
-                Topic ID (optional)
-              </label>
-              <input
+            <FormField label="Topic ID (optional)" helperText="Leave empty for global template">
+              <Input
                 type="text"
                 value={editTopicId}
                 onChange={(e) => setEditTopicId(e.target.value)}
                 placeholder="Leave empty for global template"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
+            </FormField>
 
             <JsonEditor
               value={editPayload}
@@ -183,58 +176,61 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
                 <label className="block text-sm font-medium text-slate-400">
                   Attributes
                 </label>
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={addAttribute}
-                  className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+                  className="h-auto py-1 px-3 text-sm"
                 >
                   + Add
-                </button>
+                </Button>
               </div>
               <div className="space-y-2">
                 {editAttributes.map((attr, index) => (
                   <div key={index} className="flex gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={attr.key}
                       onChange={(e) => handleAttributeChange(index, 'key', e.target.value)}
                       placeholder="Key"
-                      className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1"
                     />
-                    <input
+                    <Input
                       type="text"
                       value={attr.value}
                       onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
                       placeholder="Value"
-                      className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1"
                     />
-                    <button
+                    <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={() => removeAttribute(index)}
                       disabled={editAttributes.length === 1}
-                      className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded transition-colors"
+                      className="h-auto py-2 px-3"
                     >
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="flex gap-3 justify-end">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => {
                   setEditingTemplate(null);
                   setEditPayload('');
                 }}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleSaveEdit}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors"
               >
                 Save
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -255,14 +251,14 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="font-semibold">{template.name}</h3>
                           {template.topicId && (
-                            <span className="px-2 py-1 text-xs bg-blue-900/30 text-blue-400 rounded">
+                            <Badge variant="default">
                               Topic-specific
-                            </span>
+                            </Badge>
                           )}
                           {!template.topicId && (
-                            <span className="px-2 py-1 text-xs bg-slate-700 text-slate-400 rounded">
+                            <Badge variant="secondary">
                               Global
-                            </span>
+                            </Badge>
                           )}
                         </div>
                         <p className="text-sm text-slate-400 mb-1">
@@ -278,18 +274,22 @@ export default function TemplateManager({ open, onClose, currentTopicId }: Templ
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <button
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleEdit(template)}
-                          className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+                          className="h-auto py-1 px-3 text-sm"
                         >
                           Edit
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => handleDelete(template.id, template.name)}
-                          className="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 rounded transition-colors"
+                          className="h-auto py-1 px-3 text-sm"
                         >
                           Delete
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>

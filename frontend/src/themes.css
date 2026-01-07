@@ -74,6 +74,33 @@
 
   /* Monaco editor font size */
   --monaco-font-size: 14px;
+
+  /* shadcn/ui CSS variables - mapped to theme system */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-secondary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-primary);
+  --primary-foreground: white;
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-error);
+  --destructive-foreground: white;
+  --border: var(--color-border-primary);
+  --input: var(--color-bg-input);
+  --ring: var(--color-accent-primary);
+  --radius: 0.5rem;
+  --chart-1: var(--color-accent-primary);
+  --chart-2: var(--color-success);
+  --chart-3: var(--color-warning);
+  --chart-4: var(--color-error);
+  --chart-5: var(--color-purple-text);
 }
 
 /* ===========================
@@ -135,6 +162,33 @@
   --color-purple-border: #6d28d9;   /* purple-800 */
 
   --color-orange: #ea580c;          /* orange-600 */
+
+  /* shadcn/ui CSS variables - mapped to theme system */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-secondary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-primary);
+  --primary-foreground: white;
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-error);
+  --destructive-foreground: white;
+  --border: var(--color-border-primary);
+  --input: var(--color-bg-input);
+  --ring: var(--color-accent-primary);
+  --radius: 0.5rem;
+  --chart-1: var(--color-accent-primary);
+  --chart-2: var(--color-success);
+  --chart-3: var(--color-warning);
+  --chart-4: var(--color-error);
+  --chart-5: var(--color-purple-text);
 }
 
 /* ===========================
@@ -190,6 +244,33 @@
   --color-purple-border: #a578f0;
 
   --color-orange: #ffb86c;          /* Dracula orange */
+
+  /* shadcn/ui CSS variables - mapped to theme system */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-secondary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-primary);
+  --primary-foreground: white;
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-error);
+  --destructive-foreground: white;
+  --border: var(--color-border-primary);
+  --input: var(--color-bg-input);
+  --ring: var(--color-accent-primary);
+  --radius: 0.5rem;
+  --chart-1: var(--color-accent-primary);
+  --chart-2: var(--color-success);
+  --chart-3: var(--color-warning);
+  --chart-4: var(--color-error);
+  --chart-5: var(--color-purple-text);
 }
 
 /* ===========================
@@ -245,6 +326,33 @@
   --color-purple-border: #9965f4;
 
   --color-orange: #fd971f;          /* Monokai orange */
+
+  /* shadcn/ui CSS variables - mapped to theme system */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-secondary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-primary);
+  --primary-foreground: var(--color-bg-primary);
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-error);
+  --destructive-foreground: white;
+  --border: var(--color-border-primary);
+  --input: var(--color-bg-input);
+  --ring: var(--color-accent-primary);
+  --radius: 0.5rem;
+  --chart-1: var(--color-accent-primary);
+  --chart-2: var(--color-success);
+  --chart-3: var(--color-warning);
+  --chart-4: var(--color-error);
+  --chart-5: var(--color-purple-text);
 }
 
 /* ===========================
@@ -307,6 +415,33 @@
     --color-purple-border: #6d28d9;
 
     --color-orange: #ea580c;
+
+    /* shadcn/ui CSS variables - mapped to theme system */
+    --background: var(--color-bg-primary);
+    --foreground: var(--color-text-primary);
+    --card: var(--color-bg-secondary);
+    --card-foreground: var(--color-text-primary);
+    --popover: var(--color-bg-secondary);
+    --popover-foreground: var(--color-text-primary);
+    --primary: var(--color-accent-primary);
+    --primary-foreground: white;
+    --secondary: var(--color-bg-tertiary);
+    --secondary-foreground: var(--color-text-primary);
+    --muted: var(--color-bg-tertiary);
+    --muted-foreground: var(--color-text-muted);
+    --accent: var(--color-bg-hover);
+    --accent-foreground: var(--color-text-primary);
+    --destructive: var(--color-error);
+    --destructive-foreground: white;
+    --border: var(--color-border-primary);
+    --input: var(--color-bg-input);
+    --ring: var(--color-accent-primary);
+    --radius: 0.5rem;
+    --chart-1: var(--color-accent-primary);
+    --chart-2: var(--color-success);
+    --chart-3: var(--color-warning);
+    --chart-4: var(--color-error);
+    --chart-5: var(--color-purple-text);
   }
 }
 

@@ -30,6 +30,7 @@ import SubscriptionDetails from './components/SubscriptionDetails';
 import TopicCreateDialog from './components/TopicCreateDialog';
 import SubscriptionDialog from './components/SubscriptionDialog';
 import SettingsDialog from './components/SettingsDialog';
+import TemplateSelector from './components/TemplateSelector';
 import EmptyState from './components/EmptyState';
 import CommandBar from './components/CommandBar';
 import UpgradeNotification from './components/UpgradeNotification';
@@ -52,6 +53,7 @@ function App() {
   const [subscriptionDialogMode, setSubscriptionDialogMode] = useState<'create' | 'edit'>('create');
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showCommandBar, setShowCommandBar] = useState(false);
 
   // Use ref to track selectedResource in event listeners without causing re-renders
@@ -281,43 +283,88 @@ function App() {
   };
 
   const handleProfileSwitch = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:285',message:'handleProfileSwitch ENTRY',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     // Clear current resources immediately to prevent showing stale data
     setTopics([]);
     setSubscriptions([]);
     setSelectedResource(null);
     setError('');
     setLoadingResources(true);
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:293',message:'State cleared, setLoadingResources(true)',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
 
     try {
       // Reload status first to get the new connection state
       // This ensures we have the latest connection info
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:299',message:'BEFORE GetConnectionStatus call',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       const newStatus = await GetConnectionStatus();
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:302',message:'AFTER GetConnectionStatus call',data:{isConnected:newStatus?.isConnected,projectId:newStatus?.projectId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setStatus(newStatus);
 
       // If connected, reload resources for the new project
       if (newStatus.isConnected) {
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:307',message:'Connection is active, waiting 300ms',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         // Small delay to ensure backend connection is fully established
         await new Promise(resolve => setTimeout(resolve, 300));
 
         // Verify we're still connected before loading resources
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:312',message:'BEFORE verify GetConnectionStatus',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         const verifyStatus = await GetConnectionStatus();
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:315',message:'AFTER verify GetConnectionStatus',data:{isConnected:verifyStatus?.isConnected,projectId:verifyStatus?.projectId,matches:verifyStatus?.isConnected&&verifyStatus?.projectId===newStatus?.projectId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         if (verifyStatus.isConnected && verifyStatus.projectId === newStatus.projectId) {
+          // #region agent log
+          fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:318',message:'BEFORE loadResources call',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           await loadResources();
+          // #region agent log
+          fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:320',message:'AFTER loadResources call',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
         } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:322',message:'Connection changed during switch, skipping loadResources',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           console.warn('Connection changed during profile switch, skipping resource load');
         }
       }
 
       // Reload profiles to update active status
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:329',message:'BEFORE loadProfiles call',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       await loadProfiles();
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:331',message:'AFTER loadProfiles call',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setProfileRefreshTrigger(prev => prev + 1); // Trigger dropdown refresh
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:333',message:'setProfileRefreshTrigger called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
     } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:335',message:'handleProfileSwitch CATCH - error',data:{error:e?.toString(),errorMessage:e?.message,errorStack:e?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+      // #endregion
       console.error('Failed to reload after profile switch:', e);
       setError('Failed to reload resources: ' + e.toString());
       // Ensure resources are cleared on error
       setTopics([]);
       setSubscriptions([]);
     } finally {
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/84dfe245-094d-4806-959e-d240121bdc93',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:343',message:'handleProfileSwitch FINALLY - setLoadingResources(false)',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setLoadingResources(false);
     }
   };
@@ -468,6 +515,19 @@ function App() {
           setEditingSubscription(null);
           setSubscriptionDialogMode('create');
           setShowSubscriptionDialog(true);
+          setShowCommandBar(false);
+        },
+      },
+      {
+        id: 'create-from-template',
+        type: 'action',
+        label: 'Create from Template',
+        description: 'Create topic and subscriptions from a template',
+        keywords: ['create', 'template', 'from', 'wizard'],
+        icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+        shortcut: formatShortcut({ key: 't', ctrlOrCmd: true }),
+        execute: () => {
+          setShowTemplateSelector(true);
           setShowCommandBar(false);
         },
       },
@@ -741,6 +801,17 @@ function App() {
       <SettingsDialog
         open={showSettingsDialog}
         onClose={() => setShowSettingsDialog(false)}
+      />
+
+      <TemplateSelector
+        open={showTemplateSelector}
+        onClose={() => {
+          setShowTemplateSelector(false);
+          setError('');
+        }}
+        onSuccess={() => {
+          loadResources();
+        }}
       />
 
       <CommandBar

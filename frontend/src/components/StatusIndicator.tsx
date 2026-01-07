@@ -8,8 +8,8 @@ export default function StatusIndicator({ status, projectId }: StatusIndicatorPr
     switch (status) {
       case 'connected':
         return {
-          color: 'text-green-400',
-          bgColor: 'bg-green-500',
+          color: 'var(--color-success)',
+          bgColor: 'var(--color-success)',
           text: 'Connected',
           icon: (
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -23,8 +23,8 @@ export default function StatusIndicator({ status, projectId }: StatusIndicatorPr
         };
       case 'emulator':
         return {
-          color: 'text-orange-500',
-          bgColor: 'bg-orange-500',
+          color: 'var(--color-orange)',
+          bgColor: 'var(--color-orange)',
           text: 'Emulator',
           icon: (
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -38,8 +38,8 @@ export default function StatusIndicator({ status, projectId }: StatusIndicatorPr
         };
       case 'connecting':
         return {
-          color: 'text-yellow-400',
-          bgColor: 'bg-yellow-500',
+          color: 'var(--color-warning)',
+          bgColor: 'var(--color-warning)',
           text: 'Connecting...',
           icon: (
             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -54,8 +54,8 @@ export default function StatusIndicator({ status, projectId }: StatusIndicatorPr
         };
       default:
         return {
-          color: 'text-red-400',
-          bgColor: 'bg-red-500',
+          color: 'var(--color-error)',
+          bgColor: 'var(--color-error)',
           text: 'Disconnected',
           icon: (
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -73,15 +73,36 @@ export default function StatusIndicator({ status, projectId }: StatusIndicatorPr
   const config = getStatusConfig();
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-slate-700 rounded-md">
-      <div className={`flex items-center justify-center ${config.color}`} aria-hidden="true">
+    <div
+      className="flex items-center gap-2 px-3 py-2 rounded-md"
+      style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
+    >
+      <div
+        className="flex items-center justify-center"
+        style={{ color: config.color }}
+        aria-hidden="true"
+      >
         {config.icon}
       </div>
-      <div className={`w-2 h-2 rounded-full ${config.bgColor}`} aria-hidden="true" />
+      <div
+        className="w-2 h-2 rounded-full"
+        style={{ backgroundColor: config.bgColor }}
+        aria-hidden="true"
+      />
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium truncate ${config.color}`}>{config.text}</p>
+        <p
+          className="text-sm font-medium truncate"
+          style={{ color: config.color }}
+        >
+          {config.text}
+        </p>
         {projectId && (
-          <p className="text-xs text-slate-400 truncate">{projectId}</p>
+          <p
+            className="text-xs truncate"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            {projectId}
+          </p>
         )}
       </div>
     </div>

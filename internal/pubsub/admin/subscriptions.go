@@ -213,6 +213,37 @@ type SubscriptionUpdateParams struct {
 	SubscriptionType  *string               `json:"subscriptionType,omitempty"` // "pull" or "push"
 }
 
+// SubscriptionConfig represents full subscription configuration for template-based creation
+type SubscriptionConfig struct {
+	AckDeadline       int                   `json:"ackDeadline"`                 // Ack deadline in seconds (10-600)
+	RetentionDuration string                `json:"retentionDuration,omitempty"` // e.g., "7d"
+	ExpirationPolicy  *ExpirationPolicy     `json:"expirationPolicy,omitempty"`  // Auto-delete after idle
+	RetryPolicy       *RetryPolicy          `json:"retryPolicy,omitempty"`       // Retry configuration
+	EnableOrdering    bool                  `json:"enableOrdering"`              // Enable message ordering
+	EnableExactlyOnce bool                  `json:"enableExactlyOnce"`           // Enable exactly-once delivery
+	Filter            string                `json:"filter,omitempty"`            // Message filter expression
+	PushConfig        *PushConfig           `json:"pushConfig,omitempty"`        // Push subscription config
+	DeadLetterPolicy  *DeadLetterPolicyInfo `json:"deadLetterPolicy,omitempty"`  // Dead letter policy
+	Labels            map[string]string     `json:"labels,omitempty"`            // Subscription labels
+}
+
+// ExpirationPolicy represents subscription expiration policy
+type ExpirationPolicy struct {
+	TTL string `json:"ttl"` // Time to live, e.g., "24h"
+}
+
+// RetryPolicy represents subscription retry policy
+type RetryPolicy struct {
+	MinimumBackoff string `json:"minimumBackoff"` // e.g., "10s"
+	MaximumBackoff string `json:"maximumBackoff"` // e.g., "600s"
+}
+
+// PushConfig represents push subscription configuration
+type PushConfig struct {
+	Endpoint   string            `json:"endpoint"`             // Push endpoint URL
+	Attributes map[string]string `json:"attributes,omitempty"` // Push attributes
+}
+
 // UpdateSubscriptionAdmin updates a subscription's configuration
 func UpdateSubscriptionAdmin(ctx context.Context, client *pubsub.Client, projectID, subID string, params SubscriptionUpdateParams) error {
 	// Normalize subscription ID
@@ -303,6 +334,128 @@ func UpdateSubscriptionAdmin(ctx context.Context, client *pubsub.Client, project
 	_, err = client.SubscriptionAdminClient.UpdateSubscription(ctx, updateReq)
 	if err != nil {
 		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	return nil
+}
+
+// CreateSubscriptionWithConfig creates a new subscription with full configuration support
+func CreateSubscriptionWithConfig(ctx context.Context, client *pubsub.Client, projectID, topicID, subID string, config SubscriptionConfig) error {
+	// Normalize subscription ID (extract short name if full path provided)
+	shortSubID := subID
+	if strings.HasPrefix(subID, "projects/") {
+		parts := strings.Split(subID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "subscriptions" {
+			shortSubID = parts[3]
+		}
+	}
+
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
+
+	// Build full resource names
+	subName := "projects/" + projectID + "/subscriptions/" + shortSubID
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Verify topic exists before creating subscription
+	topicReq := &pubsubpb.GetTopicRequest{
+		Topic: topicName,
+	}
+	_, err := client.TopicAdminClient.GetTopic(ctx, topicReq)
+	if err != nil {
+		return fmt.Errorf("topic %s does not exist or you don't have permission to access it: %w", topicName, err)
+	}
+
+	// Create subscription using Subscription object directly (v2 API pattern)
+	req := &pubsubpb.Subscription{
+		Name:  subName,
+		Topic: topicName,
+	}
+
+	// Set ack deadline
+	req.AckDeadlineSeconds = int32(config.AckDeadline)
+
+	// Set retention duration if provided
+	if config.RetentionDuration != "" {
+		duration, err := time.ParseDuration(config.RetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid retention duration format: %w", err)
+		}
+		req.MessageRetentionDuration = durationpb.New(duration)
+	}
+
+	// Set expiration policy if provided
+	if config.ExpirationPolicy != nil && config.ExpirationPolicy.TTL != "" {
+		ttl, err := time.ParseDuration(config.ExpirationPolicy.TTL)
+		if err != nil {
+			return fmt.Errorf("invalid expiration policy TTL format: %w", err)
+		}
+		req.ExpirationPolicy = &pubsubpb.ExpirationPolicy{
+			Ttl: durationpb.New(ttl),
+		}
+	}
+
+	// Set retry policy if provided
+	if config.RetryPolicy != nil {
+		minBackoff, err := time.ParseDuration(config.RetryPolicy.MinimumBackoff)
+		if err != nil {
+			return fmt.Errorf("invalid minimum backoff format: %w", err)
+		}
+		maxBackoff, err := time.ParseDuration(config.RetryPolicy.MaximumBackoff)
+		if err != nil {
+			return fmt.Errorf("invalid maximum backoff format: %w", err)
+		}
+		req.RetryPolicy = &pubsubpb.RetryPolicy{
+			MinimumBackoff: durationpb.New(minBackoff),
+			MaximumBackoff: durationpb.New(maxBackoff),
+		}
+	}
+
+	// Set enable ordering
+	req.EnableMessageOrdering = config.EnableOrdering
+
+	// Set exactly-once delivery
+	req.EnableExactlyOnceDelivery = config.EnableExactlyOnce
+
+	// Set filter if provided
+	if config.Filter != "" {
+		req.Filter = config.Filter
+	}
+
+	// Set push config if provided
+	if config.PushConfig != nil && config.PushConfig.Endpoint != "" {
+		req.PushConfig = &pubsubpb.PushConfig{
+			PushEndpoint: config.PushConfig.Endpoint,
+		}
+		if len(config.PushConfig.Attributes) > 0 {
+			req.PushConfig.Attributes = config.PushConfig.Attributes
+		}
+	}
+
+	// Set dead letter policy if provided
+	if config.DeadLetterPolicy != nil {
+		req.DeadLetterPolicy = &pubsubpb.DeadLetterPolicy{
+			MaxDeliveryAttempts: int32(config.DeadLetterPolicy.MaxDeliveryAttempts),
+		}
+		if config.DeadLetterPolicy.DeadLetterTopic != "" {
+			req.DeadLetterPolicy.DeadLetterTopic = config.DeadLetterPolicy.DeadLetterTopic
+		}
+	}
+
+	// Set labels if provided
+	if len(config.Labels) > 0 {
+		req.Labels = config.Labels
+	}
+
+	_, err = client.SubscriptionAdminClient.CreateSubscription(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to create subscription %s for topic %s: %w. Ensure you have 'pubsub.subscriptions.create' permission", subName, topicName, err)
 	}
 
 	return nil

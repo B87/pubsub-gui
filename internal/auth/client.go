@@ -3,7 +3,9 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"cloud.google.com/go/pubsub/v2"
 )
@@ -52,8 +54,23 @@ func (cm *ClientManager) SetClient(client *pubsub.Client, projectID string) erro
 
 	// Close existing client if any
 	if cm.client != nil {
-		if err := cm.client.Close(); err != nil {
-			return err
+		oldClient := cm.client
+		// Close old client in a goroutine with timeout to prevent blocking
+		// if gRPC connections are stuck in IO wait
+		done := make(chan error, 1)
+		go func() {
+			done <- oldClient.Close()
+		}()
+
+		select {
+		case err := <-done:
+			// Log error but don't fail - old client will be cleaned up by GC
+			if err != nil {
+				fmt.Printf("Warning: error closing old client in SetClient: %v\n", err)
+			}
+		case <-time.After(2 * time.Second):
+			// Timeout - log warning but continue (old client will be cleaned up by GC)
+			fmt.Printf("Warning: timeout closing old client in SetClient (gRPC connections may be stuck)\n")
 		}
 	}
 
@@ -64,6 +81,7 @@ func (cm *ClientManager) SetClient(client *pubsub.Client, projectID string) erro
 }
 
 // Close closes the active Pub/Sub client connection
+// Uses a timeout to prevent blocking if gRPC connections are stuck
 func (cm *ClientManager) Close() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -72,9 +90,23 @@ func (cm *ClientManager) Close() error {
 		return nil
 	}
 
-	err := cm.client.Close()
+	client := cm.client
 	cm.client = nil
 	cm.projectID = ""
 
-	return err
+	// Close client in a goroutine with timeout to prevent blocking
+	// if gRPC connections are stuck in IO wait
+	done := make(chan error, 1)
+	go func() {
+		done <- client.Close()
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(2 * time.Second):
+		// Timeout - client close is taking too long, likely due to stuck gRPC connections
+		// Log warning but don't block - connections will be cleaned up by GC
+		return fmt.Errorf("timeout closing client (gRPC connections may be stuck)")
+	}
 }

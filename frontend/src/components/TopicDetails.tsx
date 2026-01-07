@@ -7,6 +7,7 @@ import TopicMonitor from './TopicMonitor';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 import JsonEditor from './JsonEditor';
 import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
+import { Alert, AlertTitle, AlertDescription } from './ui';
 
 interface TopicDetailsProps {
   topic: Topic;
@@ -589,20 +590,22 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
 
             {/* Error Display */}
             {error && (
-              <div className="p-4 bg-red-900/20 border border-red-700 rounded text-red-400">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
             {/* Success Display */}
             {publishResult && (
-              <div className="p-4 bg-green-900/20 border border-green-700 rounded">
-                <p className="text-green-400 font-semibold mb-2">Message published successfully!</p>
-                <div className="space-y-1 text-sm text-green-300">
-                  <p>Message ID: <code className="bg-slate-900 px-2 py-1 rounded">{publishResult.messageId}</code></p>
-                  <p>Published at: {new Date(publishResult.timestamp).toLocaleString()}</p>
-                </div>
-              </div>
+              <Alert variant="success">
+                <AlertTitle>Message published successfully!</AlertTitle>
+                <AlertDescription>
+                  <div className="space-y-1 text-sm">
+                    <p>Message ID: <code style={{ backgroundColor: 'var(--color-bg-code)' }} className="px-2 py-1 rounded">{publishResult.messageId}</code></p>
+                    <p>Published at: {new Date(publishResult.timestamp).toLocaleString()}</p>
+                  </div>
+                </AlertDescription>
+              </Alert>
             )}
 
             {/* Action Buttons */}
@@ -729,9 +732,9 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                   <div className="text-slate-400">Loading subscriptions...</div>
                 </div>
               ) : relationsError ? (
-                <div className="p-4 bg-red-900/20 border border-red-700 rounded text-red-400">
-                  {relationsError}
-                </div>
+                <Alert variant="destructive">
+                  <AlertDescription>{relationsError}</AlertDescription>
+                </Alert>
               ) : (subscriptions?.length ?? 0) === 0 ? (
                 <div className="text-center py-8">
                   <svg className="w-12 h-12 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

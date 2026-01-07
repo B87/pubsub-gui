@@ -1,5 +1,26 @@
 import { useState, useEffect } from 'react';
 import type { Topic, Subscription, SubscriptionUpdateParams } from '../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Button,
+  FormField,
+  Input,
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+  RadioGroup,
+  RadioGroupItem,
+  Label,
+  Alert,
+  AlertDescription,
+  Separator,
+} from './ui';
 
 interface SubscriptionDialogProps {
   open: boolean;
@@ -62,8 +83,6 @@ export default function SubscriptionDialog({
     }
     setError('');
   }, [mode, subscription, open]);
-
-  if (!open) return null;
 
   const handleSave = async () => {
     setError('');
@@ -140,221 +159,190 @@ export default function SubscriptionDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-semibold mb-4">
-          {mode === 'create' ? 'Create Subscription' : 'Edit Subscription'}
-        </h3>
+    <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === 'create' ? 'Create Subscription' : 'Edit Subscription'}
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="space-y-4">
           {/* Subscription ID (create only) */}
           {mode === 'create' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
-                Subscription ID *
-              </label>
-              <input
+            <FormField
+              label="Subscription ID"
+              required
+              helperText="Only lowercase letters, numbers, hyphens, and underscores allowed"
+            >
+              <Input
                 type="text"
                 value={subID}
                 onChange={(e) => setSubID(e.target.value)}
                 placeholder="my-subscription"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
                 disabled={isSaving}
               />
-              <p className="text-xs text-slate-500 mt-1">
-                Only lowercase letters, numbers, hyphens, and underscores allowed
-              </p>
-            </div>
+            </FormField>
           )}
 
           {/* Topic selector (create only) */}
           {mode === 'create' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
-                Topic *
-              </label>
-              <select
-                value={topicID}
-                onChange={(e) => setTopicID(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isSaving}
-              >
-                <option value="">Select a topic...</option>
-                {topics.map((topic) => (
-                  <option key={topic.name} value={topic.name}>
-                    {topic.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FormField label="Topic" required>
+              <Select value={topicID} onValueChange={setTopicID} disabled={isSaving}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a topic..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {topics.map((topic) => (
+                    <SelectItem key={topic.name} value={topic.name}>
+                      {topic.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
           )}
 
           {/* Ack Deadline */}
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
-              Acknowledgement Deadline (seconds) *
-            </label>
-            <input
+          <FormField
+            label="Acknowledgement Deadline (seconds)"
+            required
+            helperText="Between 10 and 600 seconds"
+          >
+            <Input
               type="number"
               value={ackDeadline}
               onChange={(e) => setAckDeadline(e.target.value)}
               min="10"
               max="600"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSaving}
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Between 10 and 600 seconds
-            </p>
-          </div>
+          </FormField>
 
           {/* Retention Duration */}
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
-              Message Retention Duration (Optional)
-            </label>
-            <input
+          <FormField label="Message Retention Duration (Optional)">
+            <Input
               type="text"
               value={retentionDuration}
               onChange={(e) => setRetentionDuration(e.target.value)}
               placeholder="e.g., 7d, 24h"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSaving}
             />
-          </div>
+          </FormField>
 
           {/* Filter */}
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
-              Filter Expression (Optional)
-            </label>
-            <input
+          <FormField
+            label="Filter Expression (Optional)"
+            helperText="Pub/Sub filter expression syntax"
+          >
+            <Input
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="attributes.event_type = 'user.signup'"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSaving}
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Pub/Sub filter expression syntax
-            </p>
-          </div>
+          </FormField>
 
           {/* Subscription Type */}
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
-              Subscription Type *
-            </label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  value="pull"
-                  checked={subscriptionType === 'pull'}
-                  onChange={(e) => {
-                    setSubscriptionType('pull');
-                    setPushEndpoint('');
-                  }}
-                  disabled={isSaving}
-                  className="w-4 h-4"
-                />
-                <span>Pull</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  value="push"
-                  checked={subscriptionType === 'push'}
-                  onChange={(e) => setSubscriptionType('push')}
-                  disabled={isSaving}
-                  className="w-4 h-4"
-                />
-                <span>Push</span>
-              </label>
-            </div>
-          </div>
+          <FormField label="Subscription Type" required>
+            <RadioGroup
+              value={subscriptionType}
+              onValueChange={(value) => {
+                setSubscriptionType(value as 'pull' | 'push');
+                if (value === 'pull') {
+                  setPushEndpoint('');
+                }
+              }}
+              disabled={isSaving}
+              className="flex gap-4"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="pull" id="pull" />
+                <Label htmlFor="pull" className="cursor-pointer">Pull</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="push" id="push" />
+                <Label htmlFor="push" className="cursor-pointer">Push</Label>
+              </div>
+            </RadioGroup>
+          </FormField>
 
           {/* Push Endpoint */}
           {subscriptionType === 'push' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
-                Push Endpoint URL *
-              </label>
-              <input
+            <FormField label="Push Endpoint URL" required>
+              <Input
                 type="url"
                 value={pushEndpoint}
                 onChange={(e) => setPushEndpoint(e.target.value)}
                 placeholder="https://example.com/webhook"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isSaving}
               />
-            </div>
+            </FormField>
           )}
 
           {/* Dead Letter Policy */}
-          <div className="border-t border-slate-700 pt-4">
-            <h4 className="text-sm font-medium text-slate-400 mb-3">Dead Letter Policy (Optional)</h4>
+          <div className="pt-4">
+            <Separator className="mb-4" />
+            <h4
+              className="text-sm font-medium mb-3"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              Dead Letter Policy (Optional)
+            </h4>
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  Dead Letter Topic
-                </label>
-                <select
-                  value={deadLetterTopic}
-                  onChange={(e) => setDeadLetterTopic(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <FormField label="Dead Letter Topic">
+                <Select
+                  value={deadLetterTopic || 'none'}
+                  onValueChange={(value) => setDeadLetterTopic(value === 'none' ? '' : value)}
                   disabled={isSaving}
                 >
-                  <option value="">Select a topic...</option>
-                  {topics.map((topic) => (
-                    <option key={topic.name} value={topic.name}>
-                      {topic.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  Max Delivery Attempts
-                </label>
-                <input
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a topic..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {topics.map((topic) => (
+                      <SelectItem key={topic.name} value={topic.name}>
+                        {topic.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Max Delivery Attempts">
+                <Input
                   type="number"
                   value={maxDeliveryAttempts}
                   onChange={(e) => setMaxDeliveryAttempts(e.target.value)}
                   min="1"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isSaving}
                 />
-              </div>
+              </FormField>
             </div>
           </div>
 
           {(error || externalError) && (
-            <div className="p-3 bg-red-900/20 border border-red-700 rounded text-red-400 text-sm">
-              {error || externalError}
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error || externalError}</AlertDescription>
+            </Alert>
           )}
 
-          <div className="flex gap-3 justify-end pt-4 border-t border-slate-700">
-            <button
-              onClick={handleClose}
-              disabled={isSaving}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700 disabled:opacity-50 rounded transition-colors"
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={handleClose} disabled={isSaving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={isSaving || (mode === 'create' && (!subID.trim() || !topicID))}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded transition-colors"
+              loading={isSaving}
             >
-              {isSaving ? 'Saving...' : mode === 'create' ? 'Create' : 'Save'}
-            </button>
-          </div>
+              {mode === 'create' ? 'Create' : 'Save'}
+            </Button>
+          </DialogFooter>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
