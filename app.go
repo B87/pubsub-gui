@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/pubsub/v2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"pubsub-gui/internal/app"
@@ -399,7 +400,13 @@ func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error {
 func (a *App) Disconnect() error {
 	a.stopAllMonitors()
 	time.Sleep(100 * time.Millisecond) // Give monitors a brief moment to start stopping
-	a.cleanupTemporarySubscriptions()
+
+	// Capture client and projectID BEFORE Close() to avoid race condition
+	// The cleanup goroutine will use these captured values
+	client := a.clientManager.GetClient()
+	projectID := a.clientManager.GetProjectID()
+
+	a.cleanupTemporarySubscriptions(client, projectID)
 	a.clearResourceStore()
 	a.stopUpgradeCheck()
 	return a.clientManager.Close()
@@ -434,10 +441,9 @@ func (a *App) stopAllMonitors() {
 }
 
 // cleanupTemporarySubscriptions deletes temporary topic subscriptions asynchronously
-func (a *App) cleanupTemporarySubscriptions() {
+// client and projectID are passed in to ensure they are captured before Close() is called
+func (a *App) cleanupTemporarySubscriptions(client *pubsub.Client, projectID string) {
 	a.monitorsMu.Lock()
-	client := a.clientManager.GetClient()
-	projectID := a.clientManager.GetProjectID()
 	topicMonitorsCopy := make(map[string]string)
 	for k, v := range a.topicMonitors {
 		topicMonitorsCopy[k] = v
@@ -757,6 +763,14 @@ func (a *App) CreateFromTemplate(request models.TemplateCreateRequest) (models.T
 			Success: false,
 			Error:   err.Error(),
 		}, err
+	}
+
+	// Defensive check: ensure result is not nil before dereferencing
+	if result == nil {
+		return models.TemplateCreateResult{
+			Success: false,
+			Error:   "internal error: CreateFromTemplate returned nil result",
+		}, fmt.Errorf("CreateFromTemplate returned nil result")
 	}
 
 	// If successful, trigger resource sync and emit event
