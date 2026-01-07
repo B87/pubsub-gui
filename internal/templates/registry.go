@@ -54,7 +54,8 @@ func (r *Registry) ListTemplates() []*models.TopicSubscriptionTemplate {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var templates []*models.TopicSubscriptionTemplate
+	templates := make([]*models.TopicSubscriptionTemplate,
+		0, len(r.builtInTemplates)+len(r.customTemplates))
 
 	// Add built-in templates
 	for _, template := range r.builtInTemplates {
@@ -74,7 +75,8 @@ func (r *Registry) ListTemplatesByCategory(category string) []*models.TopicSubsc
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var templates []*models.TopicSubscriptionTemplate
+	templates := make([]*models.TopicSubscriptionTemplate,
+		0, len(r.builtInTemplates)+len(r.customTemplates))
 
 	// Check built-in templates
 	for _, template := range r.builtInTemplates {
