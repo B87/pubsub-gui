@@ -12,22 +12,22 @@ interface TemplateDialogProps {
 export default function TemplateDialog({ template, onSave, onClose, error: externalError }: TemplateDialogProps) {
   const isEdit = !!template;
   const [formData, setFormData] = useState({
-    id: template?.id || '',
-    name: template?.name || '',
-    description: template?.description || '',
-    category: (template?.category || 'production') as 'production' | 'development' | 'specialized',
+    id: template?.id ?? '',
+    name: template?.name ?? '',
+    description: template?.description ?? '',
+    category: (template?.category ?? 'production') as 'production' | 'development' | 'specialized',
     // Topic config
-    topicRetention: template?.topic?.messageRetentionDuration || '',
+    topicRetention: template?.topic?.messageRetentionDuration ?? '',
     // Subscription config (first subscription)
-    subscriptionName: template?.subscriptions?.[0]?.name || 'sub',
-    ackDeadline: template?.subscriptions?.[0]?.ackDeadline || 30,
-    retentionDuration: template?.subscriptions?.[0]?.retentionDuration || '',
-    enableExactlyOnce: template?.subscriptions?.[0]?.enableExactlyOnce || false,
-    enableOrdering: template?.subscriptions?.[0]?.enableOrdering || false,
-    filter: template?.subscriptions?.[0]?.filter || '',
+    subscriptionName: template?.subscriptions?.[0]?.name ?? 'sub',
+    ackDeadline: template?.subscriptions?.[0]?.ackDeadline ?? 30,
+    retentionDuration: template?.subscriptions?.[0]?.retentionDuration ?? '',
+    enableExactlyOnce: template?.subscriptions?.[0]?.enableExactlyOnce ?? false,
+    enableOrdering: template?.subscriptions?.[0]?.enableOrdering ?? false,
+    filter: template?.subscriptions?.[0]?.filter ?? '',
     // Dead letter
     hasDeadLetter: !!template?.deadLetter,
-    maxDeliveryAttempts: template?.deadLetter?.maxDeliveryAttempts || 5,
+    maxDeliveryAttempts: template?.deadLetter?.maxDeliveryAttempts ?? 5,
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -39,15 +39,15 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
         name: template.name,
         description: template.description,
         category: template.category as 'production' | 'development' | 'specialized',
-        topicRetention: template.topic?.messageRetentionDuration || '',
-        subscriptionName: template.subscriptions?.[0]?.name || 'sub',
-        ackDeadline: template.subscriptions?.[0]?.ackDeadline || 30,
-        retentionDuration: template.subscriptions?.[0]?.retentionDuration || '',
-        enableExactlyOnce: template.subscriptions?.[0]?.enableExactlyOnce || false,
-        enableOrdering: template.subscriptions?.[0]?.enableOrdering || false,
-        filter: template.subscriptions?.[0]?.filter || '',
+        topicRetention: template.topic?.messageRetentionDuration ?? '',
+        subscriptionName: template.subscriptions?.[0]?.name ?? 'sub',
+        ackDeadline: template.subscriptions?.[0]?.ackDeadline ?? 30,
+        retentionDuration: template.subscriptions?.[0]?.retentionDuration ?? '',
+        enableExactlyOnce: template.subscriptions?.[0]?.enableExactlyOnce ?? false,
+        enableOrdering: template.subscriptions?.[0]?.enableOrdering ?? false,
+        filter: template.subscriptions?.[0]?.filter ?? '',
         hasDeadLetter: !!template.deadLetter,
-        maxDeliveryAttempts: template.deadLetter?.maxDeliveryAttempts || 5,
+        maxDeliveryAttempts: template.deadLetter?.maxDeliveryAttempts ?? 5,
       });
     } else {
       setFormData({
@@ -133,7 +133,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
   };
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>
@@ -158,7 +158,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                 <Input
                   type="text"
                   value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                  onChange={(e) => { setFormData({ ...formData, id: e.target.value }); }}
                   placeholder="e.g., my-custom-template"
                 />
               </FormField>
@@ -171,7 +171,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, name: e.target.value }); }}
                 placeholder="e.g., My Custom Template"
               />
             </FormField>
@@ -179,7 +179,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
             <FormField label="Description">
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, description: e.target.value }); }}
                 placeholder="Describe what this template is for..."
                 rows={3}
                 style={{
@@ -194,7 +194,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
             <FormField label="Category">
               <Select
                 value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value as any })}
+                onValueChange={(value) => { setFormData({ ...formData, category: value as any }); }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
@@ -218,7 +218,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Input
                 type="text"
                 value={formData.topicRetention}
-                onChange={(e) => setFormData({ ...formData, topicRetention: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, topicRetention: e.target.value }); }}
                 placeholder="e.g., 168h (7 days), 720h (30 days)"
               />
             </FormField>
@@ -231,7 +231,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Input
                 type="text"
                 value={formData.subscriptionName}
-                onChange={(e) => setFormData({ ...formData, subscriptionName: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, subscriptionName: e.target.value }); }}
                 placeholder="e.g., sub, worker, processor"
               />
             </FormField>
@@ -244,7 +244,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Input
                 type="number"
                 value={formData.ackDeadline}
-                onChange={(e) => setFormData({ ...formData, ackDeadline: parseInt(e.target.value) || 30 })}
+                onChange={(e) => { setFormData({ ...formData, ackDeadline: parseInt(e.target.value) || 30 }); }}
                 min={10}
                 max={600}
               />
@@ -254,7 +254,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Input
                 type="text"
                 value={formData.retentionDuration}
-                onChange={(e) => setFormData({ ...formData, retentionDuration: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, retentionDuration: e.target.value }); }}
                 placeholder="e.g., 7d, 24h"
               />
             </FormField>
@@ -264,7 +264,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                 <Checkbox
                   id="exactly-once"
                   checked={formData.enableExactlyOnce}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enableExactlyOnce: checked === true })}
+                  onCheckedChange={(checked) => { setFormData({ ...formData, enableExactlyOnce: checked === true }); }}
                 />
                 <Label htmlFor="exactly-once" className="text-sm">Enable Exactly-Once Delivery</Label>
               </div>
@@ -272,7 +272,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                 <Checkbox
                   id="ordering"
                   checked={formData.enableOrdering}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enableOrdering: checked === true })}
+                  onCheckedChange={(checked) => { setFormData({ ...formData, enableOrdering: checked === true }); }}
                 />
                 <Label htmlFor="ordering" className="text-sm">Enable Message Ordering</Label>
               </div>
@@ -282,7 +282,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Input
                 type="text"
                 value={formData.filter}
-                onChange={(e) => setFormData({ ...formData, filter: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, filter: e.target.value }); }}
                 placeholder="e.g., attributes.eventType = 'user.signup'"
               />
             </FormField>
@@ -294,7 +294,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
               <Checkbox
                 id="dead-letter"
                 checked={formData.hasDeadLetter}
-                onCheckedChange={(checked) => setFormData({ ...formData, hasDeadLetter: checked === true })}
+                onCheckedChange={(checked) => { setFormData({ ...formData, hasDeadLetter: checked === true }); }}
               />
               <Label htmlFor="dead-letter" className="font-medium">Enable Dead Letter Queue</Label>
             </div>
@@ -307,7 +307,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                 <Input
                   type="number"
                   value={formData.maxDeliveryAttempts}
-                  onChange={(e) => setFormData({ ...formData, maxDeliveryAttempts: parseInt(e.target.value) || 5 })}
+                  onChange={(e) => { setFormData({ ...formData, maxDeliveryAttempts: parseInt(e.target.value) || 5 }); }}
                   min={5}
                   max={100}
                 />

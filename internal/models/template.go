@@ -136,6 +136,23 @@ type TemplateCreateResult struct {
 
 // Validate validates a TopicSubscriptionTemplate
 func (t *TopicSubscriptionTemplate) Validate() error {
+	if err := t.validateBasicFields(); err != nil {
+		return err
+	}
+	if err := t.validateTopicConfig(); err != nil {
+		return err
+	}
+	if err := t.validateSubscriptions(); err != nil {
+		return err
+	}
+	if err := t.validateDeadLetterConfig(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateBasicFields validates ID, Name, and Subscriptions count
+func (t *TopicSubscriptionTemplate) validateBasicFields() error {
 	if strings.TrimSpace(t.ID) == "" {
 		return errors.New("template ID cannot be empty")
 	}
@@ -145,45 +162,75 @@ func (t *TopicSubscriptionTemplate) Validate() error {
 	if len(t.Subscriptions) == 0 {
 		return errors.New("template must have at least one subscription")
 	}
-	// Validate topic config
-	if t.Topic.MessageRetentionDuration != "" {
-		duration, err := time.ParseDuration(t.Topic.MessageRetentionDuration)
-		if err != nil {
-			return fmt.Errorf("invalid topic retention duration: %w", err)
-		}
-		minRetention := 10 * time.Minute
-		maxRetention := 31 * 24 * time.Hour
-		if duration < minRetention || duration > maxRetention {
-			return fmt.Errorf("topic retention must be between 10 minutes and 31 days")
-		}
+	return nil
+}
+
+// validateTopicConfig validates topic configuration
+func (t *TopicSubscriptionTemplate) validateTopicConfig() error {
+	if t.Topic.MessageRetentionDuration == "" {
+		return nil
 	}
-	// Validate subscriptions
+	duration, err := time.ParseDuration(t.Topic.MessageRetentionDuration)
+	if err != nil {
+		return fmt.Errorf("invalid topic retention duration: %w", err)
+	}
+	minRetention := 10 * time.Minute
+	maxRetention := 31 * 24 * time.Hour
+	if duration < minRetention || duration > maxRetention {
+		return fmt.Errorf("topic retention must be between 10 minutes and 31 days")
+	}
+	return nil
+}
+
+// validateSubscriptions validates all subscription configurations
+func (t *TopicSubscriptionTemplate) validateSubscriptions() error {
 	for i, sub := range t.Subscriptions {
-		if strings.TrimSpace(sub.Name) == "" {
-			return fmt.Errorf("subscription %d name cannot be empty", i)
-		}
-		if sub.AckDeadline < 10 || sub.AckDeadline > 600 {
-			return fmt.Errorf("subscription %d ack deadline must be between 10 and 600 seconds", i)
-		}
-		if sub.RetryPolicy != nil {
-			minBackoff, err := time.ParseDuration(sub.RetryPolicy.MinimumBackoff)
-			if err != nil {
-				return fmt.Errorf("subscription %d invalid minimum backoff: %w", i, err)
-			}
-			maxBackoff, err := time.ParseDuration(sub.RetryPolicy.MaximumBackoff)
-			if err != nil {
-				return fmt.Errorf("subscription %d invalid maximum backoff: %w", i, err)
-			}
-			if minBackoff >= maxBackoff {
-				return fmt.Errorf("subscription %d minimum backoff must be less than maximum backoff", i)
-			}
+		if err := t.validateSubscriptionConfig(i, sub); err != nil {
+			return err
 		}
 	}
-	// Validate dead letter config
-	if t.DeadLetter != nil {
-		if t.DeadLetter.MaxDeliveryAttempts < 5 || t.DeadLetter.MaxDeliveryAttempts > 100 {
-			return errors.New("dead letter max delivery attempts must be between 5 and 100")
+	return nil
+}
+
+// validateSubscriptionConfig validates a single subscription configuration
+func (t *TopicSubscriptionTemplate) validateSubscriptionConfig(index int, sub SubscriptionTemplateConfig) error {
+	if strings.TrimSpace(sub.Name) == "" {
+		return fmt.Errorf("subscription %d name cannot be empty", index)
+	}
+	if sub.AckDeadline < 10 || sub.AckDeadline > 600 {
+		return fmt.Errorf("subscription %d ack deadline must be between 10 and 600 seconds", index)
+	}
+	if sub.RetryPolicy != nil {
+		if err := t.validateRetryPolicy(index, sub.RetryPolicy); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// validateRetryPolicy validates retry policy configuration
+func (t *TopicSubscriptionTemplate) validateRetryPolicy(index int, policy *RetryPolicy) error {
+	minBackoff, err := time.ParseDuration(policy.MinimumBackoff)
+	if err != nil {
+		return fmt.Errorf("subscription %d invalid minimum backoff: %w", index, err)
+	}
+	maxBackoff, err := time.ParseDuration(policy.MaximumBackoff)
+	if err != nil {
+		return fmt.Errorf("subscription %d invalid maximum backoff: %w", index, err)
+	}
+	if minBackoff >= maxBackoff {
+		return fmt.Errorf("subscription %d minimum backoff must be less than maximum backoff", index)
+	}
+	return nil
+}
+
+// validateDeadLetterConfig validates dead letter configuration
+func (t *TopicSubscriptionTemplate) validateDeadLetterConfig() error {
+	if t.DeadLetter == nil {
+		return nil
+	}
+	if t.DeadLetter.MaxDeliveryAttempts < 5 || t.DeadLetter.MaxDeliveryAttempts > 100 {
+		return errors.New("dead letter max delivery attempts must be between 5 and 100")
 	}
 	return nil
 }
@@ -193,6 +240,14 @@ func (r *TemplateCreateRequest) Validate() error {
 	if strings.TrimSpace(r.TemplateID) == "" {
 		return errors.New("template ID cannot be empty")
 	}
+	if err := r.validateBaseName(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateBaseName validates the base name format
+func (r *TemplateCreateRequest) validateBaseName() error {
 	if strings.TrimSpace(r.BaseName) == "" {
 		return errors.New("base name cannot be empty")
 	}
@@ -201,10 +256,23 @@ func (r *TemplateCreateRequest) Validate() error {
 	if baseName != r.BaseName {
 		return errors.New("base name must be lowercase")
 	}
+	if err := r.validateBaseNameCharacters(baseName); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateBaseNameCharacters validates that base name contains only allowed characters
+func (r *TemplateCreateRequest) validateBaseNameCharacters(baseName string) error {
 	for _, char := range baseName {
-		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-') {
+		if !r.isValidBaseNameChar(char) {
 			return errors.New("base name must contain only lowercase letters, numbers, and hyphens")
 		}
 	}
 	return nil
+}
+
+// isValidBaseNameChar checks if a character is valid for base name
+func (r *TemplateCreateRequest) isValidBaseNameChar(char rune) bool {
+	return (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-'
 }
