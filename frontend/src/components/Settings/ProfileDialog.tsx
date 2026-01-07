@@ -197,7 +197,8 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
                       e.preventDefault();
                       window.open('https://console.cloud.google.com/apis/credentials', '_blank');
                     }}
-                    className="text-blue-400 hover:underline"
+                    style={{ color: 'var(--link-color)' }}
+                    className="hover:underline"
                   >
                     GCP Console - APIs & Services - Credentials
                   </a>

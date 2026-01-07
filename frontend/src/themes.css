@@ -64,6 +64,9 @@
 
   --color-orange: #f97316;          /* orange-500 */
 
+  /* Link color */
+  --link-color: var(--color-accent-light);  /* blue-400 for dark theme */
+
   /* Font sizes - Base (medium) */
   --font-size-xs: 0.75rem;      /* 12px */
   --font-size-sm: 0.875rem;     /* 14px */
@@ -163,6 +166,9 @@
 
   --color-orange: #ea580c;          /* orange-600 */
 
+  /* Link color */
+  --link-color: var(--color-accent-primary);  /* blue-500 for light theme */
+
   /* shadcn/ui CSS variables - mapped to theme system */
   --background: var(--color-bg-primary);
   --foreground: var(--color-text-primary);
@@ -245,6 +251,9 @@
 
   --color-orange: #ffb86c;          /* Dracula orange */
 
+  /* Link color */
+  --link-color: var(--color-accent-primary);  /* Dracula purple */
+
   /* shadcn/ui CSS variables - mapped to theme system */
   --background: var(--color-bg-primary);
   --foreground: var(--color-text-primary);
@@ -326,6 +335,9 @@
   --color-purple-border: #9965f4;
 
   --color-orange: #fd971f;          /* Monokai orange */
+
+  /* Link color */
+  --link-color: var(--color-accent-primary);  /* Monokai cyan */
 
   /* shadcn/ui CSS variables - mapped to theme system */
   --background: var(--color-bg-primary);
@@ -415,6 +427,9 @@
     --color-purple-border: #6d28d9;
 
     --color-orange: #ea580c;
+
+    /* Link color */
+    --link-color: var(--color-accent-primary);  /* blue-500 for light theme (auto) */
 
     /* shadcn/ui CSS variables - mapped to theme system */
     --background: var(--color-bg-primary);
