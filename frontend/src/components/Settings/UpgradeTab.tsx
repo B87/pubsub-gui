@@ -86,21 +86,47 @@ export default function UpgradeTab({ saving }: UpgradeTabProps) {
   };
 
   const handleAutoCheckChange = async (enabled: boolean) => {
+    setError('');
+    const previousValue = autoCheckUpgrades;
+
+    // Optimistically update UI
     setAutoCheckUpgrades(enabled);
-    // Save immediately
-    const content = await GetConfigFileContent();
-    const config = JSON.parse(content);
-    config.autoCheckUpgrades = enabled;
-    await SaveConfigFileContent(JSON.stringify(config, null, 2));
+
+    try {
+      // Save immediately
+      const content = await GetConfigFileContent();
+      const config = JSON.parse(content);
+      config.autoCheckUpgrades = enabled;
+      await SaveConfigFileContent(JSON.stringify(config, null, 2));
+    } catch (e: any) {
+      // Revert state on error
+      setAutoCheckUpgrades(previousValue);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      setError('Failed to update auto-check setting: ' + errorMessage);
+      console.error('Failed to update auto-check upgrades setting:', e);
+    }
   };
 
   const handleIntervalChange = async (interval: number) => {
+    setError('');
+    const previousInterval = upgradeCheckInterval;
+
+    // Optimistically update UI
     setUpgradeCheckInterval(interval);
-    // Save immediately
-    const content = await GetConfigFileContent();
-    const config = JSON.parse(content);
-    config.upgradeCheckInterval = interval;
-    await SaveConfigFileContent(JSON.stringify(config, null, 2));
+
+    try {
+      // Save immediately
+      const content = await GetConfigFileContent();
+      const config = JSON.parse(content);
+      config.upgradeCheckInterval = interval;
+      await SaveConfigFileContent(JSON.stringify(config, null, 2));
+    } catch (e: any) {
+      // Revert state on error
+      setUpgradeCheckInterval(previousInterval);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      setError('Failed to update check interval: ' + errorMessage);
+      console.error('Failed to update upgrade check interval:', e);
+    }
   };
 
   const handleCheckNow = async () => {

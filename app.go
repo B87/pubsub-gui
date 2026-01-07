@@ -49,6 +49,8 @@ type App struct {
 	upgradeCheckMu     sync.Mutex
 	lastUpgradeCheck   time.Time
 	upgradeCheckTicker *time.Ticker
+	upgradeCheckTimer  *time.Timer
+	upgradeCheckDone   chan struct{}
 }
 
 // NewApp creates a new App application struct
@@ -233,22 +235,55 @@ func (a *App) StartPeriodicUpgradeCheck() {
 }
 
 // scheduleNextUpgradeCheck schedules the next upgrade check after the specified delay
-// Stops existing ticker if any, uses time.AfterFunc for delayed check, then starts periodic ticker
+// Stops existing ticker and timer if any, uses time.AfterFunc for delayed check, then starts periodic ticker
 func (a *App) scheduleNextUpgradeCheck(delay time.Duration) {
+	a.upgradeCheckMu.Lock()
+	defer a.upgradeCheckMu.Unlock()
+
 	// Stop existing ticker if running
 	if a.upgradeCheckTicker != nil {
 		a.upgradeCheckTicker.Stop()
 		a.upgradeCheckTicker = nil
 	}
 
+	// Stop existing timer if running
+	if a.upgradeCheckTimer != nil {
+		a.upgradeCheckTimer.Stop()
+		a.upgradeCheckTimer = nil
+	}
+
+	// Close existing done channel if any (to signal old goroutine to exit)
+	// Use select to avoid panicking if channel is already closed
+	if a.upgradeCheckDone != nil {
+		select {
+		case <-a.upgradeCheckDone:
+			// Already closed, do nothing
+		default:
+			close(a.upgradeCheckDone)
+		}
+	}
+
+	// Create fresh done channel for new goroutine
+	a.upgradeCheckDone = make(chan struct{})
+
+	// Store done channel in local variable for use in closure
+	done := a.upgradeCheckDone
+
 	// Use time.AfterFunc for the first delayed check
-	time.AfterFunc(delay, func() {
+	a.upgradeCheckTimer = time.AfterFunc(delay, func() {
 		// Perform check
 		a.performUpgradeCheck()
 
 		// After first check, start periodic ticker
 		a.upgradeCheckMu.Lock()
-		defer a.upgradeCheckMu.Unlock()
+
+		// Check if we should exit (done channel closed)
+		select {
+		case <-done:
+			a.upgradeCheckMu.Unlock()
+			return
+		default:
+		}
 
 		// Calculate interval for periodic checks
 		intervalHours := a.config.UpgradeCheckInterval
@@ -259,9 +294,20 @@ func (a *App) scheduleNextUpgradeCheck(delay time.Duration) {
 
 		// Start periodic ticker
 		a.upgradeCheckTicker = time.NewTicker(interval)
+		ticker := a.upgradeCheckTicker
+		a.upgradeCheckMu.Unlock()
+
+		// Run periodic goroutine with select to allow clean exit
 		go func() {
-			for range a.upgradeCheckTicker.C {
-				a.performUpgradeCheck()
+			for {
+				select {
+				case <-done:
+					// Exit when done channel is closed
+					return
+				case <-ticker.C:
+					// Perform periodic check
+					a.performUpgradeCheck()
+				}
 			}
 		}()
 	})
@@ -369,11 +415,25 @@ func (a *App) Disconnect() error {
 	a.subscriptions = []admin.SubscriptionInfo{}
 	a.resourceMu.Unlock()
 
-	// Stop upgrade check ticker if running
+	// Stop upgrade check ticker and timer if running, and signal goroutine to exit
 	a.upgradeCheckMu.Lock()
 	if a.upgradeCheckTicker != nil {
 		a.upgradeCheckTicker.Stop()
 		a.upgradeCheckTicker = nil
+	}
+	if a.upgradeCheckTimer != nil {
+		a.upgradeCheckTimer.Stop()
+		a.upgradeCheckTimer = nil
+	}
+	// Close done channel to signal goroutine to exit (only if not already closed)
+	if a.upgradeCheckDone != nil {
+		select {
+		case <-a.upgradeCheckDone:
+			// Already closed, do nothing
+		default:
+			close(a.upgradeCheckDone)
+		}
+		a.upgradeCheckDone = nil
 	}
 	a.upgradeCheckMu.Unlock()
 

@@ -1314,10 +1314,13 @@ func (c *Creator) CreateFromTemplate(ctx context.Context, req models.TemplateCre
         TopicID: topicName,
     }
 
+    // Assign overrides to local variable for nil-safe access
+    overrides := req.Overrides
+
     // Step 1: Create dead letter topic and subscription (if needed)
     var deadLetterTopicName string
     if template.DeadLetterConfig != nil && template.DeadLetterConfig.Enabled {
-        if !req.Overrides.DisableDeadLetter {
+        if overrides == nil || !overrides.DisableDeadLetter {
             dlTopicName, dlSubName, err := c.createDeadLetterResources(ctx, baseName, template.DeadLetterConfig)
             if err != nil {
                 return nil, fmt.Errorf("failed to create dead letter resources: %w", err)
@@ -1330,7 +1333,7 @@ func (c *Creator) CreateFromTemplate(ctx context.Context, req models.TemplateCre
     }
 
     // Step 2: Create main topic
-    if err := c.createTopic(ctx, topicName, &template.TopicConfig, req.Overrides); err != nil {
+    if err := c.createTopic(ctx, topicName, &template.TopicConfig, overrides); err != nil {
         return nil, fmt.Errorf("failed to create topic: %w", err)
     }
     result.ResourcesCreated++
@@ -1339,7 +1342,7 @@ func (c *Creator) CreateFromTemplate(ctx context.Context, req models.TemplateCre
     for _, subConfig := range template.SubscriptionConfigs {
         subName := fmt.Sprintf("%s-%s", baseName, subConfig.NameSuffix)
 
-        if err := c.createSubscription(ctx, topicName, subName, &subConfig, deadLetterTopicName, template.DeadLetterConfig, req.Overrides); err != nil {
+        if err := c.createSubscription(ctx, topicName, subName, &subConfig, deadLetterTopicName, template.DeadLetterConfig, overrides); err != nil {
             return nil, fmt.Errorf("failed to create subscription %s: %w", subName, err)
         }
 

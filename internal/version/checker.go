@@ -8,6 +8,15 @@ import (
 	hv "github.com/hashicorp/go-version"
 )
 
+// isDevBuild checks if the version string represents a dev build
+// Recognizes: "dev", "DEV", "dev-*", "*-dev" (case-insensitive)
+func isDevBuild(version string) bool {
+	lower := strings.ToLower(version)
+	return version == "dev" ||
+		strings.HasPrefix(lower, "dev") ||
+		strings.HasSuffix(lower, "-dev")
+}
+
 // CheckForUpdates checks if a newer version is available
 // Returns UpdateInfo with comparison results
 // Skips check for "dev" builds
@@ -15,7 +24,7 @@ func CheckForUpdates() (*UpdateInfo, error) {
 	currentVersion := GetVersion()
 
 	// Skip check for dev builds
-	if currentVersion == "dev" || strings.HasPrefix(strings.ToLower(currentVersion), "dev") {
+	if isDevBuild(currentVersion) {
 		return &UpdateInfo{
 			CurrentVersion:    currentVersion,
 			LatestVersion:     currentVersion,

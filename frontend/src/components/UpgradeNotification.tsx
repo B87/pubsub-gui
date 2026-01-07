@@ -8,10 +8,8 @@ import {
 } from '../wailsjs/go/main/App';
 import { version } from '../wailsjs/go/models';
 import type { UpdateInfo } from '../types/upgrade';
-import { useTheme } from '../hooks/useTheme';
 
 export default function UpgradeNotification() {
-  const { theme } = useTheme();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
