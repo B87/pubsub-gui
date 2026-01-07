@@ -217,16 +217,16 @@ type SubscriptionUpdateParams struct {
 
 // SubscriptionConfig represents full subscription configuration for template-based creation
 type SubscriptionConfig struct {
-	AckDeadline       int                          `json:"ackDeadline"`                 // Ack deadline in seconds (10-600)
-	RetentionDuration string                       `json:"retentionDuration,omitempty"` // e.g., "7d"
-	ExpirationPolicy  *models.ExpirationPolicy     `json:"expirationPolicy,omitempty"`  // Auto-delete after idle
-	RetryPolicy       *models.RetryPolicy          `json:"retryPolicy,omitempty"`       // Retry configuration
-	EnableOrdering    bool                         `json:"enableOrdering"`              // Enable message ordering
-	EnableExactlyOnce bool                         `json:"enableExactlyOnce"`           // Enable exactly-once delivery
-	Filter            string                       `json:"filter,omitempty"`            // Message filter expression
-	PushConfig        *models.PushConfig           `json:"pushConfig,omitempty"`        // Push subscription config
-	DeadLetterPolicy  *DeadLetterPolicyInfo        `json:"deadLetterPolicy,omitempty"`  // Dead letter policy
-	Labels            map[string]string            `json:"labels,omitempty"`            // Subscription labels
+	AckDeadline       int                      `json:"ackDeadline"`                 // Ack deadline in seconds (10-600)
+	RetentionDuration string                   `json:"retentionDuration,omitempty"` // e.g., "7d"
+	ExpirationPolicy  *models.ExpirationPolicy `json:"expirationPolicy,omitempty"`  // Auto-delete after idle
+	RetryPolicy       *models.RetryPolicy      `json:"retryPolicy,omitempty"`       // Retry configuration
+	EnableOrdering    bool                     `json:"enableOrdering"`              // Enable message ordering
+	EnableExactlyOnce bool                     `json:"enableExactlyOnce"`           // Enable exactly-once delivery
+	Filter            string                   `json:"filter,omitempty"`            // Message filter expression
+	PushConfig        *models.PushConfig       `json:"pushConfig,omitempty"`        // Push subscription config
+	DeadLetterPolicy  *DeadLetterPolicyInfo    `json:"deadLetterPolicy,omitempty"`  // Dead letter policy
+	Labels            map[string]string        `json:"labels,omitempty"`            // Subscription labels
 }
 
 // UpdateSubscriptionAdmin updates a subscription's configuration
