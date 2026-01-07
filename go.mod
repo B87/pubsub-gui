@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.3.0
+	github.com/hashicorp/go-version v1.6.0
 	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/oauth2 v0.34.0
 	google.golang.org/api v0.259.0

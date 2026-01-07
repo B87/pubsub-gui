@@ -116,7 +116,8 @@ jobs:
 
       - name: Build with Wails
         run: |
-          wails build -platform ${{ matrix.platform }} -clean
+          VERSION="${{ steps.version.outputs.version }}"
+          wails build -ldflags "-X main.version=$VERSION -X internal/version.Version=$VERSION" -platform ${{ matrix.platform }} -clean
 
       - name: Package artifacts (macOS/Linux)
         if: matrix.os != 'windows-latest'

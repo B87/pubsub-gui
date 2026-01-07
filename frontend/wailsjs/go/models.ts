@@ -249,3 +249,30 @@ export namespace subscriber {
 
 }
 
+export namespace version {
+	
+	export class UpdateInfo {
+	    currentVersion: string;
+	    latestVersion: string;
+	    releaseNotes: string;
+	    releaseUrl: string;
+	    publishedAt: string;
+	    isUpdateAvailable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.publishedAt = source["publishedAt"];
+	        this.isUpdateAvailable = source["isUpdateAvailable"];
+	    }
+	}
+
+}
+

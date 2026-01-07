@@ -23,13 +23,17 @@ type ConnectionProfile struct {
 
 // AppConfig represents the application configuration stored in ~/.pubsub-gui/config.json
 type AppConfig struct {
-	Profiles          []ConnectionProfile `json:"profiles"`
-	ActiveProfileID   string              `json:"activeProfileId,omitempty"`
-	MessageBufferSize int                 `json:"messageBufferSize"`
-	AutoAck           bool                `json:"autoAck"`
-	Theme             string              `json:"theme"`     // "light" | "dark" | "auto" | "dracula" | "monokai"
-	FontSize          string              `json:"fontSize"`  // "small" | "medium" | "large"
-	Templates         []MessageTemplate   `json:"templates"` // Message templates
+	Profiles                []ConnectionProfile `json:"profiles"`
+	ActiveProfileID         string              `json:"activeProfileId,omitempty"`
+	MessageBufferSize       int                 `json:"messageBufferSize"`
+	AutoAck                 bool                `json:"autoAck"`
+	Theme                   string              `json:"theme"`     // "light" | "dark" | "auto" | "dracula" | "monokai"
+	FontSize                string              `json:"fontSize"`  // "small" | "medium" | "large"
+	Templates               []MessageTemplate   `json:"templates"` // Message templates
+	AutoCheckUpgrades       bool                `json:"autoCheckUpgrades"`
+	UpgradeCheckInterval    int                 `json:"upgradeCheckInterval"` // hours
+	LastUpgradeCheck        time.Time           `json:"lastUpgradeCheck,omitempty"`
+	DismissedUpgradeVersion string              `json:"dismissedUpgradeVersion,omitempty"`
 }
 
 // Validate checks if the ConnectionProfile has all required fields
@@ -66,13 +70,17 @@ func (cp *ConnectionProfile) Validate() error {
 // NewDefaultConfig creates a new AppConfig with default values
 func NewDefaultConfig() *AppConfig {
 	return &AppConfig{
-		Profiles:          []ConnectionProfile{},
-		ActiveProfileID:   "",
-		MessageBufferSize: 500,
-		AutoAck:           true,
-		Theme:             "auto",
-		FontSize:          "medium",
-		Templates:         []MessageTemplate{},
+		Profiles:                []ConnectionProfile{},
+		ActiveProfileID:         "",
+		MessageBufferSize:       500,
+		AutoAck:                 true,
+		Theme:                   "auto",
+		FontSize:                "medium",
+		Templates:               []MessageTemplate{},
+		AutoCheckUpgrades:       true,
+		UpgradeCheckInterval:    24,
+		LastUpgradeCheck:        time.Time{},
+		DismissedUpgradeVersion: "",
 	}
 }
 

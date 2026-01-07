@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"pubsub-gui/internal/app"
 	"pubsub-gui/internal/auth"
@@ -14,6 +17,7 @@ import (
 	"pubsub-gui/internal/pubsub/admin"
 	"pubsub-gui/internal/pubsub/publisher"
 	"pubsub-gui/internal/pubsub/subscriber"
+	versionpkg "pubsub-gui/internal/version"
 )
 
 // App struct holds the application state and managers
@@ -40,6 +44,13 @@ type App struct {
 
 	// Application version
 	version string
+
+	// Upgrade check fields
+	upgradeCheckMu     sync.Mutex
+	lastUpgradeCheck   time.Time
+	upgradeCheckTicker *time.Ticker
+	upgradeCheckTimer  *time.Timer
+	upgradeCheckDone   chan struct{}
 }
 
 // NewApp creates a new App application struct
@@ -126,6 +137,9 @@ func (a *App) startup(ctx context.Context) {
 			}
 		}
 	}
+
+	// Start periodic upgrade checking
+	a.StartPeriodicUpgradeCheck()
 }
 
 // GetConnectionStatus returns the current connection status
@@ -144,6 +158,219 @@ func (a *App) GetVersion() string {
 		return "dev"
 	}
 	return a.version
+}
+
+// GetCurrentVersion returns the application version
+// This is an alias for GetVersion() to match the upgrade check API
+func (a *App) GetCurrentVersion() string {
+	return a.GetVersion()
+}
+
+// CheckForUpdates checks if a newer version is available
+// Updates lastUpgradeCheck timestamp and saves to config
+func (a *App) CheckForUpdates() (*versionpkg.UpdateInfo, error) {
+	// Set version in version package so CheckForUpdates can use it
+	versionpkg.SetVersion(a.GetVersion())
+
+	// Call version.CheckForUpdates()
+	updateInfo, err := versionpkg.CheckForUpdates()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for updates: %w", err)
+	}
+
+	// Update lastUpgradeCheck timestamp
+	a.upgradeCheckMu.Lock()
+	a.lastUpgradeCheck = time.Now()
+	if a.config != nil {
+		a.config.LastUpgradeCheck = a.lastUpgradeCheck
+	}
+	a.upgradeCheckMu.Unlock()
+
+	// Save config
+	if a.configManager != nil && a.config != nil {
+		if err := a.configManager.SaveConfig(a.config); err != nil {
+			// Log error but don't fail the check
+			fmt.Printf("Warning: failed to save last upgrade check time: %v\n", err)
+		}
+	}
+
+	return updateInfo, nil
+}
+
+// StartPeriodicUpgradeCheck starts the periodic upgrade checking mechanism
+// Checks if auto-check is enabled, calculates interval, and schedules checks
+func (a *App) StartPeriodicUpgradeCheck() {
+	a.upgradeCheckMu.Lock()
+	defer a.upgradeCheckMu.Unlock()
+
+	// Check if auto-check is enabled
+	if a.config == nil || !a.config.AutoCheckUpgrades {
+		return
+	}
+
+	// Calculate interval (default 24 hours)
+	intervalHours := a.config.UpgradeCheckInterval
+	if intervalHours <= 0 {
+		intervalHours = 24
+	}
+	interval := time.Duration(intervalHours) * time.Hour
+
+	// Check if enough time has passed since last check
+	lastCheck := a.config.LastUpgradeCheck
+	if !lastCheck.IsZero() {
+		timeSinceLastCheck := time.Since(lastCheck)
+		if timeSinceLastCheck < interval {
+			// Schedule next check for the remaining time
+			remainingTime := interval - timeSinceLastCheck
+			a.scheduleNextUpgradeCheck(remainingTime)
+			return
+		}
+	}
+
+	// Perform initial check immediately (in background)
+	go a.performUpgradeCheck()
+
+	// Schedule periodic checks
+	a.scheduleNextUpgradeCheck(interval)
+}
+
+// scheduleNextUpgradeCheck schedules the next upgrade check after the specified delay
+// Stops existing ticker and timer if any, uses time.AfterFunc for delayed check, then starts periodic ticker
+func (a *App) scheduleNextUpgradeCheck(delay time.Duration) {
+	a.upgradeCheckMu.Lock()
+	defer a.upgradeCheckMu.Unlock()
+
+	// Stop existing ticker if running
+	if a.upgradeCheckTicker != nil {
+		a.upgradeCheckTicker.Stop()
+		a.upgradeCheckTicker = nil
+	}
+
+	// Stop existing timer if running
+	if a.upgradeCheckTimer != nil {
+		a.upgradeCheckTimer.Stop()
+		a.upgradeCheckTimer = nil
+	}
+
+	// Close existing done channel if any (to signal old goroutine to exit)
+	// Use select to avoid panicking if channel is already closed
+	if a.upgradeCheckDone != nil {
+		select {
+		case <-a.upgradeCheckDone:
+			// Already closed, do nothing
+		default:
+			close(a.upgradeCheckDone)
+		}
+	}
+
+	// Create fresh done channel for new goroutine
+	a.upgradeCheckDone = make(chan struct{})
+
+	// Store done channel in local variable for use in closure
+	done := a.upgradeCheckDone
+
+	// Use time.AfterFunc for the first delayed check
+	a.upgradeCheckTimer = time.AfterFunc(delay, func() {
+		// Perform check
+		a.performUpgradeCheck()
+
+		// After first check, start periodic ticker
+		a.upgradeCheckMu.Lock()
+
+		// Check if we should exit (done channel closed)
+		select {
+		case <-done:
+			a.upgradeCheckMu.Unlock()
+			return
+		default:
+		}
+
+		// Calculate interval for periodic checks
+		intervalHours := a.config.UpgradeCheckInterval
+		if intervalHours <= 0 {
+			intervalHours = 24
+		}
+		interval := time.Duration(intervalHours) * time.Hour
+
+		// Start periodic ticker
+		a.upgradeCheckTicker = time.NewTicker(interval)
+		ticker := a.upgradeCheckTicker
+		a.upgradeCheckMu.Unlock()
+
+		// Run periodic goroutine with select to allow clean exit
+		go func() {
+			for {
+				select {
+				case <-done:
+					// Exit when done channel is closed
+					return
+				case <-ticker.C:
+					// Perform periodic check
+					a.performUpgradeCheck()
+				}
+			}
+		}()
+	})
+}
+
+// performUpgradeCheck performs an upgrade check and emits event if update is available
+// Calls CheckForUpdates() and emits upgrade:available event if update available and not dismissed
+func (a *App) performUpgradeCheck() {
+	updateInfo, err := a.CheckForUpdates()
+	if err != nil {
+		// Log error but don't notify user (silent failure)
+		fmt.Printf("Upgrade check failed: %v\n", err)
+		return
+	}
+
+	// Check if update is available and not dismissed
+	if updateInfo != nil && updateInfo.IsUpdateAvailable {
+		// Check if this version was already dismissed (with mutex protection)
+		a.upgradeCheckMu.Lock()
+		dismissedVersion := ""
+		if a.config != nil {
+			dismissedVersion = a.config.DismissedUpgradeVersion
+		}
+		a.upgradeCheckMu.Unlock()
+
+		if dismissedVersion == updateInfo.LatestVersion {
+			return
+		}
+
+		// Emit upgrade:available event
+		runtime.EventsEmit(a.ctx, "upgrade:available", updateInfo)
+	}
+}
+
+// DismissUpgradeNotification dismisses the upgrade notification for a specific version
+// Updates config with dismissed version and saves config
+func (a *App) DismissUpgradeNotification(version string) error {
+	if a.config == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	a.upgradeCheckMu.Lock()
+	a.config.DismissedUpgradeVersion = version
+	a.upgradeCheckMu.Unlock()
+
+	// Save config
+	if a.configManager != nil {
+		if err := a.configManager.SaveConfig(a.config); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// OpenReleasesPage opens the GitHub releases page in the default browser
+// Uses runtime.BrowserOpenURL(ctx, url) to open the URL
+func (a *App) OpenReleasesPage(url string) error {
+	if url == "" {
+		return fmt.Errorf("URL cannot be empty")
+	}
+	runtime.BrowserOpenURL(a.ctx, url)
+	return nil
 }
 
 // ConnectWithADC connects to Pub/Sub using Application Default Credentials
@@ -187,6 +414,28 @@ func (a *App) Disconnect() error {
 	a.topics = []admin.TopicInfo{}
 	a.subscriptions = []admin.SubscriptionInfo{}
 	a.resourceMu.Unlock()
+
+	// Stop upgrade check ticker and timer if running, and signal goroutine to exit
+	a.upgradeCheckMu.Lock()
+	if a.upgradeCheckTicker != nil {
+		a.upgradeCheckTicker.Stop()
+		a.upgradeCheckTicker = nil
+	}
+	if a.upgradeCheckTimer != nil {
+		a.upgradeCheckTimer.Stop()
+		a.upgradeCheckTimer = nil
+	}
+	// Close done channel to signal goroutine to exit (only if not already closed)
+	if a.upgradeCheckDone != nil {
+		select {
+		case <-a.upgradeCheckDone:
+			// Already closed, do nothing
+		default:
+			close(a.upgradeCheckDone)
+		}
+		a.upgradeCheckDone = nil
+	}
+	a.upgradeCheckMu.Unlock()
 
 	return a.clientManager.Close()
 }
