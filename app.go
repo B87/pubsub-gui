@@ -397,8 +397,16 @@ func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error {
 
 // Disconnect closes the current Pub/Sub connection
 func (a *App) Disconnect() error {
-	// Stop all active monitors before disconnecting
-	// Stop them asynchronously to avoid blocking if streamers are stuck
+	a.stopAllMonitors()
+	time.Sleep(100 * time.Millisecond) // Give monitors a brief moment to start stopping
+	a.cleanupTemporarySubscriptions()
+	a.clearResourceStore()
+	a.stopUpgradeCheck()
+	return a.clientManager.Close()
+}
+
+// stopAllMonitors stops all active monitors asynchronously to avoid blocking
+func (a *App) stopAllMonitors() {
 	a.monitorsMu.Lock()
 	monitorsToStop := make(map[string]*subscriber.MessageStreamer)
 	for subscriptionID, streamer := range a.activeMonitors {
@@ -407,31 +415,26 @@ func (a *App) Disconnect() error {
 	}
 	a.monitorsMu.Unlock()
 
-	// Stop monitors asynchronously with timeout to prevent blocking
-	// This prevents Disconnect() from hanging if streamers are stuck
 	go func() {
 		for subscriptionID, streamer := range monitorsToStop {
-			// Use a channel with timeout to prevent indefinite blocking
+			subID := subscriptionID
+			s := streamer
 			done := make(chan error, 1)
 			go func(subID string, s *subscriber.MessageStreamer) {
 				done <- s.Stop()
-			}(subscriptionID, streamer)
+			}(subID, s)
 
 			select {
 			case <-done:
-				// Streamer stopped successfully
 			case <-time.After(2 * time.Second):
-				// Timeout - log but continue (streamer will be cleaned up when client closes)
-				fmt.Printf("Warning: timeout stopping monitor %s during disconnect\n", subscriptionID)
+				fmt.Printf("Warning: timeout stopping monitor %s during disconnect\n", subID)
 			}
 		}
 	}()
+}
 
-	// Give monitors a brief moment to start stopping, but don't wait for completion
-	// The client.Close() will also signal them to stop via context cancellation
-	time.Sleep(100 * time.Millisecond)
-
-	// Cleanup temporary topic subscriptions
+// cleanupTemporarySubscriptions deletes temporary topic subscriptions asynchronously
+func (a *App) cleanupTemporarySubscriptions() {
 	a.monitorsMu.Lock()
 	client := a.clientManager.GetClient()
 	projectID := a.clientManager.GetProjectID()
@@ -441,42 +444,45 @@ func (a *App) Disconnect() error {
 	}
 	a.monitorsMu.Unlock()
 
-	// Delete subscriptions asynchronously with timeout to prevent blocking
-	// if gRPC connections are stuck
 	if client != nil && len(topicMonitorsCopy) > 0 {
+		ctx := a.ctx
+		cl := client
+		projID := projectID
 		go func() {
 			for topicID, subID := range topicMonitorsCopy {
+				tid := topicID
+				sid := subID
 				done := make(chan error, 1)
 				go func(tid, sid string) {
-					done <- admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, sid)
-				}(topicID, subID)
+					done <- admin.DeleteSubscriptionAdmin(ctx, cl, projID, sid)
+				}(tid, sid)
 
 				select {
 				case <-done:
-					// Subscription deleted successfully
 				case <-time.After(2 * time.Second):
-					// Timeout - log but continue (subscription will be cleaned up by TTL)
-					fmt.Printf("Warning: timeout deleting temporary subscription %s during disconnect\n", subID)
+					fmt.Printf("Warning: timeout deleting temporary subscription %s during disconnect\n", sid)
 				}
 			}
 		}()
 
-		// Clear the map immediately (don't wait for async deletion)
 		a.monitorsMu.Lock()
 		for topicID := range topicMonitorsCopy {
 			delete(a.topicMonitors, topicID)
 		}
 		a.monitorsMu.Unlock()
 	}
+}
 
-	// Clear resource store (initialize to empty slices instead of nil to avoid race conditions)
+// clearResourceStore clears the resource store (initialize to empty slices instead of nil)
+func (a *App) clearResourceStore() {
 	a.resourceMu.Lock()
 	a.topics = []admin.TopicInfo{}
 	a.subscriptions = []admin.SubscriptionInfo{}
 	a.resourceMu.Unlock()
+}
 
-	// Stop upgrade check ticker and timer if running, and signal goroutine to exit
-	// Use TryLock with retry loop to prevent blocking if upgrade check goroutine is stuck
+// stopUpgradeCheck stops upgrade check ticker and timer if running
+func (a *App) stopUpgradeCheck() {
 	timeout := 500 * time.Millisecond
 	retryInterval := 50 * time.Millisecond
 	deadline := time.Now().Add(timeout)
@@ -491,7 +497,6 @@ func (a *App) Disconnect() error {
 	}
 
 	if lockAcquired {
-		// Lock acquired successfully - proceed with cleanup
 		if a.upgradeCheckTicker != nil {
 			a.upgradeCheckTicker.Stop()
 			a.upgradeCheckTicker = nil
@@ -500,11 +505,9 @@ func (a *App) Disconnect() error {
 			a.upgradeCheckTimer.Stop()
 			a.upgradeCheckTimer = nil
 		}
-		// Close done channel to signal goroutine to exit (only if not already closed)
 		if a.upgradeCheckDone != nil {
 			select {
 			case <-a.upgradeCheckDone:
-				// Already closed, do nothing
 			default:
 				close(a.upgradeCheckDone)
 			}
@@ -512,11 +515,8 @@ func (a *App) Disconnect() error {
 		}
 		a.upgradeCheckMu.Unlock()
 	} else {
-		// Timeout - log warning but continue (upgrade check will be cleaned up when app exits)
 		fmt.Printf("Warning: timeout acquiring upgrade check lock during disconnect (upgrade check may be stuck)\n")
 	}
-
-	return a.clientManager.Close()
 }
 
 // GetProfiles returns all saved connection profiles
