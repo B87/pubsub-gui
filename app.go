@@ -476,17 +476,22 @@ func (a *App) Disconnect() error {
 	a.resourceMu.Unlock()
 
 	// Stop upgrade check ticker and timer if running, and signal goroutine to exit
-	// Use a timeout to prevent blocking if upgrade check goroutine is stuck
-	// Try to acquire lock with timeout to prevent blocking if upgrade check is stuck
-	lockAcquired := make(chan bool, 1)
-	go func() {
-		a.upgradeCheckMu.Lock()
-		lockAcquired <- true
-	}()
+	// Use TryLock with retry loop to prevent blocking if upgrade check goroutine is stuck
+	timeout := 500 * time.Millisecond
+	retryInterval := 50 * time.Millisecond
+	deadline := time.Now().Add(timeout)
+	lockAcquired := false
 
-	select {
-	case <-lockAcquired:
-		// Lock acquired successfully
+	for time.Now().Before(deadline) {
+		if a.upgradeCheckMu.TryLock() {
+			lockAcquired = true
+			break
+		}
+		time.Sleep(retryInterval)
+	}
+
+	if lockAcquired {
+		// Lock acquired successfully - proceed with cleanup
 		if a.upgradeCheckTicker != nil {
 			a.upgradeCheckTicker.Stop()
 			a.upgradeCheckTicker = nil
@@ -506,7 +511,7 @@ func (a *App) Disconnect() error {
 			a.upgradeCheckDone = nil
 		}
 		a.upgradeCheckMu.Unlock()
-	case <-time.After(500 * time.Millisecond):
+	} else {
 		// Timeout - log warning but continue (upgrade check will be cleaned up when app exits)
 		fmt.Printf("Warning: timeout acquiring upgrade check lock during disconnect (upgrade check may be stuck)\n")
 	}
