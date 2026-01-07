@@ -11,6 +11,8 @@ import (
 	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"pubsub-gui/internal/models"
 )
 
 // TopicInfo represents topic metadata
@@ -138,21 +140,8 @@ func DeleteTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, top
 	return nil
 }
 
-// TopicTemplateConfig represents topic configuration for template-based creation
-type TopicTemplateConfig struct {
-	MessageRetentionDuration string                `json:"messageRetentionDuration,omitempty"`
-	Labels                   map[string]string     `json:"labels,omitempty"`
-	KMSKeyName               string                `json:"kmsKeyName,omitempty"`
-	MessageStoragePolicy     *MessageStoragePolicy `json:"messageStoragePolicy,omitempty"`
-}
-
-// MessageStoragePolicy represents message storage policy for topics
-type MessageStoragePolicy struct {
-	AllowedPersistenceRegions []string `json:"allowedPersistenceRegions,omitempty"`
-}
-
 // CreateTopicWithConfig creates a new topic with full configuration support
-func CreateTopicWithConfig(ctx context.Context, client *pubsub.Client, projectID, topicID string, config TopicTemplateConfig) error {
+func CreateTopicWithConfig(ctx context.Context, client *pubsub.Client, projectID, topicID string, config models.TopicTemplateConfig) error {
 	// Normalize topic ID (extract short name if full path provided)
 	shortTopicID := topicID
 	if strings.HasPrefix(topicID, "projects/") {

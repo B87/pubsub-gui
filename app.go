@@ -756,7 +756,7 @@ func (a *App) CreateFromTemplate(request models.TemplateCreateRequest) (models.T
 		return models.TemplateCreateResult{
 			Success: false,
 			Error:   err.Error(),
-		}, nil
+		}, err
 	}
 
 	// If successful, trigger resource sync and emit event

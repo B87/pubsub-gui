@@ -79,13 +79,13 @@ func (c *Creator) CreateFromTemplate(request *models.TemplateCreateRequest) (*mo
 	}
 
 	// Step 2: Create main topic
-	topicConfig := admin.TopicTemplateConfig{
+	topicConfig := models.TopicTemplateConfig{
 		MessageRetentionDuration: template.Topic.MessageRetentionDuration,
 		Labels:                   template.Topic.Labels,
 		KMSKeyName:               template.Topic.KMSKeyName,
 	}
 	if template.Topic.MessageStoragePolicy != nil {
-		topicConfig.MessageStoragePolicy = &admin.MessageStoragePolicy{
+		topicConfig.MessageStoragePolicy = &models.MessageStoragePolicy{
 			AllowedPersistenceRegions: template.Topic.MessageStoragePolicy.AllowedPersistenceRegions,
 		}
 	}
@@ -129,14 +129,14 @@ func (c *Creator) CreateFromTemplate(request *models.TemplateCreateRequest) (*mo
 
 		// Apply expiration policy if provided
 		if subTemplate.ExpirationPolicy != nil {
-			subConfig.ExpirationPolicy = &admin.ExpirationPolicy{
+			subConfig.ExpirationPolicy = &models.ExpirationPolicy{
 				TTL: subTemplate.ExpirationPolicy.TTL,
 			}
 		}
 
 		// Apply retry policy if provided
 		if subTemplate.RetryPolicy != nil {
-			subConfig.RetryPolicy = &admin.RetryPolicy{
+			subConfig.RetryPolicy = &models.RetryPolicy{
 				MinimumBackoff: subTemplate.RetryPolicy.MinimumBackoff,
 				MaximumBackoff: subTemplate.RetryPolicy.MaximumBackoff,
 			}
@@ -144,7 +144,7 @@ func (c *Creator) CreateFromTemplate(request *models.TemplateCreateRequest) (*mo
 
 		// Apply push config if provided
 		if subTemplate.PushConfig != nil {
-			subConfig.PushConfig = &admin.PushConfig{
+			subConfig.PushConfig = &models.PushConfig{
 				Endpoint:   subTemplate.PushConfig.Endpoint,
 				Attributes: subTemplate.PushConfig.Attributes,
 			}
@@ -202,7 +202,7 @@ func (c *Creator) createDeadLetterResources(baseName, envSuffix string, dlqConfi
 	dlqSubID := baseName + envSuffix + "-dlq-sub"
 
 	// Create DLQ topic with simplified config (no retention override needed for DLQ)
-	dlqTopicConfig := admin.TopicTemplateConfig{
+	dlqTopicConfig := models.TopicTemplateConfig{
 		MessageRetentionDuration: "168h", // 7 days default for DLQ
 	}
 	err := admin.CreateTopicWithConfig(c.ctx, c.client, c.projectID, dlqTopicID, dlqTopicConfig)
@@ -217,7 +217,7 @@ func (c *Creator) createDeadLetterResources(baseName, envSuffix string, dlqConfi
 		EnableOrdering:    false,
 		EnableExactlyOnce: false,
 		// Set expiration policy to auto-delete after 30 days idle
-		ExpirationPolicy: &admin.ExpirationPolicy{
+		ExpirationPolicy: &models.ExpirationPolicy{
 			TTL: "720h", // 30 days
 		},
 	}

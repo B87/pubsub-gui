@@ -13,6 +13,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
+
+	"pubsub-gui/internal/models"
 )
 
 // SubscriptionInfo represents subscription metadata
@@ -215,33 +217,16 @@ type SubscriptionUpdateParams struct {
 
 // SubscriptionConfig represents full subscription configuration for template-based creation
 type SubscriptionConfig struct {
-	AckDeadline       int                   `json:"ackDeadline"`                 // Ack deadline in seconds (10-600)
-	RetentionDuration string                `json:"retentionDuration,omitempty"` // e.g., "7d"
-	ExpirationPolicy  *ExpirationPolicy     `json:"expirationPolicy,omitempty"`  // Auto-delete after idle
-	RetryPolicy       *RetryPolicy          `json:"retryPolicy,omitempty"`       // Retry configuration
-	EnableOrdering    bool                  `json:"enableOrdering"`              // Enable message ordering
-	EnableExactlyOnce bool                  `json:"enableExactlyOnce"`           // Enable exactly-once delivery
-	Filter            string                `json:"filter,omitempty"`            // Message filter expression
-	PushConfig        *PushConfig           `json:"pushConfig,omitempty"`        // Push subscription config
-	DeadLetterPolicy  *DeadLetterPolicyInfo `json:"deadLetterPolicy,omitempty"`  // Dead letter policy
-	Labels            map[string]string     `json:"labels,omitempty"`            // Subscription labels
-}
-
-// ExpirationPolicy represents subscription expiration policy
-type ExpirationPolicy struct {
-	TTL string `json:"ttl"` // Time to live, e.g., "24h"
-}
-
-// RetryPolicy represents subscription retry policy
-type RetryPolicy struct {
-	MinimumBackoff string `json:"minimumBackoff"` // e.g., "10s"
-	MaximumBackoff string `json:"maximumBackoff"` // e.g., "600s"
-}
-
-// PushConfig represents push subscription configuration
-type PushConfig struct {
-	Endpoint   string            `json:"endpoint"`             // Push endpoint URL
-	Attributes map[string]string `json:"attributes,omitempty"` // Push attributes
+	AckDeadline       int                          `json:"ackDeadline"`                 // Ack deadline in seconds (10-600)
+	RetentionDuration string                       `json:"retentionDuration,omitempty"` // e.g., "7d"
+	ExpirationPolicy  *models.ExpirationPolicy     `json:"expirationPolicy,omitempty"`  // Auto-delete after idle
+	RetryPolicy       *models.RetryPolicy          `json:"retryPolicy,omitempty"`       // Retry configuration
+	EnableOrdering    bool                         `json:"enableOrdering"`              // Enable message ordering
+	EnableExactlyOnce bool                         `json:"enableExactlyOnce"`           // Enable exactly-once delivery
+	Filter            string                       `json:"filter,omitempty"`            // Message filter expression
+	PushConfig        *models.PushConfig           `json:"pushConfig,omitempty"`        // Push subscription config
+	DeadLetterPolicy  *DeadLetterPolicyInfo        `json:"deadLetterPolicy,omitempty"`  // Dead letter policy
+	Labels            map[string]string            `json:"labels,omitempty"`            // Subscription labels
 }
 
 // UpdateSubscriptionAdmin updates a subscription's configuration
