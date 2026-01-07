@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/pubsub/v2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"pubsub-gui/internal/app"
@@ -36,11 +37,12 @@ type App struct {
 	subscriptions []admin.SubscriptionInfo
 
 	// Handlers
-	connection *app.ConnectionHandler
-	resources  *app.ResourceHandler
-	templates  *app.TemplateHandler
-	monitoring *app.MonitoringHandler
-	configH    *app.ConfigHandler
+	connection                 *app.ConnectionHandler
+	resources                  *app.ResourceHandler
+	templates                  *app.TemplateHandler
+	topicSubscriptionTemplates *app.TopicSubscriptionTemplateHandler
+	monitoring                 *app.MonitoringHandler
+	configH                    *app.ConfigHandler
 
 	// Application version
 	version string
@@ -103,6 +105,12 @@ func (a *App) startup(ctx context.Context) {
 		func() { go a.resources.SyncResources() },
 	)
 	a.templates = app.NewTemplateHandler(a.config, a.configManager)
+	a.topicSubscriptionTemplates = app.NewTopicSubscriptionTemplateHandler(
+		a.ctx,
+		a.clientManager,
+		a.config,
+		a.configManager,
+	)
 	a.monitoring = app.NewMonitoringHandler(
 		a.ctx,
 		a.config,
@@ -390,54 +398,131 @@ func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error {
 
 // Disconnect closes the current Pub/Sub connection
 func (a *App) Disconnect() error {
-	// Stop all active monitors before disconnecting
-	a.monitorsMu.Lock()
-	for subscriptionID, streamer := range a.activeMonitors {
-		// Stop streamer (ignore errors during disconnect)
-		streamer.Stop()
-		delete(a.activeMonitors, subscriptionID)
-	}
+	a.stopAllMonitors()
+	time.Sleep(100 * time.Millisecond) // Give monitors a brief moment to start stopping
 
-	// Cleanup temporary topic subscriptions
+	// Capture client and projectID BEFORE Close() to avoid race condition
+	// The cleanup goroutine will use these captured values
 	client := a.clientManager.GetClient()
 	projectID := a.clientManager.GetProjectID()
-	if client != nil {
-		for topicID, subID := range a.topicMonitors {
-			_ = admin.DeleteSubscriptionAdmin(a.ctx, client, projectID, subID)
-			delete(a.topicMonitors, topicID)
-		}
+
+	a.cleanupTemporarySubscriptions(client, projectID)
+	a.clearResourceStore()
+	a.stopUpgradeCheck()
+	return a.clientManager.Close()
+}
+
+// stopAllMonitors stops all active monitors asynchronously to avoid blocking
+func (a *App) stopAllMonitors() {
+	a.monitorsMu.Lock()
+	monitorsToStop := make(map[string]*subscriber.MessageStreamer)
+	for subscriptionID, streamer := range a.activeMonitors {
+		monitorsToStop[subscriptionID] = streamer
+		delete(a.activeMonitors, subscriptionID)
 	}
 	a.monitorsMu.Unlock()
 
-	// Clear resource store (initialize to empty slices instead of nil to avoid race conditions)
+	go func() {
+		for subscriptionID, streamer := range monitorsToStop {
+			subID := subscriptionID
+			s := streamer
+			done := make(chan error, 1)
+			go func(subID string, s *subscriber.MessageStreamer) {
+				done <- s.Stop()
+			}(subID, s)
+
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+				fmt.Printf("Warning: timeout stopping monitor %s during disconnect\n", subID)
+			}
+		}
+	}()
+}
+
+// cleanupTemporarySubscriptions deletes temporary topic subscriptions asynchronously
+// client and projectID are passed in to ensure they are captured before Close() is called
+func (a *App) cleanupTemporarySubscriptions(client *pubsub.Client, projectID string) {
+	a.monitorsMu.Lock()
+	topicMonitorsCopy := make(map[string]string)
+	for k, v := range a.topicMonitors {
+		topicMonitorsCopy[k] = v
+	}
+	a.monitorsMu.Unlock()
+
+	if client != nil && len(topicMonitorsCopy) > 0 {
+		ctx := a.ctx
+		cl := client
+		projID := projectID
+		go func() {
+			for topicID, subID := range topicMonitorsCopy {
+				tid := topicID
+				sid := subID
+				done := make(chan error, 1)
+				go func(tid, sid string) {
+					done <- admin.DeleteSubscriptionAdmin(ctx, cl, projID, sid)
+				}(tid, sid)
+
+				select {
+				case <-done:
+				case <-time.After(2 * time.Second):
+					fmt.Printf("Warning: timeout deleting temporary subscription %s during disconnect\n", sid)
+				}
+			}
+		}()
+
+		a.monitorsMu.Lock()
+		for topicID := range topicMonitorsCopy {
+			delete(a.topicMonitors, topicID)
+		}
+		a.monitorsMu.Unlock()
+	}
+}
+
+// clearResourceStore clears the resource store (initialize to empty slices instead of nil)
+func (a *App) clearResourceStore() {
 	a.resourceMu.Lock()
 	a.topics = []admin.TopicInfo{}
 	a.subscriptions = []admin.SubscriptionInfo{}
 	a.resourceMu.Unlock()
+}
 
-	// Stop upgrade check ticker and timer if running, and signal goroutine to exit
-	a.upgradeCheckMu.Lock()
-	if a.upgradeCheckTicker != nil {
-		a.upgradeCheckTicker.Stop()
-		a.upgradeCheckTicker = nil
-	}
-	if a.upgradeCheckTimer != nil {
-		a.upgradeCheckTimer.Stop()
-		a.upgradeCheckTimer = nil
-	}
-	// Close done channel to signal goroutine to exit (only if not already closed)
-	if a.upgradeCheckDone != nil {
-		select {
-		case <-a.upgradeCheckDone:
-			// Already closed, do nothing
-		default:
-			close(a.upgradeCheckDone)
+// stopUpgradeCheck stops upgrade check ticker and timer if running
+func (a *App) stopUpgradeCheck() {
+	timeout := 500 * time.Millisecond
+	retryInterval := 50 * time.Millisecond
+	deadline := time.Now().Add(timeout)
+	lockAcquired := false
+
+	for time.Now().Before(deadline) {
+		if a.upgradeCheckMu.TryLock() {
+			lockAcquired = true
+			break
 		}
-		a.upgradeCheckDone = nil
+		time.Sleep(retryInterval)
 	}
-	a.upgradeCheckMu.Unlock()
 
-	return a.clientManager.Close()
+	if lockAcquired {
+		if a.upgradeCheckTicker != nil {
+			a.upgradeCheckTicker.Stop()
+			a.upgradeCheckTicker = nil
+		}
+		if a.upgradeCheckTimer != nil {
+			a.upgradeCheckTimer.Stop()
+			a.upgradeCheckTimer = nil
+		}
+		if a.upgradeCheckDone != nil {
+			select {
+			case <-a.upgradeCheckDone:
+			default:
+				close(a.upgradeCheckDone)
+			}
+			a.upgradeCheckDone = nil
+		}
+		a.upgradeCheckMu.Unlock()
+	} else {
+		fmt.Printf("Warning: timeout acquiring upgrade check lock during disconnect (upgrade check may be stuck)\n")
+	}
 }
 
 // GetProfiles returns all saved connection profiles
@@ -658,4 +743,58 @@ func (a *App) SaveConfigFileContent(content string) error {
 		}
 	}
 	return err
+}
+
+// GetTopicSubscriptionTemplates returns all topic/subscription templates (built-in and custom)
+func (a *App) GetTopicSubscriptionTemplates() ([]*models.TopicSubscriptionTemplate, error) {
+	return a.topicSubscriptionTemplates.GetTemplates()
+}
+
+// GetTopicSubscriptionTemplatesByCategory returns templates filtered by category
+func (a *App) GetTopicSubscriptionTemplatesByCategory(category string) ([]*models.TopicSubscriptionTemplate, error) {
+	return a.topicSubscriptionTemplates.GetTemplatesByCategory(category)
+}
+
+// CreateFromTemplate creates resources from a topic/subscription template
+func (a *App) CreateFromTemplate(request models.TemplateCreateRequest) (models.TemplateCreateResult, error) {
+	result, err := a.topicSubscriptionTemplates.CreateFromTemplate(&request)
+	if err != nil {
+		return models.TemplateCreateResult{
+			Success: false,
+			Error:   err.Error(),
+		}, err
+	}
+
+	// Defensive check: ensure result is not nil before dereferencing
+	if result == nil {
+		return models.TemplateCreateResult{
+			Success: false,
+			Error:   "internal error: CreateFromTemplate returned nil result",
+		}, fmt.Errorf("CreateFromTemplate returned nil result")
+	}
+
+	// If successful, trigger resource sync and emit event
+	if result.Success {
+		// Trigger background sync to update local store
+		go a.resources.SyncResources()
+
+		// Emit event for frontend
+		runtime.EventsEmit(a.ctx, "template:created", map[string]interface{}{
+			"templateId":      request.TemplateID,
+			"topicId":         result.TopicID,
+			"subscriptionIds": result.SubscriptionIDs,
+		})
+	}
+
+	return *result, nil
+}
+
+// SaveCustomTopicSubscriptionTemplate saves a custom topic/subscription template
+func (a *App) SaveCustomTopicSubscriptionTemplate(template models.TopicSubscriptionTemplate) error {
+	return a.topicSubscriptionTemplates.SaveCustomTemplate(&template)
+}
+
+// DeleteCustomTopicSubscriptionTemplate deletes a custom topic/subscription template
+func (a *App) DeleteCustomTopicSubscriptionTemplate(templateID string) error {
+	return a.topicSubscriptionTemplates.DeleteCustomTemplate(templateID)
 }

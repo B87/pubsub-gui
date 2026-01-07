@@ -83,3 +83,81 @@ export interface PubSubMessage {
   deliveryAttempt?: number;       // Optional delivery attempt count
   orderingKey?: string;           // Optional ordering key
 }
+
+// Topic/Subscription Template Types
+export interface TopicSubscriptionTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: 'production' | 'development' | 'specialized';
+  isBuiltIn: boolean;
+  topic: TopicTemplateConfig;
+  subscriptions: SubscriptionTemplateConfig[];
+  deadLetter?: DeadLetterTemplateConfig;
+}
+
+export interface TopicTemplateConfig {
+  messageRetentionDuration?: string;
+  labels?: Record<string, string>;
+  kmsKeyName?: string;
+  messageStoragePolicy?: MessageStoragePolicy;
+}
+
+export interface MessageStoragePolicy {
+  allowedPersistenceRegions?: string[];
+}
+
+export interface SubscriptionTemplateConfig {
+  name: string;
+  ackDeadline: number;
+  retentionDuration?: string;
+  expirationPolicy?: ExpirationPolicy;
+  retryPolicy?: RetryPolicy;
+  enableOrdering: boolean;
+  enableExactlyOnce: boolean;
+  filter?: string;
+  pushConfig?: PushConfig;
+  labels?: Record<string, string>;
+}
+
+export interface ExpirationPolicy {
+  ttl: string;
+}
+
+export interface RetryPolicy {
+  minimumBackoff: string;
+  maximumBackoff: string;
+}
+
+export interface PushConfig {
+  endpoint: string;
+  attributes?: Record<string, string>;
+}
+
+export interface DeadLetterTemplateConfig {
+  maxDeliveryAttempts: number;
+}
+
+export interface TemplateCreateRequest {
+  templateId: string;
+  baseName: string;
+  environment?: string;
+  overrides?: TemplateOverrides;
+}
+
+export interface TemplateOverrides {
+  messageRetentionDuration?: string;
+  ackDeadline?: number;
+  maxDeliveryAttempts?: number;
+  disableDeadLetter?: boolean;
+}
+
+export interface TemplateCreateResult {
+  success: boolean;
+  topicId?: string;
+  subscriptionIds?: string[];
+  deadLetterTopicId?: string;
+  deadLetterSubId?: string;
+  warnings?: string[];
+  error?: string;
+}

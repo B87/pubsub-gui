@@ -1,4 +1,14 @@
 import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Button,
+  FormField,
+  Input,
+} from './ui';
 
 interface TopicCreateDialogProps {
   open: boolean;
@@ -17,8 +27,6 @@ export default function TopicCreateDialog({
   const [messageRetention, setMessageRetention] = useState('');
   const [error, setError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-
-  if (!open) return null;
 
   const handleCreate = async () => {
     setError('');
@@ -59,70 +67,57 @@ export default function TopicCreateDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 className="text-lg font-semibold mb-4">Create Topic</h3>
+    <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Topic</DialogTitle>
+        </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
-              Topic ID *
-            </label>
-            <input
+          <FormField
+            label="Topic ID"
+            required
+            helperText={!error && !externalError ? "Only letters, numbers, hyphens, and underscores allowed" : undefined}
+            error={error || externalError}
+          >
+            <Input
               type="text"
               value={topicID}
               onChange={(e) => setTopicID(e.target.value)}
               placeholder="my-topic"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
               disabled={isCreating}
+              error={error || externalError}
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Only letters, numbers, hyphens, and underscores allowed
-            </p>
-          </div>
+          </FormField>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
-              Message Retention Duration (Optional)
-            </label>
-            <input
+          <FormField
+            label="Message Retention Duration (Optional)"
+            helperText="Duration format: 1h, 24h, 7d, etc."
+          >
+            <Input
               type="text"
               value={messageRetention}
               onChange={(e) => setMessageRetention(e.target.value)}
               placeholder="e.g., 7d, 24h, 1h30m"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isCreating}
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Duration format: 1h, 24h, 7d, etc.
-            </p>
-          </div>
+          </FormField>
 
-          {(error || externalError) && (
-            <div className="p-3 bg-red-900/20 border border-red-700 rounded text-red-400 text-sm">
-              {error || externalError}
-            </div>
-          )}
-
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={handleClose}
-              disabled={isCreating}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700 disabled:opacity-50 rounded transition-colors"
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={handleClose} disabled={isCreating}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleCreate}
               disabled={isCreating || !topicID.trim()}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded transition-colors"
+              loading={isCreating}
             >
-              {isCreating ? 'Creating...' : 'Create'}
-            </button>
-          </div>
+              Create
+            </Button>
+          </DialogFooter>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

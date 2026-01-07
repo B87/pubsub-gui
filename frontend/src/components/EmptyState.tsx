@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Button } from './ui';
 
 interface EmptyStateProps {
   icon?: ReactNode;
@@ -14,21 +15,31 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 text-center">
       {icon && (
-        <div className="mb-4 text-slate-400">
+        <div
+          className="mb-4"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
           {icon}
         </div>
       )}
-      <h3 className="text-xl font-semibold text-slate-200 mb-2">{title}</h3>
+      <h3
+        className="text-xl font-semibold mb-2"
+        style={{ color: 'var(--color-text-primary)' }}
+      >
+        {title}
+      </h3>
       {description && (
-        <p className="text-slate-400 mb-6 max-w-md">{description}</p>
+        <p
+          className="mb-6 max-w-md"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          {description}
+        </p>
       )}
       {action && (
-        <button
-          onClick={action.onClick}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-        >
+        <Button onClick={action.onClick} variant="default">
           {action.label}
-        </button>
+        </Button>
       )}
     </div>
   );

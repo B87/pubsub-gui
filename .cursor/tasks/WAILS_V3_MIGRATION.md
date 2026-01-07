@@ -4,9 +4,21 @@
 
 This document outlines the migration strategy for upgrading the Pub/Sub GUI application from Wails v2 to Wails v3. The migration will improve performance, enable multi-window support, and provide better code organization through the service pattern.
 
-**Estimated Migration Time:** 3-6 hours
+**⚠️ IMPORTANT (January 2026):** Wails v3 is currently in **ALPHA** with no stable release date.
 
-**Target Wails Version:** v3.0.0 (when stable)
+**Recommendation:** Implement testing in **v2 NOW** using the Event Emitter pattern (see `TESTING_STRATEGY.md`). When v3 reaches stable, migration will only take 4-5 hours instead of weeks.
+
+**Migration Time Estimates:**
+- **With Event Emitter Pattern (Recommended):** 4-5 hours
+- **Without Pattern (Traditional Approach):** 2-3 weeks
+
+**Current v3 Status:**
+- 🟡 **Alpha** - API reasonably stable, applications running in production at your own risk
+- ⏰ **No Stable Release Date** - Release timeline is "when it's done"
+- 📚 **Documentation In Progress** - Not yet complete
+- ✅ **95% Test Compatibility** - Event Emitter pattern makes tests v3-ready
+
+**Target Wails Version:** v3.0.0 Stable (TBD)
 
 ---
 
@@ -959,9 +971,75 @@ useEffect(() => {
 
 ## Testing Plan
 
+### Testing Strategy Compatibility
+
+**Good News:** The testing strategy in `TESTING_STRATEGY.md` is already **95% compatible** with Wails v3!
+
+**Event Emitter Pattern Benefits:**
+- ✅ Designed with v3 migration in mind
+- ✅ Docker emulator tests require ZERO changes
+- ✅ Mock/NoOp emitters work in both v2 and v3
+- ✅ Migration effort: 4-5 hours (vs. weeks without this pattern)
+
+**What Changes in v3:**
+
+| Component | v2 (Current) | v3 (After Migration) | Effort |
+|-----------|--------------|----------------------|--------|
+| **EventEmitter interface** | `Emit(ctx, name, data)` | `Emit(name, data...)` | 30 min |
+| **WailsEmitter** | `runtime.EventsEmit()` | `app.EmitEvent()` | 15 min |
+| **MockEmitter** | `Data interface{}` | `Data []interface{}` | 15 min |
+| **Test imports** | `internal/events` | `internal/events/v3` | 30 min |
+| **Test assertions** | Same | Slice access for data | 1 hour |
+| **Docker emulator** | Same | Same | 0 min |
+| **Integration tests** | Same | Same | 0 min |
+| **Total** | - | - | **~3 hours** |
+
+**See:** [TESTING_STRATEGY.md - Future: Wails v3 Migration](#) for complete testing migration guide.
+
+### v3 Testing Advantages
+
+According to [Wails v3 documentation](https://v3alpha.wails.io/blog/the-road-to-wails-v3/):
+
+> "V2 created tight coupling between business logic and the Wails runtime, making code harder to test and understand. V3 introduces the service pattern, where your structs are completely standalone and don't need to store runtime context."
+
+**v3 Improvements for Testing:**
+
+| Feature | v2 | v3 | Benefit |
+|---------|----|----|---------|
+| **Dependency Injection** | Implicit (context) | Explicit (constructor) | Easier mocking |
+| **Service Isolation** | Tight coupling | Standalone services | Pure unit tests |
+| **Event Mocking** | Panic recovery needed | Direct interface mock | Cleaner tests |
+| **Lifecycle Testing** | Manual | Built-in hooks | Test startup/shutdown |
+| **Test Harness** | Custom | Built-in | Less boilerplate |
+
+**Example v3 Service Test:**
+
+```go
+// v3: Pure unit test - no Wails runtime needed
+func TestResourceService(t *testing.T) {
+    mockEmitter := events.NewMockEmitter()
+    mockClient := mocks.NewPubSubClient()
+
+    // Create service with mocks (no Wails app needed)
+    service := services.NewResourceService(
+        nil,  // app not needed for business logic tests
+        mockEmitter,
+        mockClient,
+    )
+
+    // Test business logic
+    err := service.CreateTopic("test-topic", "24h")
+    require.NoError(t, err)
+
+    // Verify behavior
+    assert.True(t, mockClient.WasTopicCreated("test-topic"))
+    assert.True(t, mockEmitter.WasEmitted("topic:created"))
+}
+```
+
 ### Pre-Migration Testing
 
-Before starting migration, create a test checklist of all features:
+Before starting migration, ensure all v2 tests pass and create a feature checklist:
 
 - [ ] Connect with ADC
 - [ ] Connect with Service Account
@@ -1349,12 +1427,45 @@ For focused work with no interruptions: **3-4 hours minimum**
 
 ### Q: Should we migrate now or wait for v3 stable release?
 
-**A:** Wait for v3 stable unless:
-- You need multi-window support urgently
-- You're experiencing performance issues in v2
-- You want to prepare for future features
+**A (Updated January 2026):** **WAIT for v3 stable release.**
 
-**Recommendation:** Start experimenting with v3 in a separate branch now, but don't migrate production until v3.0.0 stable is released.
+**Current Status:**
+- 🟡 **v3 is in ALPHA** - API reasonably stable, but still evolving
+- ⏰ **No stable release date** - "Done when it's done" approach
+- ✅ **Some production use** - Applications running, but at your own risk
+- 📚 **Documentation in progress** - Not yet complete
+
+**When to Migrate:**
+
+| Milestone | Status | Action |
+|-----------|--------|--------|
+| **v3 Alpha** | ✅ Available now | Experiment in separate branch only |
+| **v3 Beta** | ⏰ TBD | Consider for non-critical projects |
+| **v3 Stable** | ⏰ TBD | ✅ **Migrate production apps** |
+
+**Recommended Strategy:**
+
+1. **NOW (v2):**
+   - ✅ Implement testing with Event Emitter pattern (see `TESTING_STRATEGY.md`)
+   - ✅ Design handlers with dependency injection in mind
+   - ✅ Use interfaces for all external dependencies
+   - ✅ Build and ship features on stable v2
+
+2. **Monitor v3 Progress:**
+   - 📊 Track [Wails v3 Roadmap](https://v3alpha.wails.io/status/)
+   - 📰 Read [Wails v3 Changelog](https://v3alpha.wails.io/changelog/)
+   - 💬 Follow [GitHub Discussions](https://github.com/wailsapp/wails/discussions/4447)
+
+3. **When v3 Beta/Stable:**
+   - 🧪 Test migration in separate branch (4-5 hours)
+   - ✅ Verify all tests pass
+   - 🚀 Migrate production when confident
+
+**Migration Advantage with Event Emitter Pattern:**
+- Without pattern: **2-3 weeks** (rewrite all runtime calls + tests)
+- With pattern: **4-5 hours** (update interface signatures only)
+
+**Recommendation:** Implement testing in v2 NOW using the Event Emitter pattern. This gives you working tests TODAY and makes v3 migration trivial when it's ready.
 
 ### Q: Will this break existing user configurations?
 
@@ -1400,6 +1511,10 @@ func (s *UpgradeService) CheckForUpdates() (*version.UpdateInfo, error) {
 
 ---
 
-**Last Updated:** 2026-01-06
-**Status:** Planning Document
-**Target Version:** Wails v3.0.0 (when stable)
+**Last Updated:** 2026-01-07
+**Status:** Planning Document - **Wait for v3 Stable Release**
+**Current v3 Status:** Alpha (no stable release date)
+**Recommended Action:** Implement testing in v2 NOW with Event Emitter pattern
+**Target Version:** Wails v3.0.0 Stable (TBD)
+**Testing Strategy:** See `TESTING_STRATEGY.md` for v3-compatible testing approach
+**Migration Effort:** 4-5 hours (with Event Emitter pattern) vs. 2-3 weeks (without)

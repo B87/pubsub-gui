@@ -9,7 +9,8 @@ This guide covers UI development patterns, conventions, and best practices for t
 
 - **Framework**: React 18 with TypeScript
 - **Styling**: Tailwind CSS v4 (using `@tailwindcss/postcss`)
-- **UI Components**: Radix UI (accessible, unstyled primitives)
+- **UI Component Library**: shadcn/ui (built on Radix UI primitives)
+- **UI Primitives**: Radix UI (accessible, unstyled primitives)
 - **Build Tool**: Vite 3
 - **Desktop Framework**: Wails v2 (Go backend + React frontend)
 
@@ -162,148 +163,386 @@ This project uses **Tailwind CSS v4** with the new `@import "tailwindcss"` synta
 
 **Buttons:**
 ```tsx
-// ✅ PREFERRED: Primary button with semantic styling
-<button
-  style={{
-    backgroundColor: 'var(--color-accent-primary)',
-    color: 'white',
-  }}
-  className="px-4 py-2 rounded-md transition-colors hover:opacity-90"
-  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)'}
->
-  Submit
-</button>
+// ✅ PREFERRED: Use shadcn/ui Button component (wrapper with loading support)
+import { Button } from './ui';
 
-// ✅ PREFERRED: Secondary button with semantic styling
-<button
-  style={{
-    backgroundColor: 'var(--color-bg-tertiary)',
-    color: 'var(--color-text-primary)',
-  }}
-  className="px-4 py-2 rounded-md transition-colors"
-  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'}
-  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'}
->
+<Button onClick={handleSubmit} loading={isSaving}>
+  Submit
+</Button>
+
+<Button variant="outline" onClick={handleCancel}>
   Cancel
-</button>
+</Button>
 
-// ✅ PREFERRED: Text button with semantic styling
-<button
-  style={{ color: 'var(--color-text-muted)' }}
-  className="transition-colors"
-  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
->
+<Button variant="ghost" onClick={handleDisconnect}>
   Disconnect
-</button>
+</Button>
 
-// ⚠️ FALLBACK: Using Tailwind classes (acceptable but not preferred)
-<button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors">
-  Submit
-</button>
+<Button variant="destructive" onClick={handleDelete}>
+  Delete
+</Button>
+
+// Button variants: default, destructive, outline, secondary, ghost, link
+// Button sizes: default, sm, lg, icon
 ```
 
 **Input Fields:**
 ```tsx
-// ✅ PREFERRED: Input with semantic styling
-<input
-  type="text"
+// ✅ PREFERRED: Use shadcn/ui Input component (wrapper with error support)
+import { Input, FormField } from './ui';
+
+// With FormField wrapper (recommended for forms)
+<FormField
+  label="Project ID"
+  required
+  error={errors.projectId}
+  helperText="Enter your GCP project ID"
+>
+  <Input
+    value={projectId}
+    onChange={(e) => setProjectId(e.target.value)}
+    error={!!errors.projectId}
+    placeholder="my-project-id"
+  />
+</FormField>
+
+// Standalone Input
+<Input
   value={value}
   onChange={(e) => setValue(e.target.value)}
-  style={{
-    backgroundColor: 'var(--color-bg-input)',
-    color: 'var(--color-text-primary)',
-    borderColor: 'var(--color-border-primary)',
-  }}
-  className="w-full px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2"
-  onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-  onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border-primary)'}
+  error={validationError}
   placeholder="Enter text..."
 />
+```
 
-// Style placeholder text via CSS:
-// input::placeholder { color: var(--color-text-muted); }
+**Select Dropdowns:**
+```tsx
+// ✅ PREFERRED: Use shadcn/ui Select component (native, CSS variables mapped)
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, FormField } from './ui';
+
+<FormField label="Topic" required>
+  <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+    <SelectTrigger>
+      <SelectValue placeholder="Select a topic" />
+    </SelectTrigger>
+    <SelectContent>
+      {topics.map((topic) => (
+        <SelectItem key={topic.name} value={topic.name}>
+          {topic.displayName}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</FormField>
+```
+
+**CRITICAL: Select Item Values Cannot Be Empty Strings**
+
+Radix UI Select (which shadcn/ui Select is built on) **does not allow empty string values** for `SelectItem`. The Select component uses empty strings internally to clear the selection and show the placeholder.
+
+**Pattern for Optional/None Selections:**
+
+When you need a "None" or optional selection option, use a sentinel value and convert it in the handler:
+
+```tsx
+// ✅ CORRECT: Use sentinel value for "None" option
+const [deadLetterTopic, setDeadLetterTopic] = useState('');
+
+<Select
+  value={deadLetterTopic || 'none'}
+  onValueChange={(value) => setDeadLetterTopic(value === 'none' ? '' : value)}
+>
+  <SelectTrigger>
+    <SelectValue placeholder="Select a topic..." />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="none">None</SelectItem>
+    {topics.map((topic) => (
+      <SelectItem key={topic.name} value={topic.name}>
+        {topic.displayName}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
+// In save handler, empty string is already handled correctly:
+if (deadLetterTopic.trim() && maxDeliveryAttempts.trim()) {
+  params.deadLetterPolicy = {
+    deadLetterTopic: deadLetterTopic.trim(),
+    maxDeliveryAttempts: maxAttempts,
+  };
+}
+```
+
+**Key Points:**
+- Use a simple sentinel value like `"none"` (not `"__none__"` - keep it simple)
+- Convert sentinel value to empty string in `onValueChange` handler: `value === 'none' ? '' : value`
+- Convert empty string to sentinel value in `value` prop: `value={state || 'none'}`
+- Your save/validation logic should already handle empty strings correctly (check with `.trim()`)
+
+**Anti-Pattern:**
+```tsx
+// ❌ WRONG: Empty string value causes error
+<SelectItem value="">None</SelectItem>
+// Error: "A <Select.Item /> must have a value prop that is not an empty string"
+```
+
+**Alternative Patterns:**
+
+1. **No "None" Option** (if clearing isn't needed):
+```tsx
+// Just use placeholder, no explicit "None" option
+<Select value={selectedTopic || undefined}>
+  <SelectValue placeholder="Select a topic..." />
+  {/* No "None" SelectItem */}
+</Select>
+```
+
+2. **Checkbox Pattern** (for optional features):
+```tsx
+// Better UX for optional features - use checkbox to enable/disable
+const [enableDeadLetter, setEnableDeadLetter] = useState(false);
+
+{enableDeadLetter && (
+  <Select value={deadLetterTopic} onValueChange={setDeadLetterTopic}>
+    {/* No "None" option needed */}
+  </Select>
+)}
 ```
 
 **Cards/Panels:**
 ```tsx
-// ✅ PREFERRED: Card with semantic styling
-<div
-  style={{
-    backgroundColor: 'var(--color-bg-secondary)',
-    borderColor: 'var(--color-border-primary)',
-  }}
-  className="border rounded-lg p-4"
->
-  {/* Card content */}
-</div>
+// ✅ PREFERRED: Use shadcn/ui Card component (native, CSS variables mapped)
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui';
+
+<Card>
+  <CardHeader>
+    <CardTitle>Card Title</CardTitle>
+    <CardDescription>Card description text</CardDescription>
+  </CardHeader>
+  <CardContent>
+    {/* Card content */}
+  </CardContent>
+  <CardFooter>
+    <Button>Action</Button>
+  </CardFooter>
+</Card>
 ```
 
 **Loading States:**
 ```tsx
-// ✅ PREFERRED: Button with semantic disabled state
-<button
-  disabled={loading}
-  style={{
-    backgroundColor: loading ? 'var(--color-bg-tertiary)' : 'var(--color-accent-primary)',
-    color: 'white',
-    opacity: loading ? 0.5 : 1,
-    cursor: loading ? 'not-allowed' : 'pointer',
-  }}
-  className="px-4 py-2 rounded-md transition-all"
->
-  {loading ? 'Loading...' : 'Submit'}
-</button>
+// ✅ PREFERRED: Use Button loading prop (wrapper feature)
+import { Button } from './ui';
+
+<Button loading={isSaving} onClick={handleSave}>
+  {isSaving ? 'Saving...' : 'Save'}
+</Button>
+
+// Loading state automatically:
+// - Shows spinner icon
+// - Disables button
+// - Prevents multiple clicks
 ```
+
+**Alerts/Error Messages:**
+```tsx
+// ✅ PREFERRED: Use shadcn/ui Alert component (wrapper with variants)
+import { Alert, AlertTitle, AlertDescription } from './ui';
+
+// Success message
+<Alert variant="success">
+  <AlertTitle>Success</AlertTitle>
+  <AlertDescription>Operation completed successfully.</AlertDescription>
+</Alert>
+
+// Error message
+<Alert variant="destructive">
+  <AlertTitle>Error</AlertTitle>
+  <AlertDescription>{errorMessage}</AlertDescription>
+</Alert>
+
+// Warning message
+<Alert variant="warning">
+  <AlertTitle>Warning</AlertTitle>
+  <AlertDescription>Please review your settings.</AlertDescription>
+</Alert>
+
+// Alert variants: default, destructive, success, warning
+```
+
+## shadcn/ui Component Library
+
+This project uses **shadcn/ui** as the primary UI component library. shadcn/ui provides accessible, customizable components built on Radix UI primitives and styled with Tailwind CSS.
+
+**Component Location:** All UI components are in `frontend/src/components/ui/`
+
+**Import Pattern:**
+```typescript
+// ✅ CORRECT: Import from './ui' (barrel export)
+import { Button, Input, Select, Dialog, Alert, Badge, Card, FormField } from './ui';
+```
+
+### Wrapper vs Native Components
+
+**CRITICAL**: The codebase uses a **wrapper pattern** for shadcn/ui components. Some components have wrappers that add theme support or additional features, while others use native shadcn components directly.
+
+**When to Use Wrappers:**
+- **Button** - Use wrapper (`Button` from `./ui`) - adds `loading` prop support
+- **Dialog** - Use wrapper (`Dialog`, `DialogContent`, etc. from `./ui`) - applies theme CSS variables
+- **Input** - Use wrapper (`Input` from `./ui`) - adds `error` prop support
+- **Alert** - Use wrapper (`Alert` from `./ui`) - adds `success` and `warning` variants
+- **Badge** - Use wrapper (`Badge` from `./ui`) - adds `success` and `warning` variants
+- **FormField** - Use wrapper (`FormField` from `./ui`) - custom component for form fields with label/error/helper text
+
+**When to Use Native shadcn:**
+- **Select** - Use native (`Select`, `SelectTrigger`, `SelectContent`, etc. from `./ui`) - CSS variables mapped in `themes.css`
+- **Label** - Use native (`Label` from `./ui`) - CSS variables handle styling
+- **Card** - Use native (`Card`, `CardHeader`, `CardContent`, etc. from `./ui`) - CSS variables handle styling
+- **Checkbox** - Use native (`Checkbox` from `./ui`) - CSS variables handle styling
+- **RadioGroup** - Use native (`RadioGroup`, `RadioGroupItem` from `./ui`) - CSS variables handle styling
+- **Separator** - Use native (`Separator` from `./ui`) - CSS variables handle styling
+
+**Why Wrappers?**
+- Wrappers preserve original shadcn components (easier to update)
+- Wrappers add app-specific features (loading states, error handling, custom variants)
+- Wrappers ensure theme compatibility via CSS variables
+- Native components work when CSS variables are properly mapped in `themes.css`
+
+**Component Usage Examples:**
+
+```tsx
+// ✅ Button with loading state (wrapper)
+import { Button } from './ui';
+
+<Button loading={isSaving} onClick={handleSave}>
+  Save
+</Button>
+
+// ✅ Input with error state (wrapper)
+import { Input } from './ui';
+
+<Input
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+  error={validationError}
+/>
+
+// ✅ Select dropdown (native shadcn)
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui';
+
+<Select value={selected} onValueChange={setSelected}>
+  <SelectTrigger>
+    <SelectValue placeholder="Choose option" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="option1">Option 1</SelectItem>
+    <SelectItem value="option2">Option 2</SelectItem>
+  </SelectContent>
+</Select>
+
+// ✅ Alert with variants (wrapper)
+import { Alert, AlertTitle, AlertDescription } from './ui';
+
+<Alert variant="success">
+  <AlertTitle>Success</AlertTitle>
+  <AlertDescription>Operation completed successfully.</AlertDescription>
+</Alert>
+
+<Alert variant="destructive">
+  <AlertTitle>Error</AlertTitle>
+  <AlertDescription>{errorMessage}</AlertDescription>
+</Alert>
+
+// ✅ FormField with label and error (wrapper)
+import { FormField, Input } from './ui';
+
+<FormField
+  label="Project ID"
+  required
+  error={errors.projectId}
+  helperText="Enter your GCP project ID"
+>
+  <Input
+    value={projectId}
+    onChange={(e) => setProjectId(e.target.value)}
+    error={!!errors.projectId}
+  />
+</FormField>
+
+// ✅ Dialog (wrapper)
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Button } from './ui';
+
+<Dialog open={isOpen} onOpenChange={setIsOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Confirm Action</DialogTitle>
+    </DialogHeader>
+    <p>Are you sure?</p>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+      <Button onClick={handleConfirm}>Confirm</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+**Available Components:**
+
+All components are exported from `frontend/src/components/ui/index.ts`:
+
+**Wrappers (with additional features):**
+- `Button` - Adds `loading` prop
+- `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogTrigger`, `DialogClose`, `DialogPortal` - Theme CSS variables
+- `Input` - Adds `error` prop
+- `Alert`, `AlertTitle`, `AlertDescription` - Adds `success` and `warning` variants
+- `Badge` - Adds `success` and `warning` variants
+- `FormField` - Custom component for form fields
+
+**Native shadcn (no wrapper needed):**
+- `Select`, `SelectTrigger`, `SelectContent`, `SelectItem`, `SelectValue`, `SelectGroup`, `SelectLabel`, `SelectSeparator`
+- `Label`
+- `Card`, `CardHeader`, `CardFooter`, `CardTitle`, `CardDescription`, `CardContent`
+- `Checkbox`
+- `RadioGroup`, `RadioGroupItem`
+- `Separator`
 
 ## Radix UI Integration
 
-Radix UI provides accessible, unstyled primitives. **PREFER semantic CSS variables** for styling, with Tailwind classes as fallback.
+Radix UI provides accessible, unstyled primitives that shadcn/ui builds upon. **PREFER shadcn/ui components** over raw Radix UI primitives for consistency.
 
 **Radix Components Available:**
 - `@radix-ui/react-tabs` - ✅ **Used** in `SubscriptionDetails.tsx` for tabbed interfaces
-- `@radix-ui/react-dialog` - Available but not currently used (codebase uses custom modals)
-- `@radix-ui/react-dropdown-menu` - Available for dropdown menus
-- `@radix-ui/react-select` - Available for select dropdowns
-- `@radix-ui/react-label` - Available for form labels
-- `@radix-ui/react-separator` - Available for visual separators
+- `@radix-ui/react-dialog` - ✅ **Used** via shadcn/ui Dialog wrapper
+- `@radix-ui/react-select` - ✅ **Used** via shadcn/ui Select component
+- `@radix-ui/react-label` - ✅ **Used** via shadcn/ui Label component
+- `@radix-ui/react-separator` - ✅ **Used** via shadcn/ui Separator component
+- `@radix-ui/react-dropdown-menu` - Available for dropdown menus (not yet used)
 
-**Note:** The codebase currently uses custom div-based modals instead of Radix Dialog. Radix Dialog is available if you want to use it for better accessibility features.
-
-**Example - Custom Modal (PREFERRED Pattern):**
+**Example - Dialog (PREFERRED Pattern):**
 ```tsx
+// ✅ PREFERRED: Use shadcn/ui Dialog component (wrapper with theme support)
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, Button } from './ui';
+
 interface DialogProps {
   open: boolean;
   onClose: () => void;
 }
 
 export default function CustomDialog({ open, onClose }: DialogProps) {
-  if (!open) return null;
-
   return (
-    <div
-      style={{
-        backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
-      }}
-      className="fixed inset-0 flex items-center justify-center z-50"
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--color-bg-secondary)',
-          borderColor: 'var(--color-border-primary)',
-          color: 'var(--color-text-primary)',
-        }}
-        className="border rounded-lg p-6 max-w-md w-full mx-4"
-      >
-        <h3 className="text-lg font-semibold mb-4">Title</h3>
+    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Dialog Title</DialogTitle>
+          <DialogDescription>Dialog description text</DialogDescription>
+        </DialogHeader>
         {/* Content */}
-        <div className="flex gap-3 justify-end mt-4">
-          <button onClick={onClose}>Cancel</button>
-          <button onClick={handleSave}>Save</button>
-        </div>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 ```
@@ -797,6 +1036,8 @@ const handleConnect = async (
 Use the `EmptyState` component for empty/initial states:
 
 ```tsx
+import { Button } from './ui';
+
 <EmptyState
   icon={<svg>...</svg>}
   title="No Resources"
@@ -806,6 +1047,8 @@ Use the `EmptyState` component for empty/initial states:
     onClick: () => handleConnect()
   }}
 />
+
+// EmptyState internally uses Button component from './ui'
 ```
 
 ### Loading States
@@ -874,6 +1117,16 @@ const handleDismiss = async () => {
 
 **Basic Error Display:**
 ```tsx
+// ✅ PREFERRED: Use shadcn/ui Alert component
+import { Alert, AlertDescription } from './ui';
+
+{error && (
+  <Alert variant="destructive" className="mb-4">
+    <AlertDescription>{error}</AlertDescription>
+  </Alert>
+)}
+
+// Alternative: Custom error div (if Alert doesn't fit)
 {error && (
   <div
     style={{
@@ -1245,23 +1498,16 @@ export default function ResourceDialog({
         </h3>
         {/* Form fields */}
         {(error || externalError) && (
-          <div
-            style={{
-              backgroundColor: 'var(--color-error-bg)',
-              borderColor: 'var(--color-error-border)',
-              color: 'var(--color-error)',
-            }}
-            className="p-3 border rounded text-sm"
-          >
-            {error || externalError}
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error || externalError}</AlertDescription>
+          </Alert>
         )}
-        <div className="flex gap-3 justify-end mt-4">
-          <button onClick={onClose} disabled={isSaving}>Cancel</button>
-          <button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving...' : mode === 'create' ? 'Create' : 'Save'}
-          </button>
-        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button onClick={handleSave} loading={isSaving}>
+            {mode === 'create' ? 'Create' : 'Save'}
+          </Button>
+        </DialogFooter>
       </div>
     </div>
   );
@@ -1332,21 +1578,12 @@ export default function DeleteConfirmDialog({
         >
           This action cannot be undone.
         </p>
-        <div className="flex gap-3 justify-end">
-          <button onClick={onCancel}>Cancel</button>
-          <button
-            onClick={onConfirm}
-            style={{
-              backgroundColor: 'var(--color-error)',
-              color: 'white',
-            }}
-            className="hover:opacity-90 transition-opacity"
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-error-hover)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-error)'}
-          >
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant="destructive" onClick={onConfirm}>
             Delete
-          </button>
-        </div>
+          </Button>
+        </DialogFooter>
       </div>
     </div>
   );
@@ -1391,9 +1628,53 @@ useEffect(() => {
 - Update ref in separate `useEffect` when state changes
 - This prevents unnecessary re-initialization of event listeners
 
+## shadcn/ui Wrapper Decision Guide
+
+**When to Create a Wrapper:**
+
+✅ **Create a wrapper when:**
+- Component needs app-specific features (e.g., `loading` prop for Button, `error` prop for Input)
+- Component needs custom variants not in shadcn (e.g., `success` and `warning` for Alert/Badge)
+- Component needs complex theme integration that CSS variables alone can't handle
+- Component needs to preserve original shadcn component for easy updates
+
+❌ **Don't create a wrapper when:**
+- CSS variables are already mapped in `themes.css` and work correctly
+- Component works perfectly with native shadcn styling
+- No additional features or customizations needed
+- Wrapper would only duplicate existing functionality
+
+**Wrapper Pattern:**
+```tsx
+// Wrapper preserves original component
+import { Button as ShadcnButton } from "./button"
+
+export interface ButtonProps extends ShadcnButtonProps {
+  loading?: boolean // Add custom feature
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ loading, ...props }, ref) => {
+    return (
+      <ShadcnButton ref={ref} disabled={loading || props.disabled} {...props}>
+        {loading && <Spinner />}
+        {props.children}
+      </ShadcnButton>
+    )
+  }
+)
+```
+
+**Benefits of Wrapper Pattern:**
+- Original shadcn components remain untouched (easier to update)
+- Custom features isolated in wrappers
+- Can switch between wrapper and native as needed
+- Theme compatibility ensured via CSS variables or wrapper styling
+
 ## Resources
 
 - [Tailwind CSS v4 Docs](https://tailwindcss.com/docs)
+- [shadcn/ui Docs](https://ui.shadcn.com/)
 - [Radix UI Docs](https://www.radix-ui.com/)
 - [Wails v2 Docs](https://wails.io/docs/v2/)
 - [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/)

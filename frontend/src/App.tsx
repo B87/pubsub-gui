@@ -30,6 +30,7 @@ import SubscriptionDetails from './components/SubscriptionDetails';
 import TopicCreateDialog from './components/TopicCreateDialog';
 import SubscriptionDialog from './components/SubscriptionDialog';
 import SettingsDialog from './components/SettingsDialog';
+import TemplateSelector from './components/TemplateSelector';
 import EmptyState from './components/EmptyState';
 import CommandBar from './components/CommandBar';
 import UpgradeNotification from './components/UpgradeNotification';
@@ -52,6 +53,7 @@ function App() {
   const [subscriptionDialogMode, setSubscriptionDialogMode] = useState<'create' | 'edit'>('create');
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showCommandBar, setShowCommandBar] = useState(false);
 
   // Use ref to track selectedResource in event listeners without causing re-renders
@@ -472,6 +474,19 @@ function App() {
         },
       },
       {
+        id: 'create-from-template',
+        type: 'action',
+        label: 'Create from Template',
+        description: 'Create topic and subscriptions from a template',
+        keywords: ['create', 'template', 'from', 'wizard'],
+        icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+        shortcut: formatShortcut({ key: 't', ctrlOrCmd: true }),
+        execute: () => {
+          setShowTemplateSelector(true);
+          setShowCommandBar(false);
+        },
+      },
+      {
         id: 'settings',
         type: 'action',
         label: 'Open Settings',
@@ -741,6 +756,17 @@ function App() {
       <SettingsDialog
         open={showSettingsDialog}
         onClose={() => setShowSettingsDialog(false)}
+      />
+
+      <TemplateSelector
+        open={showTemplateSelector}
+        onClose={() => {
+          setShowTemplateSelector(false);
+          setError('');
+        }}
+        onSuccess={() => {
+          loadResources();
+        }}
       />
 
       <CommandBar

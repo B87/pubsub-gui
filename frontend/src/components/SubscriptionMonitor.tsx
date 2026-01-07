@@ -15,6 +15,7 @@ import MessageDetailDialog from './MessageDetailDialog';
 import type { PubSubMessage } from '../types';
 import type { Subscription } from '../types';
 import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
+import { Alert, AlertDescription } from './ui';
 
 interface SubscriptionMonitorProps {
   subscription: Subscription;
@@ -257,9 +258,9 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
 
         {/* Error Banner */}
         {error && (
-          <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded text-sm text-red-200">
-            {error}
-          </div>
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Search Bar */}

@@ -193,6 +193,42 @@ export namespace models {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class DeadLetterTemplateConfig {
+	    maxDeliveryAttempts: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeadLetterTemplateConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.maxDeliveryAttempts = source["maxDeliveryAttempts"];
+	    }
+	}
+	export class ExpirationPolicy {
+	    ttl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExpirationPolicy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ttl = source["ttl"];
+	    }
+	}
+	export class MessageStoragePolicy {
+	    allowedPersistenceRegions?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageStoragePolicy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.allowedPersistenceRegions = source["allowedPersistenceRegions"];
+	    }
+	}
 	export class MessageTemplate {
 	    id: string;
 	    name: string;
@@ -216,6 +252,241 @@ export namespace models {
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	    }
+	}
+	export class PushConfig {
+	    endpoint: string;
+	    attributes?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new PushConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.endpoint = source["endpoint"];
+	        this.attributes = source["attributes"];
+	    }
+	}
+	export class RetryPolicy {
+	    minimumBackoff: string;
+	    maximumBackoff: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RetryPolicy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.minimumBackoff = source["minimumBackoff"];
+	        this.maximumBackoff = source["maximumBackoff"];
+	    }
+	}
+	export class SubscriptionTemplateConfig {
+	    name: string;
+	    ackDeadline: number;
+	    retentionDuration?: string;
+	    expirationPolicy?: ExpirationPolicy;
+	    retryPolicy?: RetryPolicy;
+	    enableOrdering: boolean;
+	    enableExactlyOnce: boolean;
+	    filter?: string;
+	    pushConfig?: PushConfig;
+	    labels?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionTemplateConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.ackDeadline = source["ackDeadline"];
+	        this.retentionDuration = source["retentionDuration"];
+	        this.expirationPolicy = this.convertValues(source["expirationPolicy"], ExpirationPolicy);
+	        this.retryPolicy = this.convertValues(source["retryPolicy"], RetryPolicy);
+	        this.enableOrdering = source["enableOrdering"];
+	        this.enableExactlyOnce = source["enableExactlyOnce"];
+	        this.filter = source["filter"];
+	        this.pushConfig = this.convertValues(source["pushConfig"], PushConfig);
+	        this.labels = source["labels"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TemplateOverrides {
+	    messageRetentionDuration?: string;
+	    ackDeadline?: number;
+	    maxDeliveryAttempts?: number;
+	    disableDeadLetter: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateOverrides(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageRetentionDuration = source["messageRetentionDuration"];
+	        this.ackDeadline = source["ackDeadline"];
+	        this.maxDeliveryAttempts = source["maxDeliveryAttempts"];
+	        this.disableDeadLetter = source["disableDeadLetter"];
+	    }
+	}
+	export class TemplateCreateRequest {
+	    templateId: string;
+	    baseName: string;
+	    environment?: string;
+	    overrides?: TemplateOverrides;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateCreateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.templateId = source["templateId"];
+	        this.baseName = source["baseName"];
+	        this.environment = source["environment"];
+	        this.overrides = this.convertValues(source["overrides"], TemplateOverrides);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TemplateCreateResult {
+	    success: boolean;
+	    topicId: string;
+	    subscriptionIds: string[];
+	    deadLetterTopicId?: string;
+	    deadLetterSubId?: string;
+	    warnings?: string[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateCreateResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.topicId = source["topicId"];
+	        this.subscriptionIds = source["subscriptionIds"];
+	        this.deadLetterTopicId = source["deadLetterTopicId"];
+	        this.deadLetterSubId = source["deadLetterSubId"];
+	        this.warnings = source["warnings"];
+	        this.error = source["error"];
+	    }
+	}
+	
+	export class TopicTemplateConfig {
+	    messageRetentionDuration?: string;
+	    labels?: Record<string, string>;
+	    kmsKeyName?: string;
+	    messageStoragePolicy?: MessageStoragePolicy;
+	
+	    static createFrom(source: any = {}) {
+	        return new TopicTemplateConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageRetentionDuration = source["messageRetentionDuration"];
+	        this.labels = source["labels"];
+	        this.kmsKeyName = source["kmsKeyName"];
+	        this.messageStoragePolicy = this.convertValues(source["messageStoragePolicy"], MessageStoragePolicy);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TopicSubscriptionTemplate {
+	    id: string;
+	    name: string;
+	    description: string;
+	    category: string;
+	    isBuiltIn: boolean;
+	    topic: TopicTemplateConfig;
+	    subscriptions: SubscriptionTemplateConfig[];
+	    deadLetter?: DeadLetterTemplateConfig;
+	
+	    static createFrom(source: any = {}) {
+	        return new TopicSubscriptionTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.category = source["category"];
+	        this.isBuiltIn = source["isBuiltIn"];
+	        this.topic = this.convertValues(source["topic"], TopicTemplateConfig);
+	        this.subscriptions = this.convertValues(source["subscriptions"], SubscriptionTemplateConfig);
+	        this.deadLetter = this.convertValues(source["deadLetter"], DeadLetterTemplateConfig);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

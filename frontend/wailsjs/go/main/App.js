@@ -22,12 +22,20 @@ export function ConnectWithServiceAccount(arg1, arg2) {
   return window['go']['main']['App']['ConnectWithServiceAccount'](arg1, arg2);
 }
 
+export function CreateFromTemplate(arg1) {
+  return window['go']['main']['App']['CreateFromTemplate'](arg1);
+}
+
 export function CreateSubscription(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSubscription'](arg1, arg2, arg3);
 }
 
 export function CreateTopic(arg1, arg2) {
   return window['go']['main']['App']['CreateTopic'](arg1, arg2);
+}
+
+export function DeleteCustomTopicSubscriptionTemplate(arg1) {
+  return window['go']['main']['App']['DeleteCustomTopicSubscriptionTemplate'](arg1);
 }
 
 export function DeleteProfile(arg1) {
@@ -90,6 +98,14 @@ export function GetTopicMetadata(arg1) {
   return window['go']['main']['App']['GetTopicMetadata'](arg1);
 }
 
+export function GetTopicSubscriptionTemplates() {
+  return window['go']['main']['App']['GetTopicSubscriptionTemplates']();
+}
+
+export function GetTopicSubscriptionTemplatesByCategory(arg1) {
+  return window['go']['main']['App']['GetTopicSubscriptionTemplatesByCategory'](arg1);
+}
+
 export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
 }
@@ -112,6 +128,10 @@ export function PublishMessage(arg1, arg2, arg3) {
 
 export function SaveConfigFileContent(arg1) {
   return window['go']['main']['App']['SaveConfigFileContent'](arg1);
+}
+
+export function SaveCustomTopicSubscriptionTemplate(arg1) {
+  return window['go']['main']['App']['SaveCustomTopicSubscriptionTemplate'](arg1);
 }
 
 export function SaveProfile(arg1) {

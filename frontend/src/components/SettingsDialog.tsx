@@ -1,26 +1,40 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { UpdateTheme, UpdateFontSize, GetConfigFileContent, SaveConfigFileContent, GetProfiles, SaveProfile, DeleteProfile, GetConnectionStatus } from '../../wailsjs/go/main/App';
+import { UpdateTheme, UpdateFontSize, GetConfigFileContent, SaveConfigFileContent, GetProfiles, SaveProfile, DeleteProfile, GetConnectionStatus, GetTopicSubscriptionTemplates, SaveCustomTopicSubscriptionTemplate, DeleteCustomTopicSubscriptionTemplate } from '../../wailsjs/go/main/App';
 import { useTheme } from '../hooks/useTheme';
 import type { Theme, FontSize } from '../types/theme';
 import type { ConnectionProfile } from '../types';
+import { models } from '../../wailsjs/go/models';
 import SettingsTabs from './Settings/SettingsTabs';
 import AppearanceTab from './Settings/AppearanceTab';
 import ConnectionsTab from './Settings/ConnectionsTab';
+import TemplatesTab from './Settings/TemplatesTab';
 import AdvancedTab from './Settings/AdvancedTab';
 import UpgradeTab from './Settings/UpgradeTab';
 import ProfileDialog from './Settings/ProfileDialog';
 import DeleteProfileDialog from './Settings/DeleteProfileDialog';
+import TemplateDialog from './Settings/TemplateDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Button,
+  Alert,
+  AlertDescription,
+} from './ui';
 
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Tab = 'appearance' | 'connections' | 'advanced' | 'upgrade';
+type Tab = 'appearance' | 'connections' | 'templates' | 'advanced' | 'upgrade';
 
 const tabs = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'connections', label: 'Connections' },
+  { id: 'templates', label: 'Templates' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'upgrade', label: 'Upgrade' },
 ];
@@ -53,6 +67,15 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const [profileToDelete, setProfileToDelete] = useState<ConnectionProfile | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
 
+  // Templates tab state
+  const [templates, setTemplates] = useState<models.TopicSubscriptionTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateError, setTemplateError] = useState('');
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<models.TopicSubscriptionTemplate | null>(null);
+  const [deleteTemplateConfirmOpen, setDeleteTemplateConfirmOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<models.TopicSubscriptionTemplate | null>(null);
+
   // Map font size to Monaco editor font size
   const fontSizeMap = { small: 12, medium: 14, large: 16 };
   const editorFontSize = fontSizeMap[fontSize];
@@ -80,6 +103,11 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       setEditingProfile(null);
       setDeleteConfirmOpen(false);
       setProfileToDelete(null);
+      // Reset templates state
+      setTemplateDialogOpen(false);
+      setEditingTemplate(null);
+      setDeleteTemplateConfirmOpen(false);
+      setTemplateToDelete(null);
     }
   }, [open, theme, fontSize]);
 
@@ -95,6 +123,13 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   useEffect(() => {
     if (open && activeTab === 'connections') {
       loadProfiles();
+    }
+  }, [open, activeTab]);
+
+  // Load templates when switching to templates tab
+  useEffect(() => {
+    if (open && activeTab === 'templates') {
+      loadTemplates();
     }
   }, [open, activeTab]);
 
@@ -316,55 +351,82 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }
   };
 
+  // Template management handlers
+  const loadTemplates = async () => {
+    setLoadingTemplates(true);
+    setTemplateError('');
+    try {
+      const data = await GetTopicSubscriptionTemplates();
+      setTemplates(data || []);
+    } catch (e: any) {
+      setTemplateError('Failed to load templates: ' + e.toString());
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleCreateTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateDialogOpen(true);
+  };
+
+  const handleEditTemplate = (template: models.TopicSubscriptionTemplate) => {
+    setEditingTemplate(template);
+    setTemplateDialogOpen(true);
+  };
+
+  const handleDeleteTemplate = (template: models.TopicSubscriptionTemplate) => {
+    setTemplateToDelete(template);
+    setDeleteTemplateConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    setTemplateError('');
+    try {
+      await DeleteCustomTopicSubscriptionTemplate(templateToDelete.id);
+      await loadTemplates();
+      setDeleteTemplateConfirmOpen(false);
+      setTemplateToDelete(null);
+    } catch (e: any) {
+      setTemplateError('Failed to delete template: ' + e.toString());
+    }
+  };
+
+  const handleSaveTemplate = async (template: models.TopicSubscriptionTemplate) => {
+    setTemplateError('');
+    try {
+      await SaveCustomTopicSubscriptionTemplate(template);
+      await loadTemplates();
+      setTemplateDialogOpen(false);
+      setEditingTemplate(null);
+    } catch (e: any) {
+      setTemplateError('Failed to save template: ' + e.toString());
+    }
+  };
+
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        // Don't close SettingsDialog if a nested dialog is open
+        if (!open && !profileDialogOpen && !templateDialogOpen && !deleteConfirmOpen) {
+          onClose();
+        }
       }}
-      className="fixed inset-0 flex items-center justify-center z-50"
-      onClick={onClose}
     >
-      <div
-        style={{
-          backgroundColor: 'var(--color-bg-secondary)',
-          borderColor: 'var(--color-border-primary)',
-          color: 'var(--color-text-primary)',
-          width: '90vw',
-          maxWidth: '1200px',
-          height: '85vh',
-          minHeight: '600px',
-        }}
-        className="border rounded-lg shadow-xl mx-4 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        className="w-[90vw] max-w-[1200px] h-[90vh] min-h-[700px] flex flex-col p-0"
+        style={{ maxHeight: '90vh' }}
       >
-        {/* Header */}
-        <div
-          style={{
-            borderBottomColor: 'var(--color-border-primary)',
-          }}
-          className="px-6 py-4 border-b"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Settings</h2>
-              <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>Customize your application appearance</p>
-            </div>
-            <button
-              onClick={onClose}
-              style={{ color: 'var(--color-text-secondary)' }}
-              className="transition-colors"
-              title="Close settings"
-              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-text-primary)'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+        <DialogHeader className="px-6 py-4 border-b">
+          <div>
+            <DialogTitle>Settings</DialogTitle>
+            <DialogDescription>Customize your application appearance</DialogDescription>
           </div>
-        </div>
+        </DialogHeader>
 
         {/* Tabs and Content */}
         <SettingsTabs
@@ -396,6 +458,17 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             />
           )}
 
+          {activeTab === 'templates' && (
+            <TemplatesTab
+              templates={templates}
+              loadingTemplates={loadingTemplates}
+              error={templateError}
+              onCreate={handleCreateTemplate}
+              onEdit={handleEditTemplate}
+              onDelete={handleDeleteTemplate}
+            />
+          )}
+
           {activeTab === 'advanced' && (
             <AdvancedTab
               configContent={configContent}
@@ -424,16 +497,9 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         {/* Error Message */}
         {error && (
           <div className="px-6 pb-4">
-            <div
-              style={{
-                backgroundColor: 'var(--color-error-bg)',
-                borderColor: 'var(--color-error-border)',
-                color: 'var(--color-error)',
-              }}
-              className="p-3 border rounded-md text-sm"
-            >
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           </div>
         )}
 
@@ -452,67 +518,31 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           <div className="flex gap-3 ml-auto">
             {activeTab === 'advanced' && (
               <>
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onClose}
                   disabled={savingConfig}
-                  style={{
-                    color: 'var(--color-text-secondary)',
-                  }}
-                  className="px-4 py-2 rounded-md transition-colors disabled:opacity-50"
-                  onMouseEnter={(e) => {
-                    if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.color = 'var(--color-text-primary)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.color = 'var(--color-text-secondary)';
-                    }
-                  }}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSaveConfig}
                   disabled={!configContent.trim() || savingConfig || !!jsonError || loadingConfig}
-                  style={{
-                    backgroundColor: 'var(--color-accent-primary)',
-                    color: 'white',
-                  }}
-                  className="px-4 py-2 rounded-md transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  loading={savingConfig}
                   title="Save changes (Ctrl/Cmd+S)"
-                  onMouseEnter={(e) => {
-                    if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)';
-                    }
-                  }}
                 >
-                  {savingConfig ? 'Saving...' : 'Save'}
-                </button>
+                  Save
+                </Button>
               </>
             )}
             {(activeTab === 'appearance' || activeTab === 'connections') && (
-              <button
-                onClick={onClose}
-                style={{
-                  backgroundColor: 'var(--color-accent-primary)',
-                  color: 'white',
-                }}
-                className="px-4 py-2 rounded-md transition-opacity hover:opacity-90"
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-primary)'}
-              >
+              <Button onClick={onClose}>
                 Close
-              </button>
+              </Button>
             )}
           </div>
         </div>
-      </div>
+      </DialogContent>
 
       {/* Profile Dialog */}
       {profileDialogOpen && (
@@ -539,6 +569,90 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           }}
         />
       )}
-    </div>
+
+      {/* Template Dialog */}
+      {templateDialogOpen && (
+        <TemplateDialog
+          template={editingTemplate}
+          onSave={handleSaveTemplate}
+          onClose={() => {
+            setTemplateDialogOpen(false);
+            setEditingTemplate(null);
+            setTemplateError('');
+          }}
+          error={templateError}
+        />
+      )}
+
+      {/* Delete Template Confirmation Dialog */}
+      {deleteTemplateConfirmOpen && templateToDelete && (
+        <div
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
+            zIndex: 60,
+          }}
+          className="fixed inset-0 flex items-center justify-center"
+          onClick={() => {
+            setDeleteTemplateConfirmOpen(false);
+            setTemplateToDelete(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-border-primary)',
+              color: 'var(--color-text-primary)',
+            }}
+            className="border rounded-lg p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              style={{ color: 'var(--color-error)' }}
+              className="text-lg font-semibold mb-4"
+            >
+              Delete Template
+            </h3>
+            <p
+              style={{ color: 'var(--color-text-secondary)' }}
+              className="mb-2"
+            >
+              Are you sure you want to delete this template?
+            </p>
+            <code
+              style={{
+                backgroundColor: 'var(--color-bg-code)',
+                color: 'var(--color-text-primary)',
+              }}
+              className="block rounded p-3 text-sm mb-3 break-all"
+            >
+              {templateToDelete.name}
+            </code>
+            <p
+              style={{ color: 'var(--color-error)' }}
+              className="text-sm mb-4"
+            >
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteTemplateConfirmOpen(false);
+                  setTemplateToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmDeleteTemplate}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Dialog>
   );
 }

@@ -11,6 +11,8 @@ import (
 	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"pubsub-gui/internal/models"
 )
 
 // TopicInfo represents topic metadata
@@ -133,6 +135,59 @@ func DeleteTopicAdmin(ctx context.Context, client *pubsub.Client, projectID, top
 	err := client.TopicAdminClient.DeleteTopic(ctx, deleteReq)
 	if err != nil {
 		return fmt.Errorf("failed to delete topic: %w", err)
+	}
+
+	return nil
+}
+
+// CreateTopicWithConfig creates a new topic with full configuration support
+func CreateTopicWithConfig(ctx context.Context, client *pubsub.Client, projectID, topicID string, config models.TopicTemplateConfig) error {
+	// Normalize topic ID (extract short name if full path provided)
+	shortTopicID := topicID
+	if strings.HasPrefix(topicID, "projects/") {
+		parts := strings.Split(topicID, "/")
+		if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "topics" {
+			shortTopicID = parts[3]
+		}
+	}
+
+	// Build full resource name
+	topicName := "projects/" + projectID + "/topics/" + shortTopicID
+
+	// Create topic using Topic object directly (v2 API pattern)
+	req := &pubsubpb.Topic{
+		Name: topicName,
+	}
+
+	// Set message retention duration if provided
+	if config.MessageRetentionDuration != "" {
+		duration, err := time.ParseDuration(config.MessageRetentionDuration)
+		if err != nil {
+			return fmt.Errorf("invalid message retention duration format: %w", err)
+		}
+		req.MessageRetentionDuration = durationpb.New(duration)
+	}
+
+	// Set labels if provided
+	if len(config.Labels) > 0 {
+		req.Labels = config.Labels
+	}
+
+	// Set KMS key name if provided
+	if config.KMSKeyName != "" {
+		req.KmsKeyName = config.KMSKeyName
+	}
+
+	// Set message storage policy if provided
+	if config.MessageStoragePolicy != nil && len(config.MessageStoragePolicy.AllowedPersistenceRegions) > 0 {
+		req.MessageStoragePolicy = &pubsubpb.MessageStoragePolicy{
+			AllowedPersistenceRegions: config.MessageStoragePolicy.AllowedPersistenceRegions,
+		}
+	}
+
+	_, err := client.TopicAdminClient.CreateTopic(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to create topic %s: %w. Ensure you have 'pubsub.topics.create' permission", topicName, err)
 	}
 
 	return nil

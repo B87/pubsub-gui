@@ -142,3 +142,166 @@ if strings.Contains(errStr, "NotFound") || strings.Contains(errStr, "not found")
 * Filter subscriptions for a topic: `allSubscriptions.filter(sub => sub.topic === topic.name)`
 * Filter dead letter subscriptions: `allSubscriptions.filter(sub => sub.deadLetterPolicy?.deadLetterTopic === topic.name)`
 * See `wails.mdc` Local Filtering Pattern section for complete details
+
+## Template System
+
+The template system allows users to create complete topic/subscription setups with pre-configured best practices. Templates define configurations for topics, subscriptions, and optional dead letter queues that can be instantiated with a base name.
+
+### Template Structure
+
+Templates are defined in `internal/models/template.go` and include:
+
+* **Topic Configuration**: Message retention duration, labels, KMS key, storage policy
+* **Subscription Configuration**: One or more subscriptions with ack deadlines, retention, retry policies, ordering, exactly-once delivery, filters
+* **Dead Letter Queue**: Optional DLQ topic and subscription with max delivery attempts
+
+### Built-in Templates
+
+The system includes 10 built-in templates (see `internal/templates/defaults.go`):
+
+**Production Templates:**
+* `production-critical`: Exactly-once delivery, 30-day retention, DLQ
+* `production-standard`: At-least-once delivery, 7-day retention, DLQ
+* `production-high-throughput`: Optimized for high message volume
+
+**Development Templates:**
+* `development`: Short retention, auto-expiring subscriptions, no DLQ
+* `development-dlq`: Development with debugging DLQ
+* `temporary-debug`: Very short retention for temporary debugging
+
+**Specialized Templates:**
+* `event-driven`: Event-driven architectures with filtering support
+* `batch-processing`: Long ack deadlines for complex processing
+* `streaming-pipeline`: Exactly-once with message ordering
+* `multi-tenant`: Multi-tenant applications with filtering
+
+### Creating Resources from Templates
+
+**Backend Implementation:**
+
+* Template creator: `internal/templates/creator.go`
+* Resource creation order:
+  1. Dead letter topic (if enabled)
+  2. Dead letter subscription (if enabled)
+  3. Main topic
+  4. Main subscriptions (one or more)
+* Rollback logic: If any step fails, created resources are deleted in reverse order
+
+**Resource Naming Convention:**
+
+* Base name: `orders` → Topic: `orders-topic`, Sub: `orders-sub`
+* With environment: `orders` + `prod` → `orders-prod-topic`, `orders-prod-sub`
+* Dead letter: `orders-dlq`, `orders-dlq-sub`
+* Template creator handles name normalization automatically
+
+**Example Usage:**
+
+```go
+// In app.go
+func (a *App) CreateFromTemplate(request models.TemplateCreateRequest) (models.TemplateCreateResult, error) {
+    result, err := a.topicSubscriptionTemplates.CreateFromTemplate(&request)
+    // ...
+    // Triggers syncResources() and emits template:created event
+}
+```
+
+**Frontend Usage:**
+
+* Open template selector via command bar (`Cmd/Ctrl+T`) or UI button
+* Select template → Configure (base name, environment) → Create
+* See `frontend/src/components/TemplateSelector.tsx` for implementation
+
+### Custom Templates
+
+Users can create, edit, and delete custom templates via Settings → Templates tab.
+
+**Backend Methods:**
+
+* `GetTopicSubscriptionTemplates()`: Returns all templates (built-in + custom)
+* `SaveCustomTopicSubscriptionTemplate()`: Saves/updates custom template
+* `DeleteCustomTopicSubscriptionTemplate()`: Deletes custom template
+* Custom templates are stored in `~/.pubsub-gui/config.json` under `topicSubscriptionTemplates`
+
+**Template Validation:**
+
+* Template validator: `internal/templates/validator.go`
+* Validates: retention durations (10min-31days for topics, up to 7days for subscriptions), ack deadlines (10-600s), retry policies, dead letter config (5-100 max attempts)
+* Templates must have at least one subscription
+
+**Template Registry:**
+
+* Registry: `internal/templates/registry.go`
+* Manages built-in and custom templates
+* Thread-safe access with mutex protection
+* Custom templates cannot override built-in template IDs
+
+### Template Configuration Options
+
+**Topic Config:**
+* `messageRetentionDuration`: Duration string (e.g., "168h" for 7 days, "720h" for 30 days)
+* `labels`: Key-value pairs for organization
+* `kmsKeyName`: KMS key for encryption
+* `messageStoragePolicy`: Regional storage policy
+
+**Subscription Config:**
+* `name`: Subscription name suffix (e.g., "sub", "worker")
+* `ackDeadline`: 10-600 seconds
+* `retentionDuration`: Up to 7 days
+* `enableExactlyOnce`: Enable exactly-once delivery
+* `enableOrdering`: Enable message ordering
+* `filter`: Message filter expression
+* `retryPolicy`: Minimum and maximum backoff durations
+* `expirationPolicy`: Auto-delete after idle period
+
+**Dead Letter Config:**
+* `maxDeliveryAttempts`: 5-100 attempts before sending to DLQ
+
+### Template Overrides
+
+When creating resources from templates, users can override:
+
+* `messageRetentionDuration`: Override topic retention
+* `ackDeadline`: Override subscription ack deadline
+* `maxDeliveryAttempts`: Override DLQ max attempts
+* `disableDeadLetter`: Disable DLQ creation entirely
+
+See `internal/models/template.go:TemplateOverrides` for structure.
+
+### Error Handling
+
+**Template Creation Errors:**
+
+* Partial failures: Rollback created resources in reverse order
+* Duplicate resources: Clear error message with suggestions
+* Invalid input: Frontend validation before API call
+* Network errors: Retry logic in admin functions
+
+**Template Validation Errors:**
+
+* Invalid retention duration: "retention duration must be between 10 minutes and 31 days"
+* Invalid ack deadline: "ack deadline must be between 10 and 600 seconds"
+* Invalid retry policy: "minimum backoff must be less than maximum backoff"
+* Missing required fields: Descriptive error messages
+
+### Best Practices
+
+**When Creating Templates:**
+
+* Use descriptive names and descriptions
+* Set appropriate retention durations for use case
+* Enable DLQ for production templates
+* Use exactly-once delivery only when needed (has performance cost)
+* Set reasonable ack deadlines based on processing time
+
+**When Using Templates:**
+
+* Choose template category matching your use case
+* Use environment suffixes for multi-environment setups
+* Review resource names before creating
+* Test templates in development environment first
+
+**Template Naming:**
+
+* Use lowercase, alphanumeric, hyphens only
+* Be descriptive: `production-critical`, `development-with-dlq`
+* Avoid generic names: prefer `payment-processing` over `template1`

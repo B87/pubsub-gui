@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import type { PubSubMessage } from '../types';
+import { Card, CardHeader, CardContent, Button } from './ui';
 
 interface MessageCardProps {
   message: PubSubMessage;
@@ -51,10 +52,13 @@ export default function MessageCard({ message }: MessageCardProps) {
   const attributeCount = Object.keys(attributes).length;
 
   return (
-    <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden transition-all duration-200 hover:border-slate-600">
+    <Card className="overflow-hidden transition-all duration-200 hover:border-slate-600">
       {/* Header */}
-      <div
-        className="px-4 py-3 border-b border-slate-700 cursor-pointer hover:bg-slate-750 transition-colors"
+      <CardHeader
+        className="cursor-pointer transition-colors"
+        style={{
+          borderBottomColor: 'var(--color-border-primary)',
+        }}
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center justify-between">
@@ -64,16 +68,18 @@ export default function MessageCard({ message }: MessageCardProps) {
               <code className="text-xs text-slate-400 font-mono truncate">
                 {message.id}
               </code>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   copyToClipboard(message.id, 'id');
                 }}
-                className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded transition-colors flex-shrink-0"
+                className="flex-shrink-0 h-auto py-1 px-2 text-xs"
                 title="Copy message ID"
               >
                 {copied === 'id' ? '✓' : 'Copy'}
-              </button>
+              </Button>
             </div>
 
             {/* Timestamp */}
@@ -90,8 +96,11 @@ export default function MessageCard({ message }: MessageCardProps) {
           </div>
 
           {/* Expand/Collapse Button */}
-          <button
-            className="ml-2 text-slate-400 hover:text-slate-200 transition-colors flex-shrink-0"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-2 flex-shrink-0"
+            style={{ color: 'var(--color-text-muted)' }}
             onClick={(e) => {
               e.stopPropagation();
               setIsExpanded(!isExpanded);
@@ -106,13 +115,13 @@ export default function MessageCard({ message }: MessageCardProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
+      </CardHeader>
 
       {/* Collapsed View */}
       {!isExpanded && (
-        <div className="px-4 py-3">
+        <CardContent className="px-4 py-3">
           <div className="text-sm text-slate-300 font-mono whitespace-pre-wrap break-words">
             {payloadPreview}
           </div>
@@ -121,22 +130,24 @@ export default function MessageCard({ message }: MessageCardProps) {
               {attributeCount} attribute{attributeCount !== 1 ? 's' : ''}
             </div>
           )}
-        </div>
+        </CardContent>
       )}
 
       {/* Expanded View */}
       {isExpanded && (
-        <div className="px-4 py-3 space-y-4">
+        <CardContent className="px-4 py-3 space-y-4">
           {/* Payload Section */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold text-slate-300">Payload</h4>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => copyToClipboard(message.data, 'payload')}
-                className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+                className="h-auto py-1 px-2 text-xs"
               >
                 {copied === 'payload' ? '✓ Copied' : 'Copy Payload'}
-              </button>
+              </Button>
             </div>
             <div className="bg-slate-900 rounded border border-slate-700 overflow-hidden">
               {isJSON ? (
@@ -194,8 +205,8 @@ export default function MessageCard({ message }: MessageCardProps) {
               <div>Ordering Key: <code className="text-slate-300">{message.orderingKey}</code></div>
             )}
           </div>
-        </div>
+        </CardContent>
       )}
-    </div>
+    </Card>
   );
 }

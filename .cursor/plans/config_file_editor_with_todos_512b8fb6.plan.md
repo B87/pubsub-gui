@@ -4,22 +4,22 @@ overview: Add a config file editor UI that allows users to directly view and edi
 todos:
   - id: backend-methods
     content: Implement GetConfigFileContent and SaveConfigFileContent in app.go
-    status: pending
+    status: completed
   - id: frontend-component
     content: Create ConfigEditorDialog.tsx component with JSON validation
-    status: pending
+    status: completed
   - id: sidebar-button
     content: Add settings button to Sidebar.tsx footer
-    status: pending
+    status: completed
   - id: app-integration
     content: Wire up dialog state and handlers in App.tsx
-    status: pending
+    status: completed
   - id: validation-theme
     content: Implement config reload and theme application logic in backend
-    status: pending
+    status: completed
   - id: testing
     content: Test the complete config editing flow
-    status: pending
+    status: completed
 ---
 
 # Config File Editor Implementation
