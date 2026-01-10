@@ -19,6 +19,7 @@ interface SidebarProps {
   onCreateSubscription?: () => void;
   onEditSubscription?: (subscription: Subscription) => void;
   onOpenSettings?: () => void;
+  onToggleEmulator?: () => void;
   profileRefreshTrigger?: number;
   loading?: boolean;
 }
@@ -38,6 +39,7 @@ export default function Sidebar({
   onCreateSubscription,
   onEditSubscription,
   onOpenSettings,
+  onToggleEmulator,
   profileRefreshTrigger,
   loading = false,
 }: SidebarProps) {
@@ -98,6 +100,40 @@ export default function Sidebar({
           onCreateNew={onCreateConnection}
           refreshTrigger={profileRefreshTrigger}
         />
+        {/* Emulator Toggle Button */}
+        {status.isConnected && onToggleEmulator && (
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              onClick={onToggleEmulator}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80"
+              style={{
+                backgroundColor: status.emulatorHost ? 'var(--color-warning-bg)' : 'var(--color-bg-tertiary)',
+                borderColor: status.emulatorHost ? 'var(--color-warning-border)' : 'var(--color-border-primary)',
+                color: status.emulatorHost ? 'var(--color-warning)' : 'var(--color-text-secondary)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+              title={status.emulatorHost ? 'Disable emulator (switch to production)' : 'Enable emulator (switch to local)'}
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                {status.emulatorHost ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                )}
+              </svg>
+              <span className="font-medium">
+                {status.emulatorHost ? 'Emulator ON' : 'Emulator OFF'}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Search & Actions */}

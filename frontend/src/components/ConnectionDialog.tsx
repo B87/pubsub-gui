@@ -18,7 +18,7 @@ type AuthMethod = 'ADC' | 'ServiceAccount' | 'OAuth';
 
 interface ConnectionDialogProps {
   open: boolean;
-  onConnect: (projectId: string, authMethod: AuthMethod, serviceAccountPath?: string, oauthClientPath?: string, saveAsProfile?: { name: string; isDefault?: boolean }) => Promise<void>;
+  onConnect: (projectId: string, authMethod: AuthMethod, serviceAccountPath?: string, oauthClientPath?: string, emulatorHost?: string, saveAsProfile?: { name: string; isDefault?: boolean }) => Promise<void>;
   onClose: () => void;
   error?: string;
 }
@@ -32,6 +32,9 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
   const [saveAsProfile, setSaveAsProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [isDefault, setIsDefault] = useState(false);
+  const [useEmulator, setUseEmulator] = useState(false);
+  const [emulatorHost, setEmulatorHost] = useState('localhost:8085');
+  const [showEmulatorDocs, setShowEmulatorDocs] = useState(false);
 
   const handleConnect = async () => {
     if (!projectId.trim()) return;
@@ -52,6 +55,7 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
         authMethod,
         authMethod === 'ServiceAccount' ? serviceAccountPath.trim() : undefined,
         authMethod === 'OAuth' ? oauthClientPath.trim() : undefined,
+        useEmulator ? (emulatorHost.trim() || 'localhost:8085') : undefined,
         saveProfile
       );
       setProjectId('');
@@ -60,6 +64,9 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
       setSaveAsProfile(false);
       setProfileName('');
       setIsDefault(false);
+      setUseEmulator(false);
+      setEmulatorHost('localhost:8085');
+      setShowEmulatorDocs(false);
       onClose();
     } catch (e) {
       // Error is handled by parent
@@ -134,6 +141,101 @@ export default function ConnectionDialog({ open, onConnect, onClose, error }: Co
               Connect using your personal Google account. You'll need an OAuth client JSON file from GCP Console.
             </p>
           )}
+
+          {/* Emulator Toggle */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="useEmulator"
+                checked={useEmulator}
+                onCheckedChange={(checked) => setUseEmulator(checked === true)}
+                disabled={loading}
+              />
+              <Label htmlFor="useEmulator" className="cursor-pointer">
+                Use local Pub/Sub emulator
+              </Label>
+            </div>
+
+            {useEmulator && (
+              <div className="ml-6 space-y-3">
+                <FormField
+                  label="Emulator Host"
+                  helperText="Leave empty for default (localhost:8085)"
+                >
+                  <Input
+                    value={emulatorHost}
+                    onChange={(e) => setEmulatorHost(e.target.value)}
+                    placeholder="localhost:8085"
+                    disabled={loading}
+                  />
+                </FormField>
+
+                {/* Expandable Documentation */}
+                <div
+                  className="border rounded-lg"
+                  style={{ borderColor: 'var(--color-border-primary)' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowEmulatorDocs(!showEmulatorDocs)}
+                    className="w-full flex items-center justify-between p-3 hover:opacity-80 transition-opacity"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    <span className="text-sm font-medium">What is the emulator?</span>
+                    <svg
+                      className="w-4 h-4 transition-transform"
+                      style={{ transform: showEmulatorDocs ? 'rotate(180deg)' : 'none' }}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showEmulatorDocs && (
+                    <div className="p-3 pt-0 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      <p className="mb-2">The Pub/Sub emulator lets you test locally without connecting to GCP.</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>No authentication required</li>
+                        <li>No costs</li>
+                        <li>Fast iteration</li>
+                        <li>Data is ephemeral (lost when emulator stops)</li>
+                      </ul>
+                      <a
+                        href="https://docs.cloud.google.com/pubsub/docs/emulator"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--color-accent-primary)' }}
+                        className="text-xs mt-2 inline-block hover:underline"
+                      >
+                        View documentation →
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Start Helpers */}
+                <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  <p className="mb-2 font-medium">Quick start:</p>
+                  <div className="space-y-1">
+                    <code
+                      className="block p-2 rounded text-xs"
+                      style={{ backgroundColor: 'var(--color-bg-code)', color: 'var(--color-text-primary)' }}
+                    >
+                      gcloud beta emulators pubsub start
+                    </code>
+                    <p className="text-xs mt-1">Or with Docker:</p>
+                    <code
+                      className="block p-2 rounded text-xs"
+                      style={{ backgroundColor: 'var(--color-bg-code)', color: 'var(--color-text-primary)' }}
+                    >
+                      docker run --rm -p 8085:8085 google/cloud-sdk:emulators gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+                    </code>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           <FormField label="GCP Project ID" required>
             <Input

@@ -1,7 +1,7 @@
 ---
-alwaysApply: true
+globs: frontend/**
+alwaysApply: false
 ---
-
 # Component Index
 
 This document provides an index of all React components in the Pub/Sub GUI application, organized by category with descriptions and usage examples.
@@ -830,6 +830,162 @@ interface SettingsDialogProps {
 
 ---
 
+### Settings/LogsSettingsTab
+
+**File:** `frontend/src/components/Settings/LogsSettingsTab.tsx`
+
+**Description:** Comprehensive logs viewer with filtering, search, and pagination. Features a sticky header with backdrop blur, icon badge, stats display, and full-height scrollable content area. **This is the reference implementation for professional settings tab design** - demonstrates best practices for data-heavy settings tabs.
+
+**Props:**
+```typescript
+interface LogsSettingsTabProps {
+  activeTab?: string;
+}
+```
+
+**Usage:**
+```tsx
+<LogsSettingsTab activeTab={activeTab} />
+```
+
+**Features:**
+- **Full-height flex layout**: Fills all available space with scrollable content
+- **Sticky header with backdrop blur**: Professional header that stays visible while scrolling
+- **Icon badge + title pattern**: Icon in accent-colored badge with title and entry count
+- **Stats display**: Log level counts (DEBUG, INFO, WARN, ERROR) prominently shown
+- **Compact filter row**: Search, level filter, date filter, and controls in one row
+- **Expandable log entries**: Click to expand and view structured fields
+- **Pagination**: Navigate through large log sets
+- **Auto-refresh**: Optional automatic refresh at configurable intervals
+- **Keyboard shortcuts**: Cmd/Ctrl+R to refresh
+- **Theme-compliant**: All colors use CSS variables
+
+**Key Design Patterns:**
+- Uses `flex flex-col` with `overflow: hidden` on container
+- Header uses `shrink-0` and `backdrop-blur` with semi-transparent background
+- Content area uses `flex-1 overflow-y-auto` for scrolling
+- Filter row uses `overflow: visible` to allow dropdowns to overflow
+
+**What Makes This Tab Look Professional:**
+
+Compared to simpler settings tabs (AppearanceTab, ConnectionsTab, TemplatesTab), LogsSettingsTab demonstrates:
+
+1. **Full-height layout** vs. simple spacing - Utilizes all available vertical space
+2. **Sticky header** vs. scrolling header - Header stays visible with backdrop blur effect
+3. **Icon badge design** vs. plain heading - Visual hierarchy with accent-colored icon badge
+4. **Stats display** vs. no summary - Shows log level counts prominently
+5. **Compact filter organization** vs. scattered controls - All filters in one organized row
+6. **Clear visual separation** - Header and content areas are visually distinct
+
+**See**: `.cursor/rules/react-tailwind.mdc` Advanced Layout Patterns section for implementation details and comparison guide.
+
+---
+
+### Settings/LogLevelFilter
+
+**File:** `frontend/src/components/Settings/LogLevelFilter.tsx`
+
+**Description:** Dropdown filter for log levels with quick filter buttons, level counts, and keyboard navigation.
+
+**Props:**
+```typescript
+interface LogLevelFilterProps {
+  levels: string[];
+  selectedLevels: string[];
+  counts?: Record<string, number>;
+  onChange: (levels: string[]) => void;
+}
+```
+
+**Usage:**
+```tsx
+<LogLevelFilter
+  levels={LOG_LEVELS}
+  selectedLevels={selectedLevels}
+  counts={levelCounts}
+  onChange={(levels) => setSelectedLevels(levels)}
+/>
+```
+
+**Features:**
+- Quick filter buttons (All, Errors, Warn + Error, Clear)
+- Individual level selection with checkboxes
+- Level counts displayed as badges
+- Keyboard navigation (Arrow keys, Enter, Escape)
+- Click outside to close
+- Theme-compliant colors and styling
+
+---
+
+### Settings/LogDateRangeFilter
+
+**File:** `frontend/src/components/Settings/LogDateRangeFilter.tsx`
+
+**Description:** Date range picker for filtering logs by date with quick ranges and custom date input.
+
+**Props:**
+```typescript
+interface LogDateRangeFilterProps {
+  selectedDate: string;
+  startDate: string;
+  endDate: string;
+  onSelectedDateChange: (date: string) => void;
+  onStartDateChange: (date: string) => void;
+  onEndDateChange: (date: string) => void;
+}
+```
+
+**Usage:**
+```tsx
+<LogDateRangeFilter
+  selectedDate={selectedDate}
+  startDate={startDate}
+  endDate={endDate}
+  onSelectedDateChange={setSelectedDate}
+  onStartDateChange={setStartDate}
+  onEndDateChange={setEndDate}
+/>
+```
+
+**Features:**
+- Quick ranges (Today, Yesterday, Last 7 days, Last 30 days)
+- Single date or date range selection
+- Custom date input with validation
+- Visual indicators for active filters
+- Theme-compliant styling
+
+---
+
+### Settings/JSONTree
+
+**File:** `frontend/src/components/Settings/JSONTree.tsx`
+
+**Description:** Expandable JSON tree component for displaying structured log fields with syntax highlighting and search highlighting.
+
+**Props:**
+```typescript
+interface JsonTreeProps {
+  data: unknown;
+  searchQuery?: string;
+  depth?: number;
+  isLast?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+<JsonTree data={log.fields} searchQuery={searchTerm} />
+```
+
+**Features:**
+- Expandable/collapsible nested objects and arrays
+- Syntax highlighting (strings, numbers, booleans, null)
+- Search term highlighting
+- Theme-compliant colors
+- Keyboard accessible
+
+---
+
 ## Utility Components
 
 ### EmptyState
@@ -1374,4 +1530,4 @@ Components are organized by functionality:
 
 ---
 
-**Last Updated:** 2026-01-06
+**Last Updated:** 2026-01-10

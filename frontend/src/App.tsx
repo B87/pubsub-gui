@@ -55,6 +55,9 @@ function App() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showCommandBar, setShowCommandBar] = useState(false);
+  const [emulatorWarningDismissed, setEmulatorWarningDismissed] = useState(() => {
+    return localStorage.getItem('emulatorWarningDismissed') === 'true';
+  });
 
   // Use ref to track selectedResource in event listeners without causing re-renders
   const selectedResourceRef = useRef(selectedResource);
@@ -233,23 +236,23 @@ function App() {
     }
   };
 
-  const handleConnect = async (projectId: string, authMethod: 'ADC' | 'ServiceAccount' | 'OAuth', serviceAccountPath?: string, oauthClientPath?: string, saveAsProfile?: { name: string; isDefault?: boolean }) => {
+  const handleConnect = async (projectId: string, authMethod: 'ADC' | 'ServiceAccount' | 'OAuth', serviceAccountPath?: string, oauthClientPath?: string, emulatorHost?: string, saveAsProfile?: { name: string; isDefault?: boolean }) => {
     setError('');
     setLoading(true);
 
     try {
       if (authMethod === 'ADC') {
-        await ConnectWithADC(projectId);
+        await ConnectWithADC(projectId, emulatorHost || '');
       } else if (authMethod === 'ServiceAccount') {
         if (!serviceAccountPath) {
           throw new Error('Service account path is required');
         }
-        await ConnectWithServiceAccount(projectId, serviceAccountPath);
+        await ConnectWithServiceAccount(projectId, serviceAccountPath, emulatorHost || '');
       } else if (authMethod === 'OAuth') {
         if (!oauthClientPath) {
           throw new Error('OAuth client path is required');
         }
-        await ConnectWithOAuth(projectId, oauthClientPath);
+        await ConnectWithOAuth(projectId, oauthClientPath, emulatorHost || '');
       }
       await loadStatus();
 
@@ -262,6 +265,7 @@ function App() {
           authMethod: authMethod,
           serviceAccountPath: authMethod === 'ServiceAccount' ? serviceAccountPath : undefined,
           oauthClientPath: authMethod === 'OAuth' ? oauthClientPath : undefined,
+          emulatorHost: emulatorHost,
           isDefault: saveAsProfile.isDefault || false,
           createdAt: new Date().toISOString(),
         };
@@ -333,6 +337,72 @@ function App() {
       await loadStatus();
     } catch (e: any) {
       setError(e.toString());
+    }
+  };
+
+  const handleToggleEmulator = async () => {
+    if (!status.isConnected || !status.projectId) {
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      // Get all profiles to find the active one
+      const allProfiles = (await GetProfiles()) as any as ConnectionProfile[];
+      const activeProfile = allProfiles.find((p) =>
+        p.projectId === status.projectId &&
+        p.authMethod === status.authMethod
+      );
+
+      if (!activeProfile) {
+        // If no profile found, we can't toggle (user connected without saving profile)
+        setError('Cannot toggle emulator: connection was not saved as a profile. Please reconnect with a saved profile.');
+        return;
+      }
+
+      // Toggle emulator host
+      const newEmulatorHost = activeProfile.emulatorHost ? undefined : 'localhost:8085';
+
+      // Update profile with new emulator setting
+      const updatedProfile: ConnectionProfile = {
+        ...activeProfile,
+        emulatorHost: newEmulatorHost,
+      };
+      await SaveProfile(updatedProfile as any);
+      await loadProfiles();
+
+      // Disconnect and reconnect with new emulator setting
+      await Disconnect();
+      setTopics([]);
+      setSubscriptions([]);
+      setSelectedResource(null);
+
+      // Small delay to ensure disconnect completes
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Reconnect with toggled emulator
+      if (updatedProfile.authMethod === 'ADC') {
+        await ConnectWithADC(updatedProfile.projectId, newEmulatorHost || '');
+      } else if (updatedProfile.authMethod === 'ServiceAccount') {
+        if (!updatedProfile.serviceAccountPath) {
+          throw new Error('Service account path is missing');
+        }
+        await ConnectWithServiceAccount(updatedProfile.projectId, updatedProfile.serviceAccountPath, newEmulatorHost || '');
+      } else if (updatedProfile.authMethod === 'OAuth') {
+        if (!updatedProfile.oauthClientPath) {
+          throw new Error('OAuth client path is missing');
+        }
+        await ConnectWithOAuth(updatedProfile.projectId, updatedProfile.oauthClientPath, newEmulatorHost || '');
+      }
+
+      await loadStatus();
+      await loadResources();
+    } catch (e: any) {
+      setError('Failed to toggle emulator: ' + e.toString());
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -687,6 +757,7 @@ function App() {
             }}
             onEditSubscription={handleEditSubscription}
             onOpenSettings={() => setShowSettingsDialog(true)}
+            onToggleEmulator={handleToggleEmulator}
             profileRefreshTrigger={profileRefreshTrigger}
             loading={loadingResources}
           />
@@ -711,6 +782,49 @@ function App() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Emulator Warning Banner */}
+        {status.emulatorHost && status.isConnected && !emulatorWarningDismissed && (
+          <div
+            className="border-b -mx-4 sm:-mx-6 lg:-mx-12 xl:-mx-16 px-4 sm:px-6 lg:px-12 xl:px-16 py-4 mb-4"
+            style={{
+              backgroundColor: 'var(--color-warning-bg)',
+              borderBottomColor: 'var(--color-warning-border)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-3 w-full">
+              <div className="flex items-start gap-3 flex-1">
+                <svg
+                  className="w-5 h-5 shrink-0 mt-0.5"
+                  style={{ color: 'var(--color-warning)' }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <p
+                    className="text-sm"
+                    style={{ color: 'var(--color-warning)' }}
+                  >
+                    You are connected to the local emulator. Changes won't affect production.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setEmulatorWarningDismissed(true);
+                  localStorage.setItem('emulatorWarningDismissed', 'true');
+                }}
+                className="text-xs hover:opacity-80 transition-opacity shrink-0"
+                style={{ color: 'var(--color-warning)' }}
+                title="Dismiss warning"
+              >
+                Dismiss
               </button>
             </div>
           </div>

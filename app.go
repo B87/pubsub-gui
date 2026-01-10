@@ -17,6 +17,7 @@ import (
 	"pubsub-gui/internal/app"
 	"pubsub-gui/internal/auth"
 	"pubsub-gui/internal/config"
+	"pubsub-gui/internal/logger"
 	"pubsub-gui/internal/models"
 	"pubsub-gui/internal/pubsub/admin"
 	"pubsub-gui/internal/pubsub/publisher"
@@ -47,6 +48,7 @@ type App struct {
 	monitoring                 *app.MonitoringHandler
 	configH                    *app.ConfigHandler
 	snapshots                  *app.SnapshotHandler
+	logs                       *app.LogsHandler
 
 	// Application version
 	version string
@@ -78,7 +80,7 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize config manager
 	configMgr, err := config.NewManager()
 	if err != nil {
-		fmt.Printf("Error initializing config manager: %v\n", err)
+		logger.Error("Error initializing config manager", "error", err)
 		return
 	}
 	a.configManager = configMgr
@@ -86,16 +88,11 @@ func (a *App) startup(ctx context.Context) {
 	// Load configuration
 	cfg, err := a.configManager.LoadConfig()
 	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
+		logger.Error("Error loading config", "error", err)
 		// Use default config if load fails
 		cfg = models.NewDefaultConfig()
 	}
 	a.config = cfg
-
-	// Set emulator host from config if env var is not set (env has priority)
-	if os.Getenv("PUBSUB_EMULATOR_HOST") == "" && cfg.EmulatorHost != "" {
-		os.Setenv("PUBSUB_EMULATOR_HOST", cfg.EmulatorHost)
-	}
 
 	// Initialize handlers
 	// Note: resources handler must be initialized first as connection handler needs syncResources callback
@@ -141,6 +138,10 @@ func (a *App) startup(ctx context.Context) {
 		a.ctx,
 		a.clientManager,
 	)
+	a.logs = app.NewLogsHandler()
+
+	// Log startup
+	logger.Info("Application started", "version", a.version)
 
 	// Auto-connect to active profile if set (persists across app restarts)
 	if a.config.ActiveProfileID != "" {
@@ -149,7 +150,7 @@ func (a *App) startup(ctx context.Context) {
 			if profile.ID == a.config.ActiveProfileID {
 				// Attempt to connect (errors are logged but don't prevent startup)
 				if err := a.connectWithProfile(&profile); err != nil {
-					fmt.Printf("Failed to auto-connect to active profile '%s': %v\n", profile.Name, err)
+					logger.Error("Failed to auto-connect to active profile", "profileName", profile.Name, "error", err)
 				} else {
 					// Sync resources after successful connection
 					go a.resources.SyncResources()
@@ -211,7 +212,7 @@ func (a *App) CheckForUpdates() (*versionpkg.UpdateInfo, error) {
 	if a.configManager != nil && a.config != nil {
 		if err := a.configManager.SaveConfig(a.config); err != nil {
 			// Log error but don't fail the check
-			fmt.Printf("Warning: failed to save last upgrade check time: %v\n", err)
+			logger.Warn("Failed to save last upgrade check time", "error", err)
 		}
 	}
 
@@ -340,7 +341,7 @@ func (a *App) performUpgradeCheck() {
 	updateInfo, err := a.CheckForUpdates()
 	if err != nil {
 		// Log error but don't notify user (silent failure)
-		fmt.Printf("Upgrade check failed: %v\n", err)
+		logger.Error("Upgrade check failed", "error", err)
 		return
 	}
 
@@ -395,18 +396,18 @@ func (a *App) OpenReleasesPage(url string) error {
 }
 
 // ConnectWithADC connects to Pub/Sub using Application Default Credentials
-func (a *App) ConnectWithADC(projectID string) error {
-	return a.connection.ConnectWithADC(projectID)
+func (a *App) ConnectWithADC(projectID string, emulatorHost string) error {
+	return a.connection.ConnectWithADC(projectID, emulatorHost)
 }
 
 // ConnectWithServiceAccount connects to Pub/Sub using a service account JSON key file
-func (a *App) ConnectWithServiceAccount(projectID, keyPath string) error {
-	return a.connection.ConnectWithServiceAccount(projectID, keyPath)
+func (a *App) ConnectWithServiceAccount(projectID, keyPath string, emulatorHost string) error {
+	return a.connection.ConnectWithServiceAccount(projectID, keyPath, emulatorHost)
 }
 
 // ConnectWithOAuth connects to Pub/Sub using OAuth2 credentials
-func (a *App) ConnectWithOAuth(projectID, oauthClientPath string) error {
-	return a.connection.ConnectWithOAuth(projectID, oauthClientPath)
+func (a *App) ConnectWithOAuth(projectID, oauthClientPath string, emulatorHost string) error {
+	return a.connection.ConnectWithOAuth(projectID, oauthClientPath, emulatorHost)
 }
 
 // Disconnect closes the current Pub/Sub connection
@@ -422,6 +423,12 @@ func (a *App) Disconnect() error {
 	a.cleanupTemporarySubscriptions(client, projectID)
 	a.clearResourceStore()
 	a.stopUpgradeCheck()
+
+	// Clear tracked emulator host
+	if a.connection != nil {
+		a.connection.ClearEmulatorHost()
+	}
+
 	return a.clientManager.Close()
 }
 
@@ -447,7 +454,7 @@ func (a *App) stopAllMonitors() {
 			select {
 			case <-done:
 			case <-time.After(2 * time.Second):
-				fmt.Printf("Warning: timeout stopping monitor %s during disconnect\n", subID)
+				logger.Warn("Timeout stopping monitor during disconnect", "subscriptionID", subID)
 			}
 		}
 	}()
@@ -479,7 +486,7 @@ func (a *App) cleanupTemporarySubscriptions(client *pubsub.Client, projectID str
 				select {
 				case <-done:
 				case <-time.After(2 * time.Second):
-					fmt.Printf("Warning: timeout deleting temporary subscription %s during disconnect\n", sid)
+					logger.Warn("Timeout deleting temporary subscription during disconnect", "subscriptionID", sid)
 				}
 			}
 		}()
@@ -534,7 +541,7 @@ func (a *App) stopUpgradeCheck() {
 		}
 		a.upgradeCheckMu.Unlock()
 	} else {
-		fmt.Printf("Warning: timeout acquiring upgrade check lock during disconnect (upgrade check may be stuck)\n")
+		logger.Warn("Timeout acquiring upgrade check lock during disconnect (upgrade check may be stuck)")
 	}
 }
 
@@ -560,18 +567,16 @@ func (a *App) SwitchProfile(profileID string) error {
 
 // connectWithProfile is a helper method to connect using a profile's settings
 func (a *App) connectWithProfile(profile *models.ConnectionProfile) error {
-	// Set emulator host if specified in profile
-	if profile.EmulatorHost != "" {
-		os.Setenv("PUBSUB_EMULATOR_HOST", profile.EmulatorHost)
-	}
+	// Get emulator host from profile (pass directly, don't modify global env var)
+	emulatorHost := profile.EmulatorHost
 
 	switch profile.AuthMethod {
 	case "ADC":
-		return a.connection.ConnectWithADC(profile.ProjectID)
+		return a.connection.ConnectWithADC(profile.ProjectID, emulatorHost)
 	case "ServiceAccount":
-		return a.connection.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath)
+		return a.connection.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath, emulatorHost)
 	case "OAuth":
-		return a.connection.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath)
+		return a.connection.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath, emulatorHost)
 	default:
 		return fmt.Errorf("unsupported auth method: %s", profile.AuthMethod)
 	}
@@ -806,27 +811,22 @@ func (a *App) GetConfigFileContent() (string, error) {
 	return a.configH.GetConfigFileContent()
 }
 
-// UpdateEmulatorHost updates the emulator host setting and saves it to config
-func (a *App) UpdateEmulatorHost(emulatorHost string) error {
-	return a.configH.UpdateEmulatorHost(emulatorHost)
-}
-
 // CheckEmulatorStatus checks if the emulator is reachable and returns status information
-func (a *App) CheckEmulatorStatus() (map[string]interface{}, error) {
-	envHost := os.Getenv("PUBSUB_EMULATOR_HOST")
-	configHost := ""
-	if a.config != nil {
-		configHost = a.config.EmulatorHost
+// Accepts explicit emulatorHost parameter to avoid side effects
+func (a *App) CheckEmulatorStatus(emulatorHost string) (map[string]interface{}, error) {
+	// If no host provided, check env var (for external tooling compatibility)
+	if emulatorHost == "" {
+		emulatorHost = os.Getenv("PUBSUB_EMULATOR_HOST")
 	}
 
-	// Determine which host to use (env has priority)
-	emulatorHost := envHost
 	source := "none"
-	if envHost != "" {
-		source = "environment"
-	} else if configHost != "" {
-		emulatorHost = configHost
-		source = "config"
+	if emulatorHost != "" {
+		// Determine source - if it matches env var, it's from environment
+		if os.Getenv("PUBSUB_EMULATOR_HOST") == emulatorHost {
+			source = "environment"
+		} else {
+			source = "profile"
+		}
 	}
 
 	result := map[string]interface{}{
@@ -841,22 +841,15 @@ func (a *App) CheckEmulatorStatus() (map[string]interface{}, error) {
 		return result, nil
 	}
 
-	// Temporarily set env var if it's only in config (needed for pubsub client to use it)
-	wasEnvSet := envHost != ""
-	needsTempEnv := !wasEnvSet && configHost != ""
-	if needsTempEnv {
-		os.Setenv("PUBSUB_EMULATOR_HOST", configHost)
-		defer func() {
-			// Restore original state (unset if it wasn't set)
-			os.Unsetenv("PUBSUB_EMULATOR_HOST")
-		}()
-	}
-
-	// Try to connect to the emulator with a test project
+	// Try to connect to the emulator with a test project using explicit endpoint
 	ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
 	defer cancel()
 
-	client, err := pubsub.NewClient(ctx, "test-project", option.WithoutAuthentication())
+	// Use option.WithEndpoint to connect without modifying env var
+	client, err := pubsub.NewClient(ctx, "test-project",
+		option.WithEndpoint(emulatorHost),
+		option.WithoutAuthentication(),
+	)
 	if err != nil {
 		result["error"] = err.Error()
 		return result, nil
@@ -923,15 +916,20 @@ func (a *App) CreateFromTemplate(request models.TemplateCreateRequest) (models.T
 
 	// If successful, trigger resource sync and emit event
 	if result.Success {
-		// Trigger background sync to update local store
-		go a.resources.SyncResources()
-
-		// Emit event for frontend
+		// Emit event for frontend first
 		runtime.EventsEmit(a.ctx, "template:created", map[string]interface{}{
 			"templateId":      request.TemplateID,
 			"topicId":         result.TopicID,
 			"subscriptionIds": result.SubscriptionIDs,
 		})
+
+		// Trigger background sync after a delay to allow emulator to process creations
+		// This is especially important for emulator which may need a moment for resources to be available
+		// Use a longer delay for emulator (2 seconds) to ensure resources are fully available
+		go func() {
+			time.Sleep(2 * time.Second) // Longer delay for emulator to process resource creations
+			a.resources.SyncResources()
+		}()
 	}
 
 	return *result, nil
@@ -945,4 +943,14 @@ func (a *App) SaveCustomTopicSubscriptionTemplate(template models.TopicSubscript
 // DeleteCustomTopicSubscriptionTemplate deletes a custom topic/subscription template
 func (a *App) DeleteCustomTopicSubscriptionTemplate(templateID string) error {
 	return a.topicSubscriptionTemplates.DeleteCustomTemplate(templateID)
+}
+
+// GetLogs returns logs for a specific date
+func (a *App) GetLogs(date string, limit int, offset int) ([]app.LogEntry, error) {
+	return a.logs.GetLogs(date, limit, offset)
+}
+
+// GetLogsFiltered returns filtered logs across a date range
+func (a *App) GetLogsFiltered(startDate, endDate, levelFilter, searchTerm string, limit, offset int) (app.FilteredLogsResult, error) {
+	return a.logs.GetLogsFiltered(startDate, endDate, levelFilter, searchTerm, limit, offset)
 }

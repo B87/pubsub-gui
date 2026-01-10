@@ -20,6 +20,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
     emulatorHost: profile?.emulatorHost || '',
     isDefault: profile?.isDefault || false,
   });
+  const [useEmulator, setUseEmulator] = useState(!!profile?.emulatorHost);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -31,9 +32,10 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         authMethod: profile.authMethod,
         serviceAccountPath: profile.serviceAccountPath || '',
         oauthClientPath: profile.oauthClientPath || '',
-        emulatorHost: profile.emulatorHost || '',
+        emulatorHost: profile.emulatorHost || 'localhost:8085',
         isDefault: profile.isDefault,
       });
+      setUseEmulator(!!profile.emulatorHost);
     } else {
       setFormData({
         name: '',
@@ -41,9 +43,10 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         authMethod: 'ADC',
         serviceAccountPath: '',
         oauthClientPath: '',
-        emulatorHost: '',
+        emulatorHost: 'localhost:8085',
         isDefault: false,
       });
+      setUseEmulator(false);
     }
     setError('');
   }, [profile]);
@@ -78,7 +81,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         authMethod: formData.authMethod,
         serviceAccountPath: formData.authMethod === 'ServiceAccount' ? formData.serviceAccountPath.trim() : undefined,
         oauthClientPath: formData.authMethod === 'OAuth' ? formData.oauthClientPath.trim() : undefined,
-        emulatorHost: formData.emulatorHost.trim() || undefined,
+        emulatorHost: useEmulator ? (formData.emulatorHost.trim() || undefined) : undefined,
         isDefault: formData.isDefault,
         createdAt: profile?.createdAt || new Date().toISOString(),
       };
@@ -216,20 +219,45 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
             </FormField>
           )}
 
-          {/* Emulator Host */}
-          <FormField
-            label="Emulator Host"
-            helperText="Leave empty for production GCP"
-          >
-            <Input
-              id="emulator-host"
-              type="text"
-              value={formData.emulatorHost}
-              onChange={(e) => setFormData({ ...formData, emulatorHost: e.target.value })}
-              placeholder="localhost:8085"
-              disabled={saving}
-            />
-          </FormField>
+          {/* Emulator Toggle */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="use-emulator"
+                checked={useEmulator}
+                onCheckedChange={(checked) => {
+                  setUseEmulator(checked === true);
+                  if (!checked) {
+                    setFormData({ ...formData, emulatorHost: '' });
+                  } else if (!formData.emulatorHost) {
+                    setFormData({ ...formData, emulatorHost: 'localhost:8085' });
+                  }
+                }}
+                disabled={saving}
+              />
+              <Label htmlFor="use-emulator" className="cursor-pointer">
+                Use local Pub/Sub emulator
+              </Label>
+            </div>
+
+            {useEmulator && (
+              <div className="ml-6">
+                <FormField
+                  label="Emulator Host"
+                  helperText="Leave empty for default (localhost:8085)"
+                >
+                  <Input
+                    id="emulator-host"
+                    type="text"
+                    value={formData.emulatorHost}
+                    onChange={(e) => setFormData({ ...formData, emulatorHost: e.target.value })}
+                    placeholder="localhost:8085"
+                    disabled={saving}
+                  />
+                </FormField>
+              </div>
+            )}
+          </div>
 
           {/* Is Default */}
           <div className="flex items-center gap-2">

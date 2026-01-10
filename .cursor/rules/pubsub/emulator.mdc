@@ -1,0 +1,397 @@
+---
+alwaysApply: true
+---
+
+# Pub/Sub Emulator Integration
+
+This document describes how the Google Cloud Pub/Sub emulator is integrated into the Pub/Sub GUI application, including configuration, connection patterns, and UI components.
+
+## Overview
+
+The Pub/Sub emulator allows developers to test locally without connecting to production GCP. The application supports per-profile emulator configuration, ensuring no cross-profile contamination and clear visual feedback when using the emulator.
+
+## Architecture
+
+### Configuration Model
+
+**Per-Profile Only**: Emulator host is configured per connection profile, not globally.
+
+- **ConnectionProfile**: Contains `EmulatorHost` field (optional string)
+- **AppConfig**: Does NOT contain emulator host (removed to prevent global config confusion)
+- **Environment Variable**: `PUBSUB_EMULATOR_HOST` is respected for external tooling compatibility but NOT modified by the app
+
+**Key Principle**: The application never modifies the global `PUBSUB_EMULATOR_HOST` environment variable. Instead, emulator host is passed directly to connection methods via function parameters.
+
+### Connection Flow
+
+```
+Frontend (ConnectionDialog)
+  ↓ (user checks "Use emulator" checkbox)
+  ↓ (emulatorHost: "localhost:8085" or custom)
+  ↓
+App.ConnectWithADC(projectID, emulatorHost)
+  ↓
+ConnectionHandler.ConnectWithADC(projectID, emulatorHost)
+  ↓
+auth.ConnectWithADC(ctx, projectID, emulatorHost)
+  ↓
+pubsub.NewClient(ctx, projectID, option.WithEndpoint(emulatorHost), option.WithoutAuthentication())
+```
+
+**Important**: The emulator host is passed explicitly through all layers. No global environment variable modification occurs.
+
+## Backend Implementation
+
+### Auth Functions
+
+All auth functions accept `emulatorHost` as a parameter and use `option.WithEndpoint()` when provided:
+
+**ADC Authentication** (`internal/auth/adc.go`):
+```go
+func ConnectWithADC(ctx context.Context, projectID string, emulatorHost string) (*pubsub.Client, error) {
+    var opts []option.ClientOption
+
+    // If emulator host is provided, use it directly (don't check env var)
+    if emulatorHost != "" {
+        opts = append(opts, option.WithEndpoint(emulatorHost))
+        opts = append(opts, option.WithoutAuthentication())
+    } else {
+        // Fall back to env var for external tooling compatibility
+        if envHost := os.Getenv("PUBSUB_EMULATOR_HOST"); envHost != "" {
+            opts = append(opts, option.WithEndpoint(envHost))
+            opts = append(opts, option.WithoutAuthentication())
+        }
+    }
+
+    return pubsub.NewClient(ctx, projectID, opts...)
+}
+```
+
+**Service Account Authentication** (`internal/auth/service_account.go`):
+```go
+func ConnectWithServiceAccount(ctx context.Context, projectID, keyPath string, emulatorHost string) (*pubsub.Client, error) {
+    // If emulator host is provided, ignore service account and use emulator
+    if emulatorHost != "" {
+        return ConnectWithADC(ctx, projectID, emulatorHost)
+    }
+    // ... service account logic ...
+}
+```
+
+**OAuth Authentication** (`internal/auth/oauth_client.go`):
+```go
+func ConnectWithOAuth(ctx context.Context, projectID, oauthClientPath, profileID string, tokenStore *TokenStore, emulatorHost string) (*pubsub.Client, string, error) {
+    // ... OAuth token handling ...
+
+    var opts []option.ClientOption
+
+    // If emulator host is provided, use it instead of production
+    if emulatorHost != "" {
+        opts = append(opts, option.WithEndpoint(emulatorHost))
+        opts = append(opts, option.WithoutAuthentication())
+    } else {
+        opts = append(opts, option.WithTokenSource(oauth2.StaticTokenSource(token)))
+    }
+
+    return pubsub.NewClient(ctx, projectID, opts...)
+}
+```
+
+### Connection Handler
+
+The `ConnectionHandler` tracks the current emulator host for status display:
+
+```go
+type ConnectionHandler struct {
+    // ... other fields ...
+    currentEmulatorHost string // Track emulator host from current connection
+    emulatorHostMu      sync.RWMutex
+}
+
+func (h *ConnectionHandler) ConnectWithADC(projectID string, emulatorHost string) error {
+    // ... connection logic ...
+
+    // Track emulator host for status display
+    h.emulatorHostMu.Lock()
+    h.currentEmulatorHost = emulatorHost
+    h.emulatorHostMu.Unlock()
+
+    // ... rest of connection ...
+}
+```
+
+**Profile Connection** (`internal/app/connection.go`):
+```go
+func (h *ConnectionHandler) connectWithProfile(profile *models.ConnectionProfile) error {
+    // Get emulator host from profile (no global config fallback)
+    emulatorHost := profile.EmulatorHost
+
+    // Pass emulator host directly to connection methods (don't modify global env var)
+    switch profile.AuthMethod {
+    case "ADC":
+        return h.ConnectWithADC(profile.ProjectID, emulatorHost)
+    case "ServiceAccount":
+        return h.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath, emulatorHost)
+    case "OAuth":
+        return h.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath, emulatorHost)
+    }
+}
+```
+
+**Status Display** (`internal/app/connection.go`):
+```go
+func (h *ConnectionHandler) getEmulatorHost() string {
+    // Check if we have an active connection with emulator host
+    h.emulatorHostMu.RLock()
+    currentHost := h.currentEmulatorHost
+    h.emulatorHostMu.RUnlock()
+
+    if currentHost != "" {
+        return currentHost
+    }
+
+    // Fall back to environment variable (for external tooling)
+    return os.Getenv("PUBSUB_EMULATOR_HOST")
+}
+```
+
+### App-Level Methods
+
+All Wails-exposed methods accept `emulatorHost` parameter:
+
+```go
+func (a *App) ConnectWithADC(projectID string, emulatorHost string) error {
+    return a.connection.ConnectWithADC(projectID, emulatorHost)
+}
+
+func (a *App) ConnectWithServiceAccount(projectID, keyPath string, emulatorHost string) error {
+    return a.connection.ConnectWithServiceAccount(projectID, keyPath, emulatorHost)
+}
+
+func (a *App) ConnectWithOAuth(projectID, oauthClientPath string, emulatorHost string) error {
+    return a.connection.ConnectWithOAuth(projectID, oauthClientPath, emulatorHost)
+}
+```
+
+## Frontend Implementation
+
+### Connection Dialog
+
+The `ConnectionDialog` component provides a checkbox toggle for emulator usage:
+
+**State Management** (`frontend/src/components/ConnectionDialog.tsx`):
+```typescript
+const [useEmulator, setUseEmulator] = useState(false);
+const [emulatorHost, setEmulatorHost] = useState('localhost:8085');
+const [showEmulatorDocs, setShowEmulatorDocs] = useState(false);
+```
+
+**UI Pattern**:
+```tsx
+<div className="space-y-3">
+  <div className="flex items-center gap-2">
+    <Checkbox
+      id="useEmulator"
+      checked={useEmulator}
+      onCheckedChange={(checked) => setUseEmulator(checked === true)}
+      disabled={loading}
+    />
+    <Label htmlFor="useEmulator" className="cursor-pointer">
+      Use local Pub/Sub emulator
+    </Label>
+  </div>
+
+  {useEmulator && (
+    <div className="ml-6 space-y-3">
+      <FormField
+        label="Emulator Host"
+        helperText="Leave empty for default (localhost:8085)"
+      >
+        <Input
+          value={emulatorHost}
+          onChange={(e) => setEmulatorHost(e.target.value)}
+          placeholder="localhost:8085"
+          disabled={loading}
+        />
+      </FormField>
+
+      {/* Expandable documentation */}
+      {/* Quick start helpers */}
+    </div>
+  )}
+</div>
+```
+
+**Connection Callback**:
+```typescript
+await onConnect(
+  projectId.trim(),
+  authMethod,
+  serviceAccountPath,
+  oauthClientPath,
+  useEmulator ? (emulatorHost.trim() || 'localhost:8085') : undefined,
+  saveProfile
+);
+```
+
+### App-Level Connection Handler
+
+The `App.tsx` component handles the emulator host parameter:
+
+```typescript
+const handleConnect = async (
+  projectId: string,
+  authMethod: 'ADC' | 'ServiceAccount' | 'OAuth',
+  serviceAccountPath?: string,
+  oauthClientPath?: string,
+  emulatorHost?: string,
+  saveAsProfile?: { name: string; isDefault?: boolean }
+) => {
+  // ... validation ...
+
+  if (authMethod === 'ADC') {
+    await ConnectWithADC(projectId, emulatorHost || '');
+  } else if (authMethod === 'ServiceAccount') {
+    await ConnectWithServiceAccount(projectId, serviceAccountPath, emulatorHost || '');
+  } else if (authMethod === 'OAuth') {
+    await ConnectWithOAuth(projectId, oauthClientPath, emulatorHost || '');
+  }
+
+  // Save profile with emulator host if requested
+  if (saveAsProfile) {
+    const profile: ConnectionProfile = {
+      // ... other fields ...
+      emulatorHost: emulatorHost,
+      // ...
+    };
+    await SaveProfile(profile);
+  }
+};
+```
+
+### Profile Dialog
+
+The `ProfileDialog` uses the same checkbox pattern:
+
+```typescript
+const [useEmulator, setUseEmulator] = useState(!!profile?.emulatorHost);
+
+// When saving profile
+emulatorHost: useEmulator ? (formData.emulatorHost.trim() || undefined) : undefined,
+```
+
+### Visual Indicators
+
+**Warning Banner** (`frontend/src/App.tsx`):
+```tsx
+{status.emulatorHost && status.isConnected && !emulatorWarningDismissed && (
+  <div
+    className="border-b -mx-4 sm:-mx-6 lg:-mx-12 xl:-mx-16 px-4 sm:px-6 lg:px-12 xl:px-16 py-4 mb-4"
+    style={{
+      backgroundColor: 'var(--color-warning-bg)',
+      borderBottomColor: 'var(--color-warning-border)',
+    }}
+  >
+    <div className="flex items-start justify-between gap-3 w-full">
+      <div className="flex items-start gap-3 flex-1">
+        <svg /* warning icon */ />
+        <p style={{ color: 'var(--color-warning)' }}>
+          You are connected to the local emulator. Changes won't affect production.
+        </p>
+      </div>
+      <button
+        onClick={() => {
+          setEmulatorWarningDismissed(true);
+          localStorage.setItem('emulatorWarningDismissed', 'true');
+        }}
+      >
+        Dismiss
+      </button>
+    </div>
+  </div>
+)}
+```
+
+**Status Display**: The `ConnectionStatus` includes `emulatorHost` field, which is displayed in the sidebar status indicator.
+
+## Best Practices
+
+### DO ✅
+
+1. **Pass emulator host explicitly**: Always pass `emulatorHost` as a function parameter, never modify global env var
+2. **Use per-profile configuration**: Store emulator host in `ConnectionProfile`, not `AppConfig`
+3. **Track current emulator host**: Use `ConnectionHandler.currentEmulatorHost` for status display
+4. **Clear on disconnect**: Call `ClearEmulatorHost()` when disconnecting
+5. **Provide visual feedback**: Show warning banner when connected to emulator
+6. **Support external tooling**: Still respect `PUBSUB_EMULATOR_HOST` env var for compatibility
+
+### DON'T ❌
+
+1. **Don't modify global env var**: Never call `os.Setenv("PUBSUB_EMULATOR_HOST", ...)` in application code
+2. **Don't use global config**: Don't store emulator host in `AppConfig`
+3. **Don't assume env var**: Don't rely solely on `PUBSUB_EMULATOR_HOST` - always accept explicit parameter
+4. **Don't skip visual indicators**: Always show warning when connected to emulator
+
+## Code Examples
+
+### Adding Emulator Support to New Auth Method
+
+If adding a new authentication method, follow this pattern:
+
+```go
+func ConnectWithNewAuth(ctx context.Context, projectID string, emulatorHost string) (*pubsub.Client, error) {
+    var opts []option.ClientOption
+
+    if emulatorHost != "" {
+        opts = append(opts, option.WithEndpoint(emulatorHost))
+        opts = append(opts, option.WithoutAuthentication())
+    } else {
+        // Normal auth logic
+        opts = append(opts, option.WithTokenSource(...))
+    }
+
+    return pubsub.NewClient(ctx, projectID, opts...)
+}
+```
+
+### Checking Emulator Status
+
+Use `CheckEmulatorStatus()` with explicit host parameter:
+
+```go
+func (a *App) CheckEmulatorStatus(emulatorHost string) (map[string]interface{}, error) {
+    // If no host provided, check env var (for external tooling compatibility)
+    if emulatorHost == "" {
+        emulatorHost = os.Getenv("PUBSUB_EMULATOR_HOST")
+    }
+
+    // Use option.WithEndpoint to connect without modifying env var
+    client, err := pubsub.NewClient(ctx, "test-project",
+        option.WithEndpoint(emulatorHost),
+        option.WithoutAuthentication(),
+    )
+    // ... test connection ...
+}
+```
+
+## Quick Start Commands
+
+Users can start the emulator using:
+
+**gcloud CLI**:
+```bash
+gcloud beta emulators pubsub start
+```
+
+**Docker**:
+```bash
+docker run --rm -p 8085:8085 google/cloud-sdk:emulators gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+```
+
+These commands are displayed in the ConnectionDialog when emulator is enabled.
+
+## Related Documentation
+
+- [Google Cloud Pub/Sub Emulator Documentation](https://docs.cloud.google.com/pubsub/docs/emulator)
+- Connection Profiles: See `internal/models/connection.go` for `ConnectionProfile` struct
+- Authentication: See `.cursor/rules/pubsub/auth.mdc` for authentication patterns

@@ -4,12 +4,13 @@ package subscriber
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/pubsub/v2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"pubsub-gui/internal/logger"
 )
 
 // MessageStreamer handles streaming pull for a subscription
@@ -91,7 +92,7 @@ func (ms *MessageStreamer) receiveMessages() {
 		}
 
 		// Log error for debugging
-		log.Printf("Error receiving messages for subscription %s: %v", ms.subscriptionID, err)
+		logger.Error("Error receiving messages for subscription", "subscriptionID", ms.subscriptionID, "error", err)
 
 		// Only emit error event if context is still active (not cancelled)
 		select {

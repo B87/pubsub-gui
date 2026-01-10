@@ -11,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"pubsub-gui/internal/auth"
+	"pubsub-gui/internal/logger"
 	"pubsub-gui/internal/models"
 	"pubsub-gui/internal/pubsub/admin"
 	"pubsub-gui/internal/pubsub/subscriber"
@@ -340,7 +341,7 @@ func (h *MonitoringHandler) StopTopicMonitor(topicID string) error {
 	stopErr := h.StopMonitor(subID)
 	if stopErr != nil {
 		// Log error - streamer may still be running
-		fmt.Printf("Error stopping monitor %s: %v\n", subID, stopErr)
+		logger.Error("Error stopping monitor", "subscriptionID", subID, "error", stopErr)
 		// Continue to try deleting subscription, but handle errors gracefully
 		// The subscription has TTL so it will be cleaned up eventually if deletion fails
 	}
@@ -357,7 +358,7 @@ func (h *MonitoringHandler) StopTopicMonitor(topicID string) error {
 		projectID := h.clientManager.GetProjectID()
 		if err := admin.DeleteSubscriptionAdmin(h.ctx, client, projectID, subID); err != nil {
 			// Log but don't fail - subscription might already be deleted, will be cleaned up by TTL, or streamer is still using it
-			fmt.Printf("Warning: failed to delete temporary subscription %s: %v (will be cleaned up by TTL)\n", subID, err)
+			logger.Warn("Failed to delete temporary subscription (will be cleaned up by TTL)", "subscriptionID", subID, "error", err)
 		}
 	}
 

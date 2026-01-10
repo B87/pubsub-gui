@@ -49,6 +49,13 @@ func ListSubscriptionsAdmin(ctx context.Context, client *pubsub.Client, projectI
 	it := client.SubscriptionAdminClient.ListSubscriptions(ctx, req)
 
 	for {
+		// Check context before each iteration to respect timeout
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		sub, err := it.Next()
 		if err == iterator.Done {
 			break

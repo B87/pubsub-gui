@@ -8,11 +8,15 @@ import (
 	"cloud.google.com/go/pubsub/v2"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"pubsub-gui/internal/logger"
 	"pubsub-gui/internal/models"
 )
 
 // ConnectWithOAuth creates a Pub/Sub client using OAuth2 credentials
-func ConnectWithOAuth(ctx context.Context, projectID, oauthClientPath, profileID string, tokenStore *TokenStore) (*pubsub.Client, string, error) {
+// If emulatorHost is provided, connects to the emulator instead of production
+func ConnectWithOAuth(ctx context.Context, projectID, oauthClientPath, profileID string, tokenStore *TokenStore, emulatorHost string) (*pubsub.Client, string, error) {
 	// Load OAuth config from file
 	oauthConfig, err := models.LoadOAuthConfigFromFile(oauthClientPath)
 	if err != nil {
@@ -46,7 +50,7 @@ func ConnectWithOAuth(ctx context.Context, projectID, oauthClientPath, profileID
 			}
 			if err := tokenStore.SaveToken(profileID, newStoredToken); err != nil {
 				// Non-fatal error, log but continue
-				fmt.Printf("Warning: failed to save refreshed token: %v\n", err)
+				logger.Warn("Failed to save refreshed token", "error", err)
 			}
 		} else {
 			// Token is still valid
@@ -83,14 +87,24 @@ func ConnectWithOAuth(ctx context.Context, projectID, oauthClientPath, profileID
 		}
 		if err := tokenStore.SaveToken(profileID, storedToken); err != nil {
 			// Non-fatal error, log but continue
-			fmt.Printf("Warning: failed to save token: %v\n", err)
+			logger.Warn("Failed to save token", "error", err)
 		}
 	}
 
 	// Create Pub/Sub client with OAuth token
-	client, err := pubsub.NewClient(ctx, projectID,
-		option.WithTokenSource(oauth2.StaticTokenSource(token)),
-	)
+	var opts []option.ClientOption
+
+	// If emulator host is provided, use it instead of production
+	if emulatorHost != "" {
+		opts = append(opts, option.WithEndpoint(emulatorHost))
+		opts = append(opts, option.WithoutAuthentication())
+		opts = append(opts, option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+	} else {
+		// Use OAuth token for production
+		opts = append(opts, option.WithTokenSource(oauth2.StaticTokenSource(token)))
+	}
+
+	client, err := pubsub.NewClient(ctx, projectID, opts...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create Pub/Sub client: %w", err)
 	}

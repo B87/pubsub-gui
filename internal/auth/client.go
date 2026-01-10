@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/pubsub/v2"
+
+	"pubsub-gui/internal/logger"
 )
 
 // ClientManager manages the active Pub/Sub client connection
@@ -66,11 +68,11 @@ func (cm *ClientManager) SetClient(client *pubsub.Client, projectID string) erro
 		case err := <-done:
 			// Log error but don't fail - old client will be cleaned up by GC
 			if err != nil {
-				fmt.Printf("Warning: error closing old client in SetClient: %v\n", err)
+				logger.Warn("Error closing old client in SetClient", "error", err)
 			}
 		case <-time.After(2 * time.Second):
 			// Timeout - log warning but continue (old client will be cleaned up by GC)
-			fmt.Printf("Warning: timeout closing old client in SetClient (gRPC connections may be stuck)\n")
+			logger.Warn("Timeout closing old client in SetClient (gRPC connections may be stuck)")
 		}
 	}
 

@@ -77,12 +77,20 @@ export default function Component({ topic, onAction }: ComponentProps) {
 - [ ] Opacity variants use `color-mix()` with CSS variables (e.g., `color-mix(in srgb, var(--color-bg-primary) 30%, transparent)`)
 - [ ] All components tested with all 5 themes to ensure proper appearance
 
+**Layout & Structure:**
+- [ ] For full-height tabs: Use flexbox layout with sticky header pattern (see Advanced Layout Patterns)
+- [ ] For filter dropdowns: Ensure parent containers have `overflow: visible` to prevent clipping
+- [ ] For scrollable content: Use `flex-1 overflow-y-auto` with `min-h-0` for proper scrolling
+- [ ] For sticky headers: Use `backdrop-blur` with semi-transparent background for modern look
+
 **Testing:**
 - [ ] Component tested visually in Dark theme (default)
 - [ ] Component tested in Light theme (check contrast)
 - [ ] Component tested in Dracula theme (purple accent)
 - [ ] Component tested in Monokai theme (cyan accent)
 - [ ] Component works with "Auto" theme (system preference)
+- [ ] Dropdowns and tooltips are not clipped by parent containers
+- [ ] Scrollable areas work correctly and don't create double scrollbars
 
 **Common Issues to Avoid:**
 - Border/hover colors not adapting to theme
@@ -92,6 +100,8 @@ export default function Component({ topic, onAction }: ComponentProps) {
 - Accent colors hardcoded to blue (should use theme accent)
 - Unicode characters (e.g., → U+2192) causing parsing errors - use ASCII alternatives (e.g., `-` or `->`)
 - Hardcoded `color: 'white'` on colored backgrounds - use `var(--color-text-primary)` for theme compatibility
+- Dropdowns being clipped by parent `overflow: hidden` - use `overflow: visible` on filter containers
+- Double scrollbars from nested scrollable containers - use `overflow: hidden` on outer container
 
 ### Naming Conventions
 
@@ -1031,6 +1041,34 @@ const handleConnect = async (
 
 ## Common UI Patterns
 
+### Settings Tab Layouts
+
+**For data-heavy settings tabs** (logs, tables, lists with filtering), use the **Full-Height Pattern**:
+
+```tsx
+// ✅ RECOMMENDED: Full-height with sticky header (LogsSettingsTab pattern)
+<div className="h-full w-full flex flex-col" style={{ overflow: 'hidden' }}>
+  <header className="shrink-0 z-10 backdrop-blur relative" style={{ /* ... */ }}>
+    {/* Icon badge + title + stats */}
+  </header>
+  <main className="flex-1 overflow-y-auto">
+    {/* Scrollable content */}
+  </main>
+</div>
+```
+
+**For simple settings tabs** (forms, basic lists), use the **Simple Pattern**:
+
+```tsx
+// ✅ SIMPLE: Basic spacing layout (AppearanceTab, ConnectionsTab pattern)
+<div className="space-y-4">
+  <h3>Title</h3>
+  {/* Content */}
+</div>
+```
+
+**See**: Advanced Layout Patterns section for complete implementation details and comparison.
+
 ### Empty States
 
 Use the `EmptyState` component for empty/initial states:
@@ -1306,6 +1344,197 @@ import * as Tabs from '@radix-ui/react-tabs';
 </Tabs.Root>
 ```
 
+## Advanced Layout Patterns
+
+### Full-Height Settings Tab Pattern
+
+**Use this pattern for settings tabs that need to fill all available space with a scrollable content area and sticky header.**
+
+**Key Characteristics:**
+- Container uses `flex flex-col` with `overflow: hidden`
+- Sticky header with backdrop blur effect
+- Scrollable content area that fills remaining space
+- Professional header design with icon badge, title, and stats
+
+**Example (LogsSettingsTab):**
+```tsx
+export function LogsSettingsTab() {
+  return (
+    <div
+      className="h-full w-full flex flex-col"
+      style={{ backgroundColor: 'var(--color-bg-primary)', overflow: 'hidden' }}
+    >
+      {/* Sticky Header */}
+      <header
+        className="shrink-0 z-10 backdrop-blur relative"
+        style={{
+          borderBottomColor: 'var(--color-border-primary)',
+          borderBottomWidth: '1px',
+          borderBottomStyle: 'solid',
+          backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 95%, transparent)',
+          overflow: 'visible', // Allow dropdowns to overflow
+        }}
+      >
+        <div className="px-6 py-3" style={{ overflow: 'visible' }}>
+          {/* Header content */}
+        </div>
+      </header>
+
+      {/* Scrollable Content */}
+      <main className="flex-1 flex flex-col overflow-hidden p-6">
+        <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+          {/* Scrollable content */}
+        </div>
+      </main>
+    </div>
+  );
+}
+```
+
+**Key Points:**
+- **Container**: `h-full w-full flex flex-col` with `overflow: hidden` (prevents double scrollbars)
+- **Header**: `shrink-0` (doesn't shrink), `backdrop-blur` (blur effect), `overflow: visible` (allows dropdowns)
+- **Content**: `flex-1` (fills space), `overflow-y-auto` (scrolls internally), `min-h-0` (allows shrinking)
+- **Backdrop blur background**: `color-mix(in srgb, var(--color-bg-primary) 95%, transparent)` for semi-transparent effect
+
+### Sticky Header with Icon Badge Pattern
+
+**Professional header design with icon, title, stats, and actions.**
+
+**Example:**
+```tsx
+<header className="shrink-0 z-10 backdrop-blur relative" style={{ /* ... */ }}>
+  <div className="px-6 py-3">
+    {/* Title and Stats Row */}
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-3">
+        {/* Icon Badge */}
+        <div
+          className="h-6 w-6 rounded flex items-center justify-center"
+          style={{ backgroundColor: 'var(--color-accent-primary)' }}
+        >
+          <FileText className="h-4 w-4" style={{ color: 'white' }} />
+        </div>
+        {/* Title */}
+        <h1 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+          Logs Explorer
+        </h1>
+        {/* Separator */}
+        <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>|</span>
+        {/* Stats */}
+        <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          {total} entries
+        </span>
+      </div>
+      {/* Action Button */}
+      <Button variant="ghost" size="sm" onClick={handleAction}>
+        Refresh
+      </Button>
+    </div>
+    {/* Additional header content (filters, stats, etc.) */}
+  </div>
+</header>
+```
+
+**Key Points:**
+- **Icon badge**: Small rounded square with accent background, white icon
+- **Title**: Large, semibold text
+- **Separator**: Vertical bar (`|`) with secondary text color
+- **Stats**: Secondary text color, shows summary information
+- **Actions**: Right-aligned buttons (ghost variant for less prominence)
+
+### Compact Filter Row Pattern
+
+**Organize multiple filters in a single compact row with proper spacing and overflow handling.**
+
+**Example:**
+```tsx
+<div className="flex items-center gap-3 flex-wrap relative" style={{ overflow: 'visible' }}>
+  {/* Search Input */}
+  <div className="relative flex-1 min-w-[200px] max-w-sm">
+    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+    <Input
+      placeholder="Search..."
+      className="pl-8 h-8 text-sm"
+      style={{
+        backgroundColor: 'var(--color-bg-secondary)',
+        borderColor: 'var(--color-border-primary)',
+      }}
+    />
+  </div>
+
+  {/* Filter Dropdowns */}
+  <LogLevelFilter {...props} />
+  <LogDateRangeFilter {...props} />
+
+  {/* Additional Controls */}
+  <div className="flex items-center gap-2 ml-auto">
+    {/* Controls */}
+  </div>
+</div>
+```
+
+**Key Points:**
+- **Container**: `flex items-center gap-3 flex-wrap` with `overflow: visible`
+- **Search**: `flex-1 min-w-[200px] max-w-sm` for responsive sizing
+- **Filters**: Fixed-width dropdowns
+- **Controls**: `ml-auto` to push to the right
+- **Overflow**: `overflow: visible` on container allows dropdowns to overflow
+
+### Settings Tab Design Comparison
+
+**What Makes LogsSettingsTab Look Professional:**
+
+The LogsSettingsTab demonstrates several design patterns that make it stand out compared to simpler settings tabs:
+
+**1. Full-Height Layout vs. Simple Spacing**
+- **LogsSettingsTab**: Uses flexbox to fill all available space with scrollable content
+- **Other tabs**: Use simple `space-y-4` which doesn't utilize full height
+
+**2. Sticky Header with Backdrop Blur**
+- **LogsSettingsTab**: Header stays visible while scrolling with modern blur effect
+- **Other tabs**: Headers scroll away, less professional appearance
+
+**3. Icon Badge + Title Pattern**
+- **LogsSettingsTab**: Icon in accent-colored badge, title, separator, stats all in one row
+- **Other tabs**: Simple `h3` heading without visual hierarchy
+
+**4. Stats Display**
+- **LogsSettingsTab**: Prominently shows log level counts (DEBUG: 0, INFO: 4, etc.)
+- **Other tabs**: No summary statistics
+
+**5. Compact Filter Organization**
+- **LogsSettingsTab**: All filters in one organized row with proper spacing
+- **Other tabs**: Filters (if any) are scattered or in separate sections
+
+**6. Visual Hierarchy**
+- **LogsSettingsTab**: Clear separation between header (sticky) and content (scrollable)
+- **Other tabs**: Flat structure without clear visual separation
+
+**When to Use Full-Height Pattern:**
+
+✅ **Use full-height pattern when:**
+- Tab has scrollable content (lists, tables, logs)
+- Tab needs filters/search that should stay visible
+- Tab benefits from professional header design
+- Tab needs to fill all available space
+
+❌ **Use simple pattern when:**
+- Tab has minimal content (simple forms, settings)
+- Content fits in viewport without scrolling
+- Simple list or grid layout is sufficient
+
+**Migration Guide:**
+
+To upgrade a simple settings tab to the full-height pattern:
+
+1. **Change container** from `space-y-4` to flexbox layout
+2. **Add sticky header** with backdrop blur
+3. **Add icon badge** to header (optional but recommended)
+4. **Add stats display** if applicable (optional)
+5. **Organize filters** in compact row (if applicable)
+6. **Make content scrollable** with `flex-1 overflow-y-auto`
+
 ## Best Practices
 
 1. **Accessibility**
@@ -1343,6 +1572,12 @@ import * as Tabs from '@radix-ui/react-tabs';
    - Type all props with interfaces
    - Use TypeScript strict mode
    - Avoid `any` when possible (use `as` for Wails types if needed)
+
+7. **Layout Patterns**
+   - **Full-height tabs**: Use flexbox with sticky headers for professional-looking settings tabs
+   - **Sticky headers**: Use `backdrop-blur` and semi-transparent backgrounds for modern look
+   - **Icon badges**: Use accent-colored badges with white icons for visual hierarchy
+   - **Compact filters**: Organize filters in single row with proper overflow handling
 
 ## Development Workflow
 
@@ -1678,3 +1913,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 - [Radix UI Docs](https://www.radix-ui.com/)
 - [Wails v2 Docs](https://wails.io/docs/v2/)
 - [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/)
+
+---
+
+**Last Updated:** 2026-01-10

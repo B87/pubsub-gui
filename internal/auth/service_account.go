@@ -12,17 +12,16 @@ import (
 
 // ConnectWithServiceAccount creates a Pub/Sub client using a service account JSON key file
 // It validates that the key file exists before attempting to create the client
-func ConnectWithServiceAccount(ctx context.Context, projectID, keyPath string) (*pubsub.Client, error) {
+// If emulatorHost is provided, connects to the emulator instead of production
+func ConnectWithServiceAccount(ctx context.Context, projectID, keyPath string, emulatorHost string) (*pubsub.Client, error) {
 	// Validate that the service account key file exists
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
 		return nil, models.ErrServiceAccountNotFound
 	}
 
-	// Check if emulator host is set
-	emulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST")
+	// If emulator host is provided, ignore the service account key and use emulator
 	if emulatorHost != "" {
-		// When using emulator, ignore the service account key and use emulator
-		return ConnectWithADC(ctx, projectID)
+		return ConnectWithADC(ctx, projectID, emulatorHost)
 	}
 
 	// Create Pub/Sub client with service account credentials

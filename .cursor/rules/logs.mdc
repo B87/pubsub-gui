@@ -1,0 +1,310 @@
+---
+alwaysApply: true
+---
+
+# Logging System
+
+This document describes the structured logging system used throughout the Pub/Sub GUI application, including backend logging, log file management, and the frontend logs viewer.
+
+## Overview
+
+The application uses Go's `log/slog` package for structured logging with **dual output**:
+- **stdout**: Human-readable text format for terminal/console viewing
+- **JSON files**: Machine-readable format stored in `~/.pubsub-gui/logs/` for the frontend viewer
+
+Logs are automatically rotated daily, with one JSON file per day (`logs-YYYY-MM-DD.json`).
+
+## Backend Logging
+
+### Initialization
+
+The logger is initialized in `main.go` before the application starts:
+
+```go
+// In main.go
+func main() {
+    // Initialize logger first
+    if err := logger.InitLogger(); err != nil {
+        fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+        os.Exit(1)
+    }
+    defer logger.Close()
+    // ... rest of main
+}
+```
+
+**CRITICAL**: The logger must be initialized before any other operations that might log. Always call `logger.InitLogger()` at the start of `main()`.
+
+### Using the Logger
+
+The logger provides convenience functions for common log levels:
+
+```go
+import "pubsub-gui/internal/logger"
+
+// Info - Normal operational events
+logger.Info("Application started", "version", "1.0.0")
+logger.Info("Resource synchronized", "topics", 5, "subscriptions", 10)
+
+// Error - Failures that need investigation
+logger.Error("Failed to connect", "projectID", projectID, "error", err)
+logger.Error("Error loading config", "error", err)
+
+// Warn - Potential issues or recoverable errors
+logger.Warn("Timeout stopping monitor", "subscriptionID", subID)
+logger.Warn("Failed to save upgrade check time", "error", err)
+
+// Debug - Verbose diagnostics (only in development)
+logger.Debug("Processing message", "messageID", msgID, "subscription", subID)
+```
+
+### Log Entry Structure
+
+Each log entry includes:
+- **time**: RFC3339 timestamp
+- **level**: Log level (DEBUG, INFO, WARN, ERROR)
+- **msg**: Primary message string
+- **fields**: Additional structured key-value pairs
+
+**Example log entry:**
+```json
+{
+  "time": "2026-01-10T13:09:19Z",
+  "level": "INFO",
+  "msg": "Application started",
+  "version": "1.0.0"
+}
+```
+
+### Best Practices
+
+**DO ✅:**
+- Use structured logging with key-value pairs: `logger.Info("message", "key", value)`
+- Include context in error logs: `logger.Error("operation failed", "resource", name, "error", err)`
+- Use appropriate log levels (Debug for verbose, Info for normal, Warn for issues, Error for failures)
+- Log important state changes: connection events, resource mutations, configuration changes
+
+**DON'T ❌:**
+- Don't use `fmt.Printf` or `log.Printf` - always use `logger.Info/Error/Warn/Debug`
+- Don't log sensitive information (passwords, tokens, API keys)
+- Don't log at Debug level in production-critical paths (performance impact)
+- Don't forget to include error values: `logger.Error("failed", "error", err)` not `logger.Error("failed")`
+
+### Log File Management
+
+**Location**: `~/.pubsub-gui/logs/` (or platform-specific config directory)
+
+**File Format**: `logs-YYYY-MM-DD.json` (one file per day)
+
+**Rotation**: Automatic daily rotation at midnight (UTC). The logger checks the date on each log write and opens a new file if needed.
+
+**File Permissions**: Log files are created with `0600` permissions (read/write for owner only).
+
+**Cleanup**: Log files are not automatically deleted. Users can manually delete old log files if needed.
+
+## Backend Log Reading API
+
+The `LogsHandler` in `internal/app/logs.go` provides methods for reading and filtering logs:
+
+### GetLogs
+
+Reads logs for a specific date with pagination:
+
+```go
+func (a *App) GetLogs(date string, limit int, offset int) ([]app.LogEntry, error)
+```
+
+**Parameters:**
+- `date`: Date in `YYYY-MM-DD` format
+- `limit`: Maximum number of entries to return (0 = no limit)
+- `offset`: Number of entries to skip (for pagination)
+
+**Returns**: Array of `LogEntry` structs
+
+**Example:**
+```go
+entries, err := a.GetLogs("2026-01-10", 100, 0)
+```
+
+### GetLogsFiltered
+
+Reads and filters logs across a date range:
+
+```go
+func (a *App) GetLogsFiltered(startDate, endDate, levelFilter, searchTerm string, limit, offset int) (app.FilteredLogsResult, error)
+```
+
+**Parameters:**
+- `startDate`: Start date in `YYYY-MM-DD` format (empty = no start limit)
+- `endDate`: End date in `YYYY-MM-DD` format (empty = today)
+- `levelFilter`: Comma-separated log levels (e.g., `"INFO,ERROR"`) or `"all"` or `"none"`
+- `searchTerm`: Text to search in message and fields (case-insensitive)
+- `limit`: Maximum number of entries to return
+- `offset`: Number of entries to skip
+
+**Returns**: `FilteredLogsResult` with `entries` array and `total` count
+
+**Example:**
+```go
+result, err := a.GetLogsFiltered("2026-01-01", "2026-01-10", "ERROR,WARN", "connection", 50, 0)
+```
+
+### LogEntry Structure
+
+```go
+type LogEntry struct {
+    Time   string                 `json:"time"`   // RFC3339 timestamp
+    Level  string                 `json:"level"`  // DEBUG, INFO, WARN, ERROR
+    Msg    string                 `json:"msg"`    // Primary message
+    Fields map[string]interface{} `json:"fields,omitempty"` // Additional fields
+}
+```
+
+## Frontend Logs Viewer
+
+The logs viewer is accessible via **Settings > Logs** tab. It provides:
+
+- **Date filtering**: Single date or date range selection
+- **Level filtering**: Filter by DEBUG, INFO, WARN, ERROR
+- **Search**: Full-text search across messages and fields
+- **Pagination**: Navigate through large log sets
+- **Expandable entries**: View structured fields in JSON tree format
+- **Auto-refresh**: Optional automatic refresh at configurable intervals
+
+### Components
+
+**LogsSettingsTab** (`frontend/src/components/Settings/LogsSettingsTab.tsx`):
+- Main component for the logs viewer
+- Manages state, filtering, and pagination
+- Displays log entries in a scrollable list
+
+**LogLevelFilter** (`frontend/src/components/Settings/LogLevelFilter.tsx`):
+- Dropdown filter for log levels
+- Shows counts per level
+- Supports quick filters (All, Errors, Warn + Error)
+
+**LogDateRangeFilter** (`frontend/src/components/Settings/LogDateRangeFilter.tsx`):
+- Date picker for single date or range selection
+- Quick ranges (Today, Yesterday, Last 7 days, Last 30 days)
+- Custom date input
+
+**JSONTree** (`frontend/src/components/Settings/JSONTree.tsx`):
+- Displays structured log fields in expandable JSON tree
+- Syntax highlighting for different value types
+- Search highlighting support
+
+### Usage Pattern
+
+```typescript
+import { GetLogs, GetLogsFiltered } from '../../wailsjs/go/main/App';
+
+// Get logs for a specific date
+const entries = await GetLogs('2026-01-10', 100, 0);
+
+// Get filtered logs
+const result = await GetLogsFiltered(
+  '2026-01-01',  // startDate
+  '2026-01-10',  // endDate
+  'ERROR,WARN',  // levelFilter
+  'connection',  // searchTerm
+  50,            // limit
+  0              // offset
+);
+```
+
+### Event Handling
+
+The logs viewer listens for log-related events (if implemented):
+
+```typescript
+import { EventsOn } from '../../wailsjs/runtime/runtime';
+
+// Listen for new log entries (if real-time updates are added)
+EventsOn('log:new', (entry) => {
+  // Handle new log entry
+});
+```
+
+## Log File Format
+
+Log files use **NDJSON (Newline-Delimited JSON)** format - one JSON object per line:
+
+```
+{"time":"2026-01-10T13:09:19Z","level":"INFO","msg":"Application started","version":"1.0.0"}
+{"time":"2026-01-10T13:09:43Z","level":"INFO","msg":"Resource synchronized","topics":5,"subscriptions":10}
+{"time":"2026-01-10T13:10:15Z","level":"ERROR","msg":"Failed to connect","projectID":"my-project","error":"permission denied"}
+```
+
+**Parsing Notes:**
+- Each line is a complete JSON object
+- Empty lines are skipped
+- Invalid JSON lines are skipped (with error handling)
+- Entries missing required fields (time, level, msg) are skipped
+
+## Troubleshooting
+
+### No Logs Appearing
+
+**Symptoms**: Logs viewer shows "No logs found"
+
+**Possible Causes:**
+1. **Log file doesn't exist**: Check `~/.pubsub-gui/logs/` directory
+2. **Wrong date selected**: Ensure date matches log file date (`logs-YYYY-MM-DD.json`)
+3. **Filters too restrictive**: Clear all filters and try again
+4. **Logger not initialized**: Check that `logger.InitLogger()` is called in `main.go`
+
+**Solution:**
+```bash
+# Check if log files exist
+ls -la ~/.pubsub-gui/logs/
+
+# Check if logger is initialized (should see log entry on startup)
+# Look for "Application started" log entry
+```
+
+### Log File Rotation Issues
+
+**Symptoms**: Logs not appearing in new day's file
+
+**Possible Causes:**
+1. Date check happens on each log write - if no logs are written, file won't rotate
+2. File permissions issue preventing new file creation
+
+**Solution:**
+- Ensure logger is being used (not `fmt.Printf`)
+- Check file permissions: `ls -la ~/.pubsub-gui/logs/`
+- Verify logger initialization in `main.go`
+
+### Performance Issues
+
+**Symptoms**: Slow log loading or high memory usage
+
+**Possible Causes:**
+1. Very large log files (many entries per day)
+2. Loading too many entries at once (high limit)
+
+**Solution:**
+- Use pagination (limit/offset) appropriately
+- Consider date range filtering to reduce scope
+- Implement virtual scrolling for large lists (already done in frontend)
+
+## Related Documentation
+
+- **Backend API**: See `CLAUDE.md` Backend API Reference section
+- **Frontend Components**: See `CLAUDE.md` Component Development Guidelines
+- **Wails Integration**: See `.cursor/rules/wails.mdc` for Wails patterns
+- **Theme System**: See `.cursor/rules/theme-system.mdc` for UI theming
+
+## Code References
+
+**Backend:**
+- Logger implementation: `internal/logger/logger.go`
+- Log reading API: `internal/app/logs.go`
+- Logger initialization: `main.go:26-31`
+- Logger usage examples: `app.go` (search for `logger.Info`, `logger.Error`, etc.)
+
+**Frontend:**
+- Logs viewer: `frontend/src/components/Settings/LogsSettingsTab.tsx`
+- Level filter: `frontend/src/components/Settings/LogLevelFilter.tsx`
+- Date filter: `frontend/src/components/Settings/LogDateRangeFilter.tsx`
+- JSON tree: `frontend/src/components/Settings/JSONTree.tsx`

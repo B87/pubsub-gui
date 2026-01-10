@@ -14,8 +14,8 @@ interface SettingsTabsProps {
 }
 
 export default function SettingsTabs({ tabs, activeTab, onTabChange, children, contentClassName = '' }: SettingsTabsProps) {
-  // Determine if active tab needs special overflow handling (e.g., advanced tab with editor)
-  const needsOverflowHidden = activeTab === 'advanced';
+  // Determine if active tab needs special overflow handling (e.g., advanced tab with editor, logs tab with dropdowns)
+  const needsOverflowHidden = activeTab === 'advanced' || activeTab === 'logs';
   const needsPadding = !needsOverflowHidden;
 
   return (

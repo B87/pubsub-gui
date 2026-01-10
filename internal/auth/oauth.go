@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"pubsub-gui/internal/logger"
 	"pubsub-gui/internal/models"
 )
 
@@ -92,7 +93,7 @@ func (oa *OAuthAuthenticator) Authenticate(ctx context.Context) (*AuthenticateRe
 	// Ensure server is stopped even if authentication fails or is cancelled
 	defer func() {
 		if err := callbackServer.Stop(); err != nil {
-			fmt.Printf("Warning: failed to stop callback server: %v\n", err)
+			logger.Warn("Failed to stop callback server", "error", err)
 		}
 	}()
 

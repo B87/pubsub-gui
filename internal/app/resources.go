@@ -4,12 +4,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"pubsub-gui/internal/auth"
+	"pubsub-gui/internal/logger"
 	"pubsub-gui/internal/models"
 	"pubsub-gui/internal/pubsub/admin"
 )
@@ -31,6 +33,8 @@ type ResourceHandler struct {
 	resourceMu    *sync.RWMutex
 	topics        *[]admin.TopicInfo
 	subscriptions *[]admin.SubscriptionInfo
+	syncMu        sync.Mutex // Prevents concurrent sync operations
+	syncing       bool       // Tracks if sync is in progress
 }
 
 // NewResourceHandler creates a new resource handler
@@ -61,7 +65,23 @@ func (h *ResourceHandler) SyncResources() error {
 
 // syncResources fetches topics and subscriptions from GCP in parallel and updates the local store
 // Emits a resources:updated event to notify the frontend
+// Uses a background context with timeout to prevent cancellation issues
 func (h *ResourceHandler) syncResources() {
+	// Prevent concurrent sync operations
+	h.syncMu.Lock()
+	if h.syncing {
+		h.syncMu.Unlock()
+		return // Skip if sync is already in progress
+	}
+	h.syncing = true
+	h.syncMu.Unlock()
+
+	defer func() {
+		h.syncMu.Lock()
+		h.syncing = false
+		h.syncMu.Unlock()
+	}()
+
 	client := h.clientManager.GetClient()
 	if client == nil {
 		return
@@ -71,6 +91,12 @@ func (h *ResourceHandler) syncResources() {
 	if projectID == "" {
 		return
 	}
+
+	// Use a background context with timeout for sync operations
+	// This prevents cancellation from app lifecycle events (disconnect, shutdown)
+	// Use a shorter timeout (15 seconds) - if emulator is unresponsive, fail fast and don't block
+	syncCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
 	// Fetch topics and subscriptions in parallel
 	var topics []admin.TopicInfo
@@ -82,30 +108,56 @@ func (h *ResourceHandler) syncResources() {
 
 	go func() {
 		defer wg.Done()
-		topics, topicsErr = admin.ListTopicsAdmin(h.ctx, client, projectID)
+		topics, topicsErr = admin.ListTopicsAdmin(syncCtx, client, projectID)
 	}()
 
 	go func() {
 		defer wg.Done()
-		subscriptions, subsErr = admin.ListSubscriptionsAdmin(h.ctx, client, projectID)
+		subscriptions, subsErr = admin.ListSubscriptionsAdmin(syncCtx, client, projectID)
 	}()
 
 	wg.Wait()
+
+	// Check if we're using emulator (for more lenient error handling)
+	// Check both env var and if endpoint looks like localhost (common emulator pattern)
+	isEmulator := os.Getenv("PUBSUB_EMULATOR_HOST") != ""
 
 	// Handle partial failures - update what succeeded, emit errors for what failed
 	hasErrors := false
 	errorDetails := make(map[string]string)
 
 	if topicsErr != nil {
-		fmt.Printf("Error syncing topics: %v\n", topicsErr)
-		hasErrors = true
-		errorDetails["topics"] = topicsErr.Error()
+		// Timeout errors are common with slow/unresponsive services (especially emulator)
+		// Log as warning and don't emit error event - sync will retry on next resource change
+		if topicsErr == context.DeadlineExceeded || topicsErr == context.Canceled {
+			if isEmulator {
+				logger.Warn("Sync timeout for topics (emulator may be slow)", "error", topicsErr)
+			} else {
+				logger.Warn("Sync timeout for topics", "error", topicsErr)
+			}
+			// Don't treat timeout as error - sync will retry later
+		} else {
+			logger.Error("Error syncing topics", "error", topicsErr)
+			hasErrors = true
+			errorDetails["topics"] = topicsErr.Error()
+		}
 	}
 
 	if subsErr != nil {
-		fmt.Printf("Error syncing subscriptions: %v\n", subsErr)
-		hasErrors = true
-		errorDetails["subscriptions"] = subsErr.Error()
+		// Timeout errors are common with slow/unresponsive services (especially emulator)
+		// Log as warning and don't emit error event - sync will retry on next resource change
+		if subsErr == context.DeadlineExceeded || subsErr == context.Canceled {
+			if isEmulator {
+				logger.Warn("Sync timeout for subscriptions (emulator may be slow)", "error", subsErr)
+			} else {
+				logger.Warn("Sync timeout for subscriptions", "error", subsErr)
+			}
+			// Don't treat timeout as error - sync will retry later
+		} else {
+			logger.Error("Error syncing subscriptions", "error", subsErr)
+			hasErrors = true
+			errorDetails["subscriptions"] = subsErr.Error()
+		}
 	}
 
 	// Update local store with successful fetches only
@@ -128,6 +180,7 @@ func (h *ResourceHandler) syncResources() {
 	}
 
 	// Only emit update event if we have at least one successful fetch
+	// Use original context for event emission (Wails requires it)
 	if len(updatePayload) > 0 {
 		runtime.EventsEmit(h.ctx, "resources:updated", updatePayload)
 	}

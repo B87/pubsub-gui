@@ -4,11 +4,14 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
+	"pubsub-gui/internal/logger"
 	versionpkg "pubsub-gui/internal/version"
 )
 
@@ -20,6 +23,13 @@ var assets embed.FS
 var version = "dev"
 
 func main() {
+	// Initialize logger first
+	if err := logger.InitLogger(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Close()
+
 	// Create an instance of the app structure
 	app := NewApp()
 	// Set version in app
@@ -38,13 +48,17 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
-		OnShutdown:       func(_ context.Context) { app.Disconnect() },
+		OnShutdown: func(_ context.Context) {
+			app.Disconnect()
+			logger.Close()
+		},
 		Bind: []interface{}{
 			app,
 		},
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		logger.Error("Failed to start application", "error", err)
+		os.Exit(1)
 	}
 }

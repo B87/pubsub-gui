@@ -7,17 +7,17 @@ import {app} from '../models';
 import {admin} from '../models';
 import {main} from '../models';
 
-export function CheckEmulatorStatus():Promise<Record<string, any>>;
+export function CheckEmulatorStatus(arg1:string):Promise<Record<string, any>>;
 
 export function CheckForUpdates():Promise<version.UpdateInfo>;
 
 export function ClearMessageBuffer(arg1:string):Promise<void>;
 
-export function ConnectWithADC(arg1:string):Promise<void>;
+export function ConnectWithADC(arg1:string,arg2:string):Promise<void>;
 
-export function ConnectWithOAuth(arg1:string,arg2:string):Promise<void>;
+export function ConnectWithOAuth(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function ConnectWithServiceAccount(arg1:string,arg2:string):Promise<void>;
+export function ConnectWithServiceAccount(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CreateFromTemplate(arg1:models.TemplateCreateRequest):Promise<models.TemplateCreateResult>;
 
@@ -52,6 +52,10 @@ export function GetConfigFileContent():Promise<string>;
 export function GetConnectionStatus():Promise<app.ConnectionStatus>;
 
 export function GetCurrentVersion():Promise<string>;
+
+export function GetLogs(arg1:string,arg2:number,arg3:number):Promise<Array<app.LogEntry>>;
+
+export function GetLogsFiltered(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number,arg6:number):Promise<app.FilteredLogsResult>;
 
 export function GetProfiles():Promise<Array<models.ConnectionProfile>>;
 
@@ -110,8 +114,6 @@ export function StopTopicMonitor(arg1:string):Promise<void>;
 export function SwitchProfile(arg1:string):Promise<void>;
 
 export function SyncResources():Promise<void>;
-
-export function UpdateEmulatorHost(arg1:string):Promise<void>;
 
 export function UpdateFontSize(arg1:string):Promise<void>;
 

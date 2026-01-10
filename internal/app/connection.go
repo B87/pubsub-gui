@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"pubsub-gui/internal/auth"
@@ -28,6 +29,20 @@ type ConnectionHandler struct {
 	configManager *config.Manager
 	clientManager *auth.ClientManager
 	syncResources func() // Callback to trigger resource sync
+	currentEmulatorHost string // Track emulator host from current connection (for status display)
+	currentAuthMethod   string // Track auth method from current connection (for status display)
+	emulatorHostMu      sync.RWMutex
+	authMethodMu        sync.RWMutex
+}
+
+// ClearEmulatorHost clears the tracked emulator host (called on disconnect)
+func (h *ConnectionHandler) ClearEmulatorHost() {
+	h.emulatorHostMu.Lock()
+	h.currentEmulatorHost = ""
+	h.emulatorHostMu.Unlock()
+	h.authMethodMu.Lock()
+	h.currentAuthMethod = ""
+	h.authMethodMu.Unlock()
 }
 
 // NewConnectionHandler creates a new connection handler
@@ -47,37 +62,45 @@ func NewConnectionHandler(
 	}
 }
 
-// getEmulatorHost returns the emulator host with env var having priority over config
+// getEmulatorHost returns the emulator host for display purposes
+// Checks current connection's emulator host first, then env var
 func (h *ConnectionHandler) getEmulatorHost() string {
-	// Check environment variable first (has priority)
-	if envHost := os.Getenv("PUBSUB_EMULATOR_HOST"); envHost != "" {
-		return envHost
+	// Check if we have an active connection with emulator host
+	h.emulatorHostMu.RLock()
+	currentHost := h.currentEmulatorHost
+	h.emulatorHostMu.RUnlock()
+
+	if currentHost != "" {
+		return currentHost
 	}
-	// Fall back to config if env var is not set
-	if h.config != nil && h.config.EmulatorHost != "" {
-		return h.config.EmulatorHost
-	}
-	return ""
+
+	// Fall back to environment variable (for external tooling)
+	return os.Getenv("PUBSUB_EMULATOR_HOST")
 }
 
 // GetConnectionStatus returns the current connection status
 func (h *ConnectionHandler) GetConnectionStatus() ConnectionStatus {
 	emulatorHost := h.getEmulatorHost()
 
+	h.authMethodMu.RLock()
+	authMethod := h.currentAuthMethod
+	h.authMethodMu.RUnlock()
+
 	return ConnectionStatus{
 		IsConnected:  h.clientManager.IsConnected(),
 		ProjectID:    h.clientManager.GetProjectID(),
+		AuthMethod:   authMethod,
 		EmulatorHost: emulatorHost,
 	}
 }
 
 // ConnectWithADC connects to Pub/Sub using Application Default Credentials
-func (h *ConnectionHandler) ConnectWithADC(projectID string) error {
+func (h *ConnectionHandler) ConnectWithADC(projectID string, emulatorHost string) error {
 	if projectID == "" {
 		return fmt.Errorf("project ID cannot be empty")
 	}
 
-	client, err := auth.ConnectWithADC(h.ctx, projectID)
+	client, err := auth.ConnectWithADC(h.ctx, projectID, emulatorHost)
 	if err != nil {
 		return fmt.Errorf("failed to connect with ADC: %w", err)
 	}
@@ -85,6 +108,14 @@ func (h *ConnectionHandler) ConnectWithADC(projectID string) error {
 	if err := h.clientManager.SetClient(client, projectID); err != nil {
 		return fmt.Errorf("failed to set client: %w", err)
 	}
+
+	// Track emulator host and auth method for status display
+	h.emulatorHostMu.Lock()
+	h.currentEmulatorHost = emulatorHost
+	h.emulatorHostMu.Unlock()
+	h.authMethodMu.Lock()
+	h.currentAuthMethod = "ADC"
+	h.authMethodMu.Unlock()
 
 	// Sync resources after successful connection
 	if h.syncResources != nil {
@@ -95,7 +126,7 @@ func (h *ConnectionHandler) ConnectWithADC(projectID string) error {
 }
 
 // ConnectWithServiceAccount connects to Pub/Sub using a service account JSON key file
-func (h *ConnectionHandler) ConnectWithServiceAccount(projectID, keyPath string) error {
+func (h *ConnectionHandler) ConnectWithServiceAccount(projectID, keyPath string, emulatorHost string) error {
 	if projectID == "" {
 		return fmt.Errorf("project ID cannot be empty")
 	}
@@ -104,7 +135,7 @@ func (h *ConnectionHandler) ConnectWithServiceAccount(projectID, keyPath string)
 		return fmt.Errorf("service account key path cannot be empty")
 	}
 
-	client, err := auth.ConnectWithServiceAccount(h.ctx, projectID, keyPath)
+	client, err := auth.ConnectWithServiceAccount(h.ctx, projectID, keyPath, emulatorHost)
 	if err != nil {
 		return fmt.Errorf("failed to connect with service account: %w", err)
 	}
@@ -112,6 +143,14 @@ func (h *ConnectionHandler) ConnectWithServiceAccount(projectID, keyPath string)
 	if err := h.clientManager.SetClient(client, projectID); err != nil {
 		return fmt.Errorf("failed to set client: %w", err)
 	}
+
+	// Track emulator host and auth method for status display
+	h.emulatorHostMu.Lock()
+	h.currentEmulatorHost = emulatorHost
+	h.emulatorHostMu.Unlock()
+	h.authMethodMu.Lock()
+	h.currentAuthMethod = "ServiceAccount"
+	h.authMethodMu.Unlock()
 
 	// Sync resources after successful connection
 	if h.syncResources != nil {
@@ -122,7 +161,7 @@ func (h *ConnectionHandler) ConnectWithServiceAccount(projectID, keyPath string)
 }
 
 // ConnectWithOAuth connects to Pub/Sub using OAuth2 credentials
-func (h *ConnectionHandler) ConnectWithOAuth(projectID, oauthClientPath string) error {
+func (h *ConnectionHandler) ConnectWithOAuth(projectID, oauthClientPath string, emulatorHost string) error {
 	if projectID == "" {
 		return fmt.Errorf("project ID cannot be empty")
 	}
@@ -144,10 +183,18 @@ func (h *ConnectionHandler) ConnectWithOAuth(projectID, oauthClientPath string) 
 	profileID := h.getOrCreateOAuthProfileID(projectID, oauthClientPath)
 
 	// Connect with OAuth
-	client, userEmail, err := auth.ConnectWithOAuth(h.ctx, projectID, oauthClientPath, profileID, tokenStore)
+	client, userEmail, err := auth.ConnectWithOAuth(h.ctx, projectID, oauthClientPath, profileID, tokenStore, emulatorHost)
 	if err != nil {
 		return err
 	}
+
+	// Track emulator host and auth method for status display
+	h.emulatorHostMu.Lock()
+	h.currentEmulatorHost = emulatorHost
+	h.emulatorHostMu.Unlock()
+	h.authMethodMu.Lock()
+	h.currentAuthMethod = "OAuth"
+	h.authMethodMu.Unlock()
 
 	if err := h.clientManager.SetClient(client, projectID); err != nil {
 		client.Close()
@@ -332,26 +379,17 @@ func (h *ConnectionHandler) SwitchProfile(profileID string, disconnect func() er
 
 // connectWithProfile is a helper method to connect using a profile's settings
 func (h *ConnectionHandler) connectWithProfile(profile *models.ConnectionProfile) error {
-	// Set emulator host: profile has priority, then config, then env (already set)
-	emulatorHost := ""
-	if profile.EmulatorHost != "" {
-		emulatorHost = profile.EmulatorHost
-	} else if h.config != nil && h.config.EmulatorHost != "" {
-		emulatorHost = h.config.EmulatorHost
-	}
+	// Get emulator host from profile (no global config fallback)
+	emulatorHost := profile.EmulatorHost
 
-	// Only set env var if we have a value and env var is not already set
-	if emulatorHost != "" && os.Getenv("PUBSUB_EMULATOR_HOST") == "" {
-		os.Setenv("PUBSUB_EMULATOR_HOST", emulatorHost)
-	}
-
+	// Pass emulator host directly to connection methods (don't modify global env var)
 	switch profile.AuthMethod {
 	case "ADC":
-		return h.ConnectWithADC(profile.ProjectID)
+		return h.ConnectWithADC(profile.ProjectID, emulatorHost)
 	case "ServiceAccount":
-		return h.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath)
+		return h.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath, emulatorHost)
 	case "OAuth":
-		return h.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath)
+		return h.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath, emulatorHost)
 	default:
 		return fmt.Errorf("unsupported auth method: %s", profile.AuthMethod)
 	}

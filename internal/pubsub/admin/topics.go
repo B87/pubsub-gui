@@ -34,6 +34,13 @@ func ListTopicsAdmin(ctx context.Context, client *pubsub.Client, projectID strin
 	it := client.TopicAdminClient.ListTopics(ctx, req)
 
 	for {
+		// Check context before each iteration to respect timeout
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		topic, err := it.Next()
 		if err == iterator.Done {
 			break

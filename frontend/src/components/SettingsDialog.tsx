@@ -10,6 +10,7 @@ import ConnectionsTab from './Settings/ConnectionsTab';
 import TemplatesTab from './Settings/TemplatesTab';
 import AdvancedTab from './Settings/AdvancedTab';
 import UpgradeTab from './Settings/UpgradeTab';
+import { LogsSettingsTab } from './Settings/LogsSettingsTab';
 import ProfileDialog from './Settings/ProfileDialog';
 import DeleteProfileDialog from './Settings/DeleteProfileDialog';
 import TemplateDialog from './Settings/TemplateDialog';
@@ -29,7 +30,7 @@ interface SettingsDialogProps {
   onClose: () => void;
 }
 
-type Tab = 'appearance' | 'connections' | 'templates' | 'advanced' | 'upgrade';
+type Tab = 'appearance' | 'connections' | 'templates' | 'advanced' | 'upgrade' | 'logs';
 
 const tabs = [
   { id: 'appearance', label: 'Appearance' },
@@ -37,6 +38,7 @@ const tabs = [
   { id: 'templates', label: 'Templates' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'upgrade', label: 'Upgrade' },
+  { id: 'logs', label: 'Logs' },
 ];
 
 export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
@@ -490,6 +492,10 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
           {activeTab === 'upgrade' && (
             <UpgradeTab saving={saving} />
+          )}
+
+          {activeTab === 'logs' && (
+            <LogsSettingsTab activeTab={activeTab} />
           )}
         </SettingsTabs>
 

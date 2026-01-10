@@ -7,19 +7,28 @@ import (
 
 	"cloud.google.com/go/pubsub/v2"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ConnectWithADC creates a Pub/Sub client using Application Default Credentials
-// It automatically detects the PUBSUB_EMULATOR_HOST environment variable for local development
-func ConnectWithADC(ctx context.Context, projectID string) (*pubsub.Client, error) {
+// If emulatorHost is provided, connects to the emulator instead of production
+func ConnectWithADC(ctx context.Context, projectID string, emulatorHost string) (*pubsub.Client, error) {
 	var opts []option.ClientOption
 
-	// Check if emulator host is set
-	emulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST")
+	// If emulator host is provided, use it directly (don't check env var)
 	if emulatorHost != "" {
-		// When using emulator, we don't need additional options
-		// The Pub/Sub client automatically uses the emulator when PUBSUB_EMULATOR_HOST is set
+		// Use emulator endpoint with insecure connection (no TLS)
+		opts = append(opts, option.WithEndpoint(emulatorHost))
 		opts = append(opts, option.WithoutAuthentication())
+		opts = append(opts, option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+	} else {
+		// Fall back to env var for external tooling compatibility
+		if envHost := os.Getenv("PUBSUB_EMULATOR_HOST"); envHost != "" {
+			opts = append(opts, option.WithEndpoint(envHost))
+			opts = append(opts, option.WithoutAuthentication())
+			opts = append(opts, option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+		}
 	}
 
 	// Create Pub/Sub client with ADC (Application Default Credentials)

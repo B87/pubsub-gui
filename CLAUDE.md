@@ -31,12 +31,15 @@ This is a **Wails v2** desktop application for Google Cloud Pub/Sub management. 
 - **Template System**: Save and reuse message templates
 - **Theme Support**: 5 themes (Auto, Dark, Light, Dracula, Monokai) with 3 font sizes
 - **Resource Management**: Create, update, and delete topics and subscriptions
+- **Structured Logging**: Dual-output logging (stdout + JSON files) with daily rotation and built-in logs viewer
 
 **For comprehensive requirements:** See `PRD.md` for detailed product specifications and architecture.
 
 **For theme system details:** See `.cursor/rules/theme-system.mdc` for complete theme documentation.
 
 **For UI development:** See `.cursor/rules/react-tailwind.mdc` for React and styling guidelines.
+
+**For logging system:** See `.cursor/rules/logs.mdc` for structured logging, log file management, and logs viewer documentation.
 
 ---
 
@@ -134,15 +137,17 @@ go get <package>
 
 **Current Structure:**
 - `app.go`: Main application struct with Go methods exposed to frontend via Wails bindings (delegates to handlers)
-- `main.go`: Wails initialization, window configuration, asset server setup
+- `main.go`: Wails initialization, window configuration, asset server setup, logger initialization
 - `internal/app/`: Handler structs organizing methods by domain:
   - `connection.go`: ConnectionHandler for connection and profile management
   - `resources.go`: ResourceHandler for topic and subscription CRUD operations
   - `monitoring.go`: MonitoringHandler for message monitoring and streaming
   - `config.go`: ConfigHandler for configuration management (theme, font size, auto-ack)
   - `templates.go`: TemplateHandler for message template management
+  - `logs.go`: LogsHandler for reading and filtering log entries
 - `internal/auth/`: GCP authentication (ADC, Service Account, OAuth)
 - `internal/config/`: Local configuration persistence
+- `internal/logger/`: Structured logging with dual output (stdout + JSON files)
 - `internal/pubsub/`:
   - `admin/`: List topics/subscriptions, fetch metadata
   - `publisher/`: Publish messages with attributes
@@ -156,6 +161,11 @@ go get <package>
 **Current Structure:**
 - `frontend/src/App.tsx`: Main React component
 - `frontend/src/main.tsx`: React entry point
+- `frontend/src/components/Settings/`: Settings dialog components
+  - `LogsSettingsTab.tsx`: Logs viewer with filtering and search
+  - `LogLevelFilter.tsx`: Log level filter dropdown
+  - `LogDateRangeFilter.tsx`: Date range picker for logs
+  - `JSONTree.tsx`: JSON field display component for log entries
 - `frontend/wailsjs/`: Auto-generated Go bindings (DO NOT EDIT)
 
 **Planned Structure (per PRD.md):**
@@ -728,6 +738,20 @@ Updates an existing template.
 func (a *App) DeleteTemplate(templateID string) error
 ```
 Deletes a template from the configuration.
+
+#### Logs
+
+```go
+func (a *App) GetLogs(date string, limit int, offset int) ([]app.LogEntry, error)
+```
+Returns logs for a specific date with pagination. Date format: `YYYY-MM-DD`. Returns empty slice if no logs exist for that date.
+
+```go
+func (a *App) GetLogsFiltered(startDate, endDate, levelFilter, searchTerm string, limit, offset int) (app.FilteredLogsResult, error)
+```
+Returns filtered logs across a date range. Supports filtering by level (comma-separated: `"INFO,ERROR"`), search term (case-insensitive), and date range. Returns `FilteredLogsResult` with `entries` array and `total` count.
+
+**For detailed logging documentation:** See `.cursor/rules/logs.mdc` for complete guidelines on using the logger, log file format, and frontend integration.
 
 #### Configuration
 

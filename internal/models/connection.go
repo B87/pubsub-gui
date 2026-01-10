@@ -35,7 +35,6 @@ type AppConfig struct {
 	UpgradeCheckInterval       int                         `json:"upgradeCheckInterval"` // hours
 	LastUpgradeCheck           time.Time                   `json:"lastUpgradeCheck,omitempty"`
 	DismissedUpgradeVersion    string                      `json:"dismissedUpgradeVersion,omitempty"`
-	EmulatorHost               string                      `json:"emulatorHost,omitempty"` // Default emulator host (env var has priority)
 }
 
 // Validate checks if the ConnectionProfile has all required fields
