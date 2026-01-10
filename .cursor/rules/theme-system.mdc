@@ -24,18 +24,20 @@ The application supports a comprehensive theme system with 5 themes (Auto, Dark,
 **Validation**
 
 * Location: `internal/app/config.go` (ConfigHandler methods)
-* `UpdateTheme()` method (lines 75-112): Validates theme values: `["light", "dark", "auto", "dracula", "monokai"]`
-* `UpdateFontSize()` method (lines 114-151): Validates font size values: `["small", "medium", "large"]`
-* `SaveConfigFileContent()` method (lines 174-237): Validates both theme and font size when saving raw JSON
+* `UpdateTheme()` method: Validates theme values: `["light", "dark", "auto", "dracula", "monokai"]`
+* `UpdateFontSize()` method: Validates font size values: `["small", "medium", "large"]`
+* `SaveConfigFileContent()` method: Validates both theme and font size when saving raw JSON
 * Returns validation errors for invalid values
+* **Note:** Line numbers may vary as code changes - refer to method names for accuracy
 
 **Event Emission**
 
 * Location: `internal/app/config.go` (ConfigHandler methods)
-* `UpdateTheme()` method (lines 106-109): Emits `config:theme-changed` when theme changes
-* `UpdateFontSize()` method (lines 145-148): Emits `config:font-size-changed` when font size changes
-* `SaveConfigFileContent()` method (lines 217-225): Emits both events when values change in raw JSON save
+* `UpdateTheme()` method: Emits `config:theme-changed` when theme changes
+* `UpdateFontSize()` method: Emits `config:font-size-changed` when font size changes
+* `SaveConfigFileContent()` method: Emits both events when values change in raw JSON save
 * Frontend listens for these events to apply changes instantly
+* Events are emitted asynchronously and may not have error handling - frontend should validate received values
 
 ### Frontend (React + TypeScript)
 
@@ -289,7 +291,64 @@ function App() {
 
 **IMPORTANT**: ThemeProvider must wrap the entire app to ensure all components have access to theme context.
 
+### Theme Initialization on Startup
+
+**Initialization Flow:**
+
+1. **Backend Startup** (`app.go:startup()`):
+   * Config manager loads config from `~/.pubsub-gui/config.json`
+   * If config missing or invalid, uses defaults (`Theme: "auto"`, `FontSize: "medium"`)
+   * Config is stored in memory but **no events are emitted on startup**
+
+2. **Frontend Initialization** (`ThemeContext.tsx`):
+   * ThemeProvider initializes with hardcoded defaults: `theme: 'auto'`, `fontSize: 'medium'`
+   * These defaults match backend defaults, ensuring consistency
+   * Event listeners are set up to receive theme changes from backend
+
+3. **Theme Sync**:
+   * When user changes theme via UI (AppearanceTab or ConfigEditorDialog), backend emits events
+   * Frontend receives events and updates state automatically
+   * **Note:** There is no explicit initial fetch - frontend starts with defaults and updates via events when changes occur
+
+**Why This Works:**
+* Defaults match between frontend and backend
+* If user has custom theme, they'll change it via UI which triggers events
+* No race conditions because both start with same defaults
+
 ## User Configuration
+
+### How Users Change Themes
+
+Users can change themes and font sizes through two methods:
+
+**Method 1: AppearanceTab (Visual Settings)**
+
+1. Open Settings Dialog (sidebar menu or keyboard shortcut)
+2. Navigate to "Appearance" tab
+3. Select theme from visual preview cards (Auto, Dark, Light, Dracula, Monokai)
+4. Select font size (Small, Medium, Large)
+5. Changes apply instantly via `UpdateTheme()` and `UpdateFontSize()` backend methods
+6. Both methods emit events that update frontend state
+
+**Method 2: ConfigEditorDialog (Raw JSON)**
+
+1. Open Config Editor (sidebar menu)
+2. Edit JSON:
+   ```json
+   {
+     "theme": "dracula",
+     "fontSize": "large"
+   }
+   ```
+3. Save
+4. Theme/font size updates instantly via `SaveConfigFileContent()` backend method
+5. `SaveConfigFileContent()` validates and emits events when values change
+
+**Both Methods:**
+* Trigger the same backend validation
+* Emit the same Wails events (`config:theme-changed`, `config:font-size-changed`)
+* Update frontend state instantly (no reload required)
+* Persist changes to `~/.pubsub-gui/config.json`
 
 ### How Users Change Themes
 
@@ -316,7 +375,7 @@ Users edit the config file via ConfigEditorDialog:
 
 ### Config Validation Example
 
-From `internal/app/config.go` (ConfigHandler.SaveConfigFileContent method, lines 191-197):
+From `internal/app/config.go` (ConfigHandler.SaveConfigFileContent method):
 
 ```go
 // Validate theme
@@ -333,9 +392,11 @@ if tempConfig.FontSize != "small" && tempConfig.FontSize != "medium" &&
 }
 ```
 
+**Note:** The same validation pattern is used in `UpdateTheme()` and `UpdateFontSize()` methods. Line numbers may vary - refer to method names for accuracy.
+
 ### Event Emission Example
 
-From `internal/app/config.go` (ConfigHandler.SaveConfigFileContent method, lines 217-225):
+From `internal/app/config.go` (ConfigHandler.SaveConfigFileContent method):
 
 ```go
 // Emit events when values change
@@ -348,7 +409,7 @@ if oldFontSize != tempConfig.FontSize {
 }
 ```
 
-**Note:** The same validation and event emission patterns are also used in `UpdateTheme()` (lines 75-112) and `UpdateFontSize()` (lines 114-151) methods.
+**Note:** The same event emission pattern is used in `UpdateTheme()` and `UpdateFontSize()` methods. Events are emitted asynchronously and frontend should validate received values.
 
 ## Frontend Implementation Details
 
@@ -357,10 +418,14 @@ if oldFontSize != tempConfig.FontSize {
 Key features of `ThemeContext.tsx`:
 
 1. **Event Listening**: Listens for `config:theme-changed` and `config:font-size-changed`
-2. **Auto Theme Detection**: Uses `window.matchMedia('(prefers-color-scheme: dark)')`
-3. **HTML Attributes**: Applies `data-theme` and `data-font-size` to `<html>`
-4. **Wails Sync**: Calls `WindowSetLightTheme()`, `WindowSetDarkTheme()`, or `WindowSetSystemDefaultTheme()`
-5. **Monaco Mapping**: Maps app theme to Monaco theme name
+2. **Auto Theme Detection**: Uses `window.matchMedia('(prefers-color-scheme: dark)')` to detect system preference
+3. **HTML Attributes**: Applies `data-theme` and `data-font-size` to `<html>` element
+4. **Wails Window Theme Sync**: Syncs native window chrome theme:
+   * `WindowSetLightTheme()` - when `effectiveTheme === 'light'`
+   * `WindowSetSystemDefaultTheme()` - when `theme === 'auto'` (respects OS preference)
+   * `WindowSetDarkTheme()` - for all other themes (`dark`, `dracula`, `monokai`)
+5. **Monaco Mapping**: Maps app theme to Monaco editor theme name
+6. **Validation**: Validates received theme/font size values before applying (prevents invalid states)
 
 ### Effective Theme Resolution
 
@@ -477,6 +542,55 @@ function ComponentWithLogic() {
 }
 ```
 
+## Error Handling and Edge Cases
+
+### Validation Errors
+
+**Backend Validation:**
+* Invalid theme values return error: `"theme must be 'light', 'dark', 'auto', 'dracula', or 'monokai'"`
+* Invalid font size values return error: `"fontSize must be 'small', 'medium', or 'large'"`
+* Errors are returned to frontend and should be displayed to users
+
+**Frontend Validation:**
+* `ThemeContext.tsx` validates received event values before applying:
+  ```typescript
+  function isValidTheme(theme: string): boolean {
+    return ['light', 'dark', 'auto', 'dracula', 'monokai'].includes(theme);
+  }
+  ```
+* Invalid values are ignored (prevents invalid state)
+
+### Config File Issues
+
+**Missing Config File:**
+* Backend creates default config if file doesn't exist
+* Defaults: `Theme: "auto"`, `FontSize: "medium"`
+* Frontend starts with matching defaults
+
+**Corrupted Config File:**
+* Backend validation catches JSON syntax errors
+* Returns error: `"invalid JSON: <error details>"`
+* Frontend should display error to user
+* User can fix via ConfigEditorDialog or delete config file to reset
+
+**Permission Issues:**
+* Config file uses `0600` permissions (user read/write only)
+* If permissions are wrong, backend may fail to save
+* Error should be displayed to user with guidance
+
+### Event Emission
+
+**Event Failures:**
+* Wails events are emitted asynchronously
+* No error handling if event emission fails
+* Frontend should validate received values (already implemented)
+* If events don't arrive, user can manually refresh or restart app
+
+**Race Conditions:**
+* Frontend initializes with defaults before events arrive
+* If events arrive during initialization, they're handled correctly
+* Event listeners are set up once in `useEffect` with empty dependency array
+
 ## Common Mistakes to Avoid
 
 ❌ **Don't** use `useTheme()` outside ThemeProvider:
@@ -524,5 +638,6 @@ if (effectiveTheme === 'dark') { /* works correctly */ }
 * `internal/models/connection.go` - Backend config model
 * `internal/app/config.go` - Backend validation and events (ConfigHandler)
 * `app.go` - Wails bindings that delegate to ConfigHandler
-* `frontend/src/components/ConfigEditorDialog.tsx` - Example usage
-* `frontend/src/components/JsonEditor.tsx` - Example usage
+* `frontend/src/components/ConfigEditorDialog.tsx` - Raw JSON config editing
+* `frontend/src/components/Settings/AppearanceTab.tsx` - Visual theme/font size selector
+* `frontend/src/components/JsonEditor.tsx` - Monaco editor with theme integration

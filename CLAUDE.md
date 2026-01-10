@@ -673,6 +673,40 @@ func (a *App) ClearMessageBuffer(subscriptionID string) error
 ```
 Clears the message buffer for a subscription.
 
+#### Snapshots
+
+```go
+func (a *App) ListSnapshots() ([]admin.SnapshotInfo, error)
+```
+Returns all snapshots in the project.
+
+```go
+func (a *App) ListSnapshotsForSubscription(subscriptionID string) ([]admin.SnapshotInfo, error)
+```
+Returns snapshots compatible with a specific subscription (i.e., snapshots from the same topic).
+
+```go
+func (a *App) GetSnapshot(snapshotID string) (admin.SnapshotInfo, error)
+```
+Retrieves metadata for a specific snapshot.
+
+```go
+func (a *App) CreateSnapshot(subscriptionID, snapshotID string) error
+```
+Creates a new snapshot from a subscription. Emits `snapshot:created` event on success.
+
+```go
+func (a *App) DeleteSnapshot(snapshotID string) error
+```
+Deletes a snapshot. Emits `snapshot:deleted` event on success.
+
+```go
+func (a *App) SeekToSnapshot(subscriptionID, snapshotID string) error
+```
+Seeks a subscription to a snapshot. All messages in the snapshot will be marked as unacknowledged and redelivered. Only works with pull subscriptions.
+
+**For detailed snapshot documentation:** See `.cursor/rules/pubsub/snapshots.mdc` for complete guidelines on snapshot operations, seek functionality, and best practices.
+
 #### Templates
 
 ```go
@@ -746,6 +780,8 @@ Events emitted from backend that frontend can listen to:
 | `subscription:created` | `{ subscriptionID: string }` | Subscription created |
 | `subscription:updated` | `{ subscriptionID: string }` | Subscription updated |
 | `subscription:deleted` | `{ subscriptionID: string }` | Subscription deleted |
+| `snapshot:created` | `{ subscriptionID: string, snapshotID: string }` | Snapshot created |
+| `snapshot:deleted` | `{ snapshotID: string }` | Snapshot deleted |
 | `connection:success` | `{ projectId: string, authMethod: string }` | Connection established successfully |
 | `config:theme-changed` | `string` | Theme setting changed (value is the theme name) |
 | `config:font-size-changed` | `string` | Font size setting changed (value is the font size) |

@@ -19,6 +19,8 @@ export function ConnectWithServiceAccount(arg1:string,arg2:string):Promise<void>
 
 export function CreateFromTemplate(arg1:models.TemplateCreateRequest):Promise<models.TemplateCreateResult>;
 
+export function CreateSnapshot(arg1:string,arg2:string):Promise<void>;
+
 export function CreateSubscription(arg1:string,arg2:string,arg3:number):Promise<void>;
 
 export function CreateTopic(arg1:string,arg2:string):Promise<void>;
@@ -26,6 +28,8 @@ export function CreateTopic(arg1:string,arg2:string):Promise<void>;
 export function DeleteCustomTopicSubscriptionTemplate(arg1:string):Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
+
+export function DeleteSnapshot(arg1:string):Promise<void>;
 
 export function DeleteSubscription(arg1:string):Promise<void>;
 
@@ -49,6 +53,8 @@ export function GetCurrentVersion():Promise<string>;
 
 export function GetProfiles():Promise<Array<models.ConnectionProfile>>;
 
+export function GetSnapshot(arg1:string):Promise<admin.SnapshotInfo>;
+
 export function GetSubscriptionMetadata(arg1:string):Promise<admin.SubscriptionInfo>;
 
 export function GetTemplates(arg1:string):Promise<Array<models.MessageTemplate>>;
@@ -60,6 +66,10 @@ export function GetTopicSubscriptionTemplates():Promise<Array<models.TopicSubscr
 export function GetTopicSubscriptionTemplatesByCategory(arg1:string):Promise<Array<models.TopicSubscriptionTemplate>>;
 
 export function GetVersion():Promise<string>;
+
+export function ListSnapshots():Promise<Array<admin.SnapshotInfo>>;
+
+export function ListSnapshotsForSubscription(arg1:string):Promise<Array<admin.SnapshotInfo>>;
 
 export function ListSubscriptions():Promise<Array<admin.SubscriptionInfo>>;
 
@@ -76,6 +86,10 @@ export function SaveCustomTopicSubscriptionTemplate(arg1:models.TopicSubscriptio
 export function SaveProfile(arg1:models.ConnectionProfile):Promise<void>;
 
 export function SaveTemplate(arg1:models.MessageTemplate):Promise<void>;
+
+export function SeekToSnapshot(arg1:string,arg2:string):Promise<void>;
+
+export function SeekToTimestamp(arg1:string,arg2:string):Promise<void>;
 
 export function SetAutoAck(arg1:boolean):Promise<void>;
 

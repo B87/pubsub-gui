@@ -43,6 +43,7 @@ type App struct {
 	topicSubscriptionTemplates *app.TopicSubscriptionTemplateHandler
 	monitoring                 *app.MonitoringHandler
 	configH                    *app.ConfigHandler
+	snapshots                  *app.SnapshotHandler
 
 	// Application version
 	version string
@@ -127,6 +128,10 @@ func (a *App) startup(ctx context.Context) {
 		a.configManager,
 		a.activeMonitors,
 		&a.monitorsMu,
+	)
+	a.snapshots = app.NewSnapshotHandler(
+		a.ctx,
+		a.clientManager,
 	)
 
 	// Auto-connect to active profile if set (persists across app restarts)
@@ -624,6 +629,68 @@ func (a *App) DeleteSubscription(subID string) error {
 // UpdateSubscription updates a subscription's configuration
 func (a *App) UpdateSubscription(subID string, params SubscriptionUpdateParams) error {
 	return a.resources.UpdateSubscription(subID, params, a.syncResources)
+}
+
+// SeekToTimestamp seeks a subscription to a specific timestamp.
+// Messages published after the timestamp will be redelivered.
+// The timestamp should be in RFC3339 format (e.g., "2024-01-15T10:30:00Z").
+func (a *App) SeekToTimestamp(subscriptionID, timestamp string) error {
+	return a.resources.SeekToTimestamp(subscriptionID, timestamp, a.syncResources)
+}
+
+// SeekToSnapshot seeks a subscription to a snapshot.
+// Messages in the snapshot will be redelivered.
+func (a *App) SeekToSnapshot(subscriptionID, snapshotID string) error {
+	return a.resources.SeekToSnapshot(subscriptionID, snapshotID)
+}
+
+// ListSnapshots returns all snapshots in the project
+func (a *App) ListSnapshots() ([]admin.SnapshotInfo, error) {
+	return a.snapshots.ListSnapshots()
+}
+
+// ListSnapshotsForSubscription returns snapshots compatible with a specific subscription
+// (i.e., snapshots from the same topic as the subscription)
+func (a *App) ListSnapshotsForSubscription(subscriptionID string) ([]admin.SnapshotInfo, error) {
+	return a.snapshots.ListSnapshotsForSubscription(subscriptionID)
+}
+
+// GetSnapshot retrieves metadata for a specific snapshot
+func (a *App) GetSnapshot(snapshotID string) (admin.SnapshotInfo, error) {
+	return a.snapshots.GetSnapshot(snapshotID)
+}
+
+// CreateSnapshot creates a new snapshot from a subscription
+func (a *App) CreateSnapshot(subscriptionID, snapshotID string) error {
+	// opts is for future snapshot creation options/metadata (e.g., labels, expiration)
+	var opts map[string]string = nil
+	err := a.snapshots.CreateSnapshot(subscriptionID, snapshotID, opts)
+	if err != nil {
+		return err
+	}
+
+	// Emit event to notify frontend of successful creation
+	runtime.EventsEmit(a.ctx, "snapshot:created", map[string]interface{}{
+		"subscriptionID": subscriptionID,
+		"snapshotID":     snapshotID,
+	})
+
+	return nil
+}
+
+// DeleteSnapshot deletes a snapshot
+func (a *App) DeleteSnapshot(snapshotID string) error {
+	err := a.snapshots.DeleteSnapshot(snapshotID)
+	if err != nil {
+		return err
+	}
+
+	// Emit event to notify frontend of successful deletion
+	runtime.EventsEmit(a.ctx, "snapshot:deleted", map[string]interface{}{
+		"snapshotID": snapshotID,
+	})
+
+	return nil
 }
 
 // GetTemplates returns all templates, optionally filtered by topicID

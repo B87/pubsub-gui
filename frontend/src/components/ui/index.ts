@@ -20,7 +20,7 @@ export {
 // Input wrapper - adds error state support
 export { Input } from "./input-wrapper"
 
-// Use native Select - CSS variables are mapped in themes.css
+// Use Select wrapper - applies theme CSS variables
 export {
   Select,
   SelectTrigger,
@@ -30,9 +30,7 @@ export {
   SelectGroup,
   SelectLabel,
   SelectSeparator,
-  SelectScrollUpButton,
-  SelectScrollDownButton,
-} from "./select"
+} from "./select-wrapper"
 
 // Use native Label - CSS variables handle styling
 export { Label } from "./label"

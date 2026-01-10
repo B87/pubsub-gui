@@ -1,0 +1,1377 @@
+---
+alwaysApply: true
+---
+
+# Component Index
+
+This document provides an index of all React components in the Pub/Sub GUI application, organized by category with descriptions and usage examples.
+
+## Table of Contents
+
+1. [Layout Components](#layout-components)
+2. [Connection & Authentication](#connection--authentication)
+3. [Resource Management](#resource-management)
+4. [Monitoring Components](#monitoring-components)
+5. [Message Components](#message-components)
+6. [Dialog Components](#dialog-components)
+7. [Settings Components](#settings-components)
+8. [UI Primitives](#ui-primitives)
+
+---
+
+## Layout Components
+
+### Layout
+
+**File:** `frontend/src/components/Layout.tsx`
+
+**Description:** Main application layout wrapper that provides sidebar and main content area. Handles sidebar collapse/expand state with localStorage persistence and mobile responsiveness.
+
+**Props:**
+```typescript
+interface LayoutProps {
+  sidebar: ReactNode;
+  children: ReactNode;
+}
+```
+
+**Usage:**
+```tsx
+<Layout sidebar={<Sidebar {...props} />}>
+  <TopicDetails topic={topic} />
+</Layout>
+```
+
+**Features:**
+- Collapsible sidebar with toggle button
+- Mobile-responsive (auto-collapses on mobile)
+- Persists sidebar state in localStorage
+- Smooth transitions and animations
+
+---
+
+### Sidebar
+
+**File:** `frontend/src/components/Sidebar.tsx`
+
+**Description:** Navigation sidebar displaying connection status, topics, and subscriptions. Provides resource tree navigation with search, expand/collapse, and quick actions.
+
+**Props:**
+```typescript
+interface SidebarProps {
+  status: ConnectionStatus;
+  topics: Topic[];
+  subscriptions: Subscription[];
+  selectedResource: { type: 'topic' | 'subscription'; id: string } | null;
+  onSelectTopic: (topic: Topic) => void;
+  onSelectSubscription: (subscription: Subscription) => void;
+  onRefresh: () => void;
+  onDisconnect: () => void;
+  onProfileSwitch: () => void;
+  onCreateConnection: () => void;
+  onCreateTopic?: () => void;
+  onCreateSubscription?: () => void;
+  onEditSubscription?: (subscription: Subscription) => void;
+  onOpenSettings?: () => void;
+  profileRefreshTrigger?: number;
+  loading?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+<Sidebar
+  status={status}
+  topics={topics}
+  subscriptions={subscriptions}
+  selectedResource={selectedResource}
+  onSelectTopic={handleSelectTopic}
+  onSelectSubscription={handleSelectSubscription}
+  onRefresh={handleRefresh}
+  onDisconnect={handleDisconnect}
+  onProfileSwitch={handleProfileSwitch}
+  onCreateConnection={handleCreateConnection}
+  onCreateTopic={handleCreateTopic}
+  onCreateSubscription={handleCreateSubscription}
+  onEditSubscription={handleEditSubscription}
+  onOpenSettings={handleOpenSettings}
+/>
+```
+
+**Features:**
+- Connection status indicator
+- Searchable resource tree
+- Expand/collapse sections
+- Context menu actions (edit, delete)
+- Keyboard navigation support
+
+---
+
+## Connection & Authentication
+
+### ConnectionDialog
+
+**File:** `frontend/src/components/ConnectionDialog.tsx`
+
+**Description:** Dialog for connecting to GCP Pub/Sub with different authentication methods (ADC, Service Account, OAuth). Supports saving connections as profiles.
+
+**Props:**
+```typescript
+interface ConnectionDialogProps {
+  open: boolean;
+  onConnect: (
+    projectId: string,
+    authMethod: 'ADC' | 'ServiceAccount' | 'OAuth',
+    serviceAccountPath?: string,
+    oauthClientPath?: string,
+    saveAsProfile?: { name: string; isDefault?: boolean }
+  ) => Promise<void>;
+  onClose: () => void;
+  error?: string;
+}
+```
+
+**Usage:**
+```tsx
+<ConnectionDialog
+  open={showConnectionDialog}
+  onConnect={async (projectId, authMethod, serviceAccountPath, oauthClientPath, saveAsProfile) => {
+    if (authMethod === 'ADC') {
+      await ConnectWithADC(projectId);
+    } else if (authMethod === 'ServiceAccount') {
+      await ConnectWithServiceAccount(projectId, serviceAccountPath!);
+    } else if (authMethod === 'OAuth') {
+      await ConnectWithOAuth(projectId, oauthClientPath!);
+    }
+    if (saveAsProfile) {
+      await SaveProfile({ ... });
+    }
+  }}
+  onClose={() => setShowConnectionDialog(false)}
+  error={connectionError}
+/>
+```
+
+**Features:**
+- Three authentication methods (ADC, Service Account, OAuth)
+- Profile creation with optional default flag
+- Form validation
+- Error display
+
+---
+
+### ConnectionDropdown
+
+**File:** `frontend/src/components/ConnectionDropdown.tsx`
+
+**Description:** Dropdown component for managing connection profiles. Displays current connection, allows switching profiles, and provides profile management actions.
+
+**Props:**
+```typescript
+interface ConnectionDropdownProps {
+  status: ConnectionStatus;
+  profiles: ConnectionProfile[];
+  onSwitchProfile: (profileId: string) => void;
+  onDisconnect: () => void;
+  onCreateConnection: () => void;
+  onOpenSettings: () => void;
+  refreshTrigger?: number;
+}
+```
+
+**Usage:**
+```tsx
+<ConnectionDropdown
+  status={status}
+  profiles={profiles}
+  onSwitchProfile={handleSwitchProfile}
+  onDisconnect={handleDisconnect}
+  onCreateConnection={handleCreateConnection}
+  onOpenSettings={handleOpenSettings}
+  refreshTrigger={profileRefreshTrigger}
+/>
+```
+
+**Features:**
+- Profile switching
+- Disconnect action
+- Quick access to settings
+- Profile refresh support
+
+---
+
+### StatusIndicator
+
+**File:** `frontend/src/components/StatusIndicator.tsx`
+
+**Description:** Visual indicator showing connection status (connected/disconnected) with project ID and authentication method.
+
+**Props:**
+```typescript
+interface StatusIndicatorProps {
+  status: ConnectionStatus;
+}
+```
+
+**Usage:**
+```tsx
+<StatusIndicator status={status} />
+```
+
+**Features:**
+- Color-coded status (green = connected, red = disconnected)
+- Displays project ID and auth method
+- Tooltip with connection details
+
+---
+
+## Resource Management
+
+### TopicDetails
+
+**File:** `frontend/src/components/TopicDetails.tsx`
+
+**Description:** Comprehensive view for a topic with tabs for metadata, publishing, monitoring, subscriptions, and dead letter topics. Handles message publishing with templates, topic monitoring, and subscription management.
+
+**Props:**
+```typescript
+interface TopicDetailsProps {
+  topic: Topic;
+  allSubscriptions: Subscription[];
+  allTopics: Topic[];
+  onDelete?: (topic: Topic) => void;
+  onSelectSubscription?: (subscription: Subscription) => void;
+  onSelectTopic?: (topic: Topic) => void;
+}
+```
+
+**Usage:**
+```tsx
+<TopicDetails
+  topic={topic}
+  allSubscriptions={subscriptions}
+  allTopics={topics}
+  onDelete={handleDeleteTopic}
+  onSelectSubscription={handleSelectSubscription}
+  onSelectTopic={handleSelectTopic}
+/>
+```
+
+**Features:**
+- Tabbed interface (metadata, publish, monitor, subscriptions, dead letter)
+- Message publishing with JSON editor
+- Template management integration
+- Topic monitoring with subscription selection
+- Local filtering of related subscriptions
+- Keyboard shortcuts support
+
+---
+
+### SubscriptionDetails
+
+**File:** `frontend/src/components/SubscriptionDetails.tsx`
+
+**Description:** Detailed view for a subscription with metadata and monitoring tabs. Displays subscription configuration and provides message monitoring interface.
+
+**Props:**
+```typescript
+interface SubscriptionDetailsProps {
+  subscription: Subscription;
+  onEdit?: (subscription: Subscription) => void;
+  onDelete?: (subscription: Subscription) => void;
+}
+```
+
+**Usage:**
+```tsx
+<SubscriptionDetails
+  subscription={subscription}
+  onEdit={handleEditSubscription}
+  onDelete={handleDeleteSubscription}
+/>
+```
+
+**Features:**
+- Tabbed interface (metadata, monitor)
+- Subscription configuration display
+- Integration with SubscriptionMonitor component
+- Edit and delete actions
+
+---
+
+### TopicCreateDialog
+
+**File:** `frontend/src/components/TopicCreateDialog.tsx`
+
+**Description:** Simple dialog for creating a new topic with optional message retention duration.
+
+**Props:**
+```typescript
+interface TopicCreateDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (topicID: string, messageRetentionDuration?: string) => Promise<void>;
+  error?: string;
+}
+```
+
+**Usage:**
+```tsx
+<TopicCreateDialog
+  open={showCreateDialog}
+  onClose={() => setShowCreateDialog(false)}
+  onCreate={async (topicID, retentionDuration) => {
+    await CreateTopic(topicID, retentionDuration || '');
+  }}
+  error={error}
+/>
+```
+
+**Features:**
+- Topic ID input with validation
+- Optional message retention duration
+- Error display
+
+---
+
+### SubscriptionDialog
+
+**File:** `frontend/src/components/SubscriptionDialog.tsx`
+
+**Description:** Dialog for creating or editing subscriptions. Supports pull/push types, filters, dead letter policies, and all subscription configuration options.
+
+**Props:**
+```typescript
+interface SubscriptionDialogProps {
+  open: boolean;
+  mode: 'create' | 'edit';
+  topics: Topic[];
+  subscription?: Subscription;
+  onClose: () => void;
+  onCreate?: (topicID: string, subID: string, params: SubscriptionUpdateParams) => Promise<void>;
+  onUpdate?: (subID: string, params: SubscriptionUpdateParams) => Promise<void>;
+  error?: string;
+}
+```
+
+**Usage:**
+```tsx
+<SubscriptionDialog
+  open={showDialog}
+  mode="create"
+  topics={topics}
+  onClose={() => setShowDialog(false)}
+  onCreate={async (topicID, subID, params) => {
+    await CreateSubscription(topicID, subID, params);
+  }}
+  error={error}
+/>
+
+<SubscriptionDialog
+  open={showEditDialog}
+  mode="edit"
+  topics={topics}
+  subscription={subscription}
+  onClose={() => setShowEditDialog(false)}
+  onUpdate={async (subID, params) => {
+    await UpdateSubscription(subID, params);
+  }}
+/>
+```
+
+**Features:**
+- Create and edit modes
+- Pull/push subscription type selection
+- Filter expression support
+- Dead letter policy configuration
+- Form validation
+- Topic selection dropdown
+
+---
+
+## Monitoring Components
+
+### TopicMonitor
+
+**File:** `frontend/src/components/TopicMonitor.tsx`
+
+**Description:** Message monitoring interface for topics. Displays real-time messages with virtual scrolling, search, and subscription selection for monitoring.
+
+**Props:**
+```typescript
+interface TopicMonitorProps {
+  topic: Topic;
+  messages: PubSubMessage[];
+  isMonitoring: boolean;
+  tempSubId: string | null;
+  autoAck: boolean;
+  monitoringError?: string;
+  subscriptions?: Subscription[];
+  selectedSubscription: string | null;
+  onSubscriptionChange: (subscriptionId: string | null) => void;
+  onStartMonitoring: () => void;
+  onClearBuffer: () => void;
+  onToggleAutoAck: (enabled: boolean) => void;
+}
+```
+
+**Usage:**
+```tsx
+<TopicMonitor
+  topic={topic}
+  messages={monitoringMessages}
+  isMonitoring={isMonitoring}
+  tempSubId={tempSubId}
+  autoAck={autoAck}
+  monitoringError={monitoringError}
+  subscriptions={monitorSubscriptions}
+  selectedSubscription={selectedSubscriptionForMonitoring}
+  onSubscriptionChange={setSelectedSubscriptionForMonitoring}
+  onStartMonitoring={handleStartMonitoring}
+  onClearBuffer={handleClearBuffer}
+  onToggleAutoAck={handleToggleAutoAck}
+/>
+```
+
+**Features:**
+- Virtual scrolling for large message lists
+- Real-time message display
+- Search/filter messages
+- Subscription selection (use existing or auto-create)
+- Auto-acknowledge toggle
+- Message detail dialog
+- Clear buffer action
+
+---
+
+### SubscriptionMonitor
+
+**File:** `frontend/src/components/SubscriptionMonitor.tsx`
+
+**Description:** Message monitoring interface for subscriptions. Provides real-time message streaming, search, seek functionality, and message management.
+
+**Props:**
+```typescript
+interface SubscriptionMonitorProps {
+  subscription: Subscription;
+}
+```
+
+**Usage:**
+```tsx
+<SubscriptionMonitor subscription={subscription} />
+```
+
+**Features:**
+- Start/stop monitoring controls
+- Virtual scrolling for performance
+- Message search and filtering
+- Seek to snapshot functionality
+- Auto-acknowledge toggle
+- Message detail dialog
+- Clear buffer action
+- Keyboard shortcuts support
+- Error handling and display
+
+---
+
+### MessageRow
+
+**File:** `frontend/src/components/MessageRow.tsx`
+
+**Description:** Individual message row component for display in monitoring lists. Shows message preview with timestamp, ID, and attributes.
+
+**Props:**
+```typescript
+interface MessageRowProps {
+  message: PubSubMessage;
+  isSelected: boolean;
+  onClick: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<MessageRow
+  message={message}
+  isSelected={selectedMessage?.id === message.id}
+  onClick={() => setSelectedMessage(message)}
+/>
+```
+
+**Features:**
+- Compact message preview
+- Timestamp formatting
+- Attribute display
+- Click to view details
+- Selected state styling
+
+---
+
+### MessageCard
+
+**File:** `frontend/src/components/MessageCard.tsx`
+
+**Description:** Card component for displaying a full message with expandable payload, attributes, and copy-to-clipboard functionality.
+
+**Props:**
+```typescript
+interface MessageCardProps {
+  message: PubSubMessage;
+}
+```
+
+**Usage:**
+```tsx
+<MessageCard message={message} />
+```
+
+**Features:**
+- Expandable/collapsible payload
+- JSON syntax highlighting
+- Copy payload/ID to clipboard
+- Attribute display
+- Timestamp formatting
+- Responsive layout
+
+---
+
+### MessageDetailDialog
+
+**File:** `frontend/src/components/MessageDetailDialog.tsx`
+
+**Description:** Dialog for viewing detailed message information including full payload, attributes, metadata, and copy functionality.
+
+**Props:**
+```typescript
+interface MessageDetailDialogProps {
+  open: boolean;
+  message: PubSubMessage | null;
+  onClose: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<MessageDetailDialog
+  open={isDetailDialogOpen}
+  message={selectedMessage}
+  onClose={() => setIsDetailDialogOpen(false)}
+/>
+```
+
+**Features:**
+- Full message display
+- JSON payload with syntax highlighting
+- Attribute table
+- Copy to clipboard
+- Message metadata (ID, publish time, attributes)
+
+---
+
+## Dialog Components
+
+### DeleteConfirmDialog
+
+**File:** `frontend/src/components/DeleteConfirmDialog.tsx`
+
+**Description:** Confirmation dialog for destructive delete operations. Displays resource name and warning message.
+
+**Props:**
+```typescript
+interface DeleteConfirmDialogProps {
+  open: boolean;
+  resourceType: 'topic' | 'subscription';
+  resourceName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<DeleteConfirmDialog
+  open={showDeleteDialog}
+  resourceType="topic"
+  resourceName={topic.name}
+  onConfirm={async () => {
+    await DeleteTopic(topic.name);
+    setShowDeleteDialog(false);
+  }}
+  onCancel={() => setShowDeleteDialog(false)}
+/>
+```
+
+**Features:**
+- Resource type-specific messaging
+- Resource name display
+- Destructive action styling
+- Confirmation required
+
+---
+
+### SeekDialog
+
+**File:** `frontend/src/components/SeekDialog.tsx`
+
+**Description:** Dialog for seeking a subscription to a snapshot. Lists compatible snapshots and allows selection.
+
+**Props:**
+```typescript
+interface SeekDialogProps {
+  open: boolean;
+  subscription: Subscription;
+  snapshots: SnapshotInfo[];
+  onSeek: (snapshotID: string) => Promise<void>;
+  onClose: () => void;
+  error?: string;
+}
+```
+
+**Usage:**
+```tsx
+<SeekDialog
+  open={isSeekDialogOpen}
+  subscription={subscription}
+  snapshots={compatibleSnapshots}
+  onSeek={async (snapshotID) => {
+    await SeekToSnapshot(subscription.name, snapshotID);
+  }}
+  onClose={() => setIsSeekDialogOpen(false)}
+  error={seekError}
+/>
+```
+
+**Features:**
+- Snapshot listing
+- Compatibility filtering
+- Error display
+- Confirmation before seek
+
+---
+
+### SnapshotManager
+
+**File:** `frontend/src/components/SnapshotManager.tsx`
+
+**Description:** Component for managing snapshots. Displays snapshot list, allows creation and deletion, and provides seek functionality.
+
+**Props:**
+```typescript
+interface SnapshotManagerProps {
+  subscription: Subscription;
+}
+```
+
+**Usage:**
+```tsx
+<SnapshotManager subscription={subscription} />
+```
+
+**Features:**
+- List snapshots for subscription
+- Create snapshot from subscription
+- Delete snapshots
+- Seek to snapshot
+- Snapshot metadata display
+- Error handling
+
+---
+
+### ConfigEditorDialog
+
+**File:** `frontend/src/components/ConfigEditorDialog.tsx`
+
+**Description:** Dialog for editing raw configuration file content with JSON validation and Monaco editor integration.
+
+**Props:**
+```typescript
+interface ConfigEditorDialogProps {
+  open: boolean;
+  content: string;
+  onSave: (content: string) => Promise<void>;
+  onClose: () => void;
+  error?: string;
+}
+```
+
+**Usage:**
+```tsx
+<ConfigEditorDialog
+  open={showConfigEditor}
+  content={configContent}
+  onSave={async (content) => {
+    await SaveConfigFileContent(content);
+  }}
+  onClose={() => setShowConfigEditor(false)}
+  error={error}
+/>
+```
+
+**Features:**
+- Monaco editor with JSON syntax highlighting
+- Theme-aware editor styling
+- JSON validation
+- Error display
+- Save/cancel actions
+
+---
+
+## Settings Components
+
+### SettingsDialog
+
+**File:** `frontend/src/components/SettingsDialog.tsx`
+
+**Description:** Main settings dialog with tabbed interface for appearance, connections, templates, advanced, and upgrade settings.
+
+**Props:**
+```typescript
+interface SettingsDialogProps {
+  open: boolean;
+  onClose: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<SettingsDialog
+  open={showSettings}
+  onClose={() => setShowSettings(false)}
+/>
+```
+
+**Features:**
+- Tabbed interface
+- Theme and font size configuration
+- Connection profile management
+- Template management
+- Advanced settings
+- Upgrade notifications
+
+---
+
+### Settings/AppearanceTab
+
+**File:** `frontend/src/components/Settings/AppearanceTab.tsx`
+
+**Description:** Settings tab for appearance configuration (theme and font size).
+
+**Usage:** Used internally by SettingsDialog.
+
+**Features:**
+- Theme selection (Auto, Dark, Light, Dracula, Monokai)
+- Font size selection (Small, Medium, Large)
+- Live preview
+- Save configuration
+
+---
+
+### Settings/ConnectionsTab
+
+**File:** `frontend/src/components/Settings/ConnectionsTab.tsx`
+
+**Description:** Settings tab for managing connection profiles.
+
+**Usage:** Used internally by SettingsDialog.
+
+**Features:**
+- List connection profiles
+- Create/edit/delete profiles
+- Set default profile
+- Profile switching
+
+---
+
+### Settings/TemplatesTab
+
+**File:** `frontend/src/components/Settings/TemplatesTab.tsx`
+
+**Description:** Settings tab for managing message templates.
+
+**Usage:** Used internally by SettingsDialog.
+
+**Features:**
+- List templates
+- Create/edit/delete templates
+- Template preview
+- Topic linking
+
+---
+
+### Settings/AdvancedTab
+
+**File:** `frontend/src/components/Settings/AdvancedTab.tsx`
+
+**Description:** Settings tab for advanced configuration including config file editor.
+
+**Usage:** Used internally by SettingsDialog.
+
+**Features:**
+- Config file editor access
+- Auto-acknowledge setting
+- Other advanced options
+
+---
+
+### Settings/UpgradeTab
+
+**File:** `frontend/src/components/Settings/UpgradeTab.tsx`
+
+**Description:** Settings tab for upgrade notifications and version information.
+
+**Usage:** Used internally by SettingsDialog.
+
+**Features:**
+- Version display
+- Upgrade notifications
+- Dismiss upgrade notifications
+- Check for updates
+
+---
+
+## Utility Components
+
+### EmptyState
+
+**File:** `frontend/src/components/EmptyState.tsx`
+
+**Description:** Reusable empty state component for displaying when no data is available.
+
+**Props:**
+```typescript
+interface EmptyStateProps {
+  icon?: ReactNode;
+  title: string;
+  description?: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+```
+
+**Usage:**
+```tsx
+<EmptyState
+  icon={<svg>...</svg>}
+  title="No Topics"
+  description="Connect to a project to see topics and subscriptions."
+  action={{
+    label: 'Connect',
+    onClick: () => handleConnect()
+  }}
+/>
+```
+
+**Features:**
+- Custom icon support
+- Title and description
+- Optional action button
+- Theme-aware styling
+
+---
+
+### CommandBar
+
+**File:** `frontend/src/components/CommandBar.tsx`
+
+**Description:** Command palette component for quick actions and navigation. Supports keyboard shortcuts and fuzzy search.
+
+**Props:**
+```typescript
+interface CommandBarProps {
+  open: boolean;
+  onClose: () => void;
+  onExecute: (action: CommandBarAction) => void;
+  actions: CommandBarAction[];
+  topics: Topic[];
+  subscriptions: Subscription[];
+}
+```
+
+**Usage:**
+```tsx
+<CommandBar
+  open={showCommandBar}
+  onClose={() => setShowCommandBar(false)}
+  onExecute={(action) => {
+    // Handle action execution
+  }}
+  actions={commandBarActions}
+  topics={topics}
+  subscriptions={subscriptions}
+/>
+```
+
+**Features:**
+- Fuzzy search
+- Keyboard navigation
+- Action grouping
+- Topic/subscription quick navigation
+- Keyboard shortcut display
+
+---
+
+### JsonEditor
+
+**File:** `frontend/src/components/JsonEditor.tsx`
+
+**Description:** Monaco editor wrapper for JSON editing with theme support and validation.
+
+**Props:**
+```typescript
+interface JsonEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  height?: string;
+  readOnly?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+<JsonEditor
+  value={payload}
+  onChange={setPayload}
+  height="400px"
+  readOnly={false}
+/>
+```
+
+**Features:**
+- Monaco editor integration
+- Theme-aware styling
+- JSON syntax highlighting
+- Validation
+- Read-only mode support
+
+---
+
+### TemplateManager
+
+**File:** `frontend/src/components/TemplateManager.tsx`
+
+**Description:** Component for managing message templates with create, edit, delete, and selection functionality.
+
+**Props:**
+```typescript
+interface TemplateManagerProps {
+  topicID: string;
+  templates: MessageTemplate[];
+  selectedTemplateId: string;
+  onSelectTemplate: (templateId: string) => void;
+  onTemplateChange: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<TemplateManager
+  topicID={topic.name}
+  templates={templates}
+  selectedTemplateId={selectedTemplateId}
+  onSelectTemplate={setSelectedTemplateId}
+  onTemplateChange={loadTemplates}
+/>
+```
+
+**Features:**
+- Template list display
+- Template selection
+- Create/edit/delete templates
+- Template preview
+- Topic linking
+
+---
+
+### TemplateSelector
+
+**File:** `frontend/src/components/TemplateSelector.tsx`
+
+**Description:** Dropdown selector for choosing message templates with preview and management options.
+
+**Props:**
+```typescript
+interface TemplateSelectorProps {
+  topicID: string;
+  templates: MessageTemplate[];
+  selectedTemplateId: string;
+  onSelectTemplate: (templateId: string) => void;
+  onTemplateChange: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<TemplateSelector
+  topicID={topic.name}
+  templates={templates}
+  selectedTemplateId={selectedTemplateId}
+  onSelectTemplate={setSelectedTemplateId}
+  onTemplateChange={loadTemplates}
+/>
+```
+
+**Features:**
+- Template dropdown
+- Template preview
+- Quick template management
+- Empty state handling
+
+---
+
+### UpgradeNotification
+
+**File:** `frontend/src/components/UpgradeNotification.tsx`
+
+**Description:** Notification banner for upgrade availability with dismiss functionality.
+
+**Props:**
+```typescript
+interface UpgradeNotificationProps {
+  version: string;
+  releaseUrl: string;
+  onDismiss: (version: string) => Promise<void>;
+}
+```
+
+**Usage:**
+```tsx
+<UpgradeNotification
+  version={upgradeInfo.latestVersion}
+  releaseUrl={upgradeInfo.releaseUrl}
+  onDismiss={async (version) => {
+    await DismissUpgradeNotification(version);
+  }}
+/>
+```
+
+**Features:**
+- Version display
+- Release link
+- Dismiss functionality
+- Error handling
+
+---
+
+## UI Primitives
+
+All UI primitives are located in `frontend/src/components/ui/` and are based on shadcn/ui components. They are exported from `frontend/src/components/ui/index.ts`.
+
+### Button
+
+**File:** `frontend/src/components/ui/button-wrapper.tsx`
+
+**Description:** Wrapper around shadcn Button with `loading` prop support.
+
+**Usage:**
+```tsx
+import { Button } from './ui';
+
+<Button onClick={handleClick} loading={isSaving}>
+  Save
+</Button>
+
+<Button variant="outline" onClick={handleCancel}>
+  Cancel
+</Button>
+
+<Button variant="destructive" onClick={handleDelete}>
+  Delete
+</Button>
+```
+
+**Variants:** `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`
+**Sizes:** `default`, `sm`, `lg`, `icon`
+
+---
+
+### Input
+
+**File:** `frontend/src/components/ui/input-wrapper.tsx`
+
+**Description:** Wrapper around shadcn Input with `error` prop support.
+
+**Usage:**
+```tsx
+import { Input } from './ui';
+
+<Input
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+  error={!!validationError}
+  placeholder="Enter text..."
+/>
+```
+
+**Features:**
+- Error state styling
+- Theme-aware
+- Type support (text, number, url, etc.)
+
+---
+
+### FormField
+
+**File:** `frontend/src/components/ui/form-field.tsx`
+
+**Description:** Custom form field component with label, error, and helper text support.
+
+**Usage:**
+```tsx
+import { FormField, Input } from './ui';
+
+<FormField
+  label="Project ID"
+  required
+  error={errors.projectId}
+  helperText="Enter your GCP project ID"
+>
+  <Input
+    value={projectId}
+    onChange={(e) => setProjectId(e.target.value)}
+    error={!!errors.projectId}
+  />
+</FormField>
+```
+
+**Features:**
+- Label with required indicator
+- Error message display
+- Helper text support
+- Consistent spacing
+
+---
+
+### Select
+
+**File:** `frontend/src/components/ui/select.tsx` (native shadcn)
+
+**Description:** Native shadcn Select component with CSS variable mapping for theme support.
+
+**Usage:**
+```tsx
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui';
+
+<Select value={selected} onValueChange={setSelected}>
+  <SelectTrigger>
+    <SelectValue placeholder="Choose option" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="option1">Option 1</SelectItem>
+    <SelectItem value="option2">Option 2</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+**Important:** SelectItem values cannot be empty strings. Use sentinel values (e.g., `"none"`) for optional selections.
+
+---
+
+### Dialog
+
+**File:** `frontend/src/components/ui/dialog-wrapper.tsx`
+
+**Description:** Wrapper around shadcn Dialog with theme CSS variable support.
+
+**Usage:**
+```tsx
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Button } from './ui';
+
+<Dialog open={isOpen} onOpenChange={setIsOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Dialog Title</DialogTitle>
+    </DialogHeader>
+    <p>Content</p>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+      <Button onClick={handleSave}>Save</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+**Components:** `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogTrigger`, `DialogClose`
+
+---
+
+### Alert
+
+**File:** `frontend/src/components/ui/alert-wrapper.tsx`
+
+**Description:** Wrapper around shadcn Alert with `success` and `warning` variants.
+
+**Usage:**
+```tsx
+import { Alert, AlertTitle, AlertDescription } from './ui';
+
+<Alert variant="success">
+  <AlertTitle>Success</AlertTitle>
+  <AlertDescription>Operation completed successfully.</AlertDescription>
+</Alert>
+
+<Alert variant="destructive">
+  <AlertTitle>Error</AlertTitle>
+  <AlertDescription>{errorMessage}</AlertDescription>
+</Alert>
+```
+
+**Variants:** `default`, `destructive`, `success`, `warning`
+
+---
+
+### Card
+
+**File:** `frontend/src/components/ui/card.tsx` (native shadcn)
+
+**Description:** Native shadcn Card component with CSS variable mapping.
+
+**Usage:**
+```tsx
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui';
+
+<Card>
+  <CardHeader>
+    <CardTitle>Card Title</CardTitle>
+  </CardHeader>
+  <CardContent>
+    Content
+  </CardContent>
+  <CardFooter>
+    <Button>Action</Button>
+  </CardFooter>
+</Card>
+```
+
+---
+
+### Badge
+
+**File:** `frontend/src/components/ui/badge-wrapper.tsx`
+
+**Description:** Wrapper around shadcn Badge with `success` and `warning` variants.
+
+**Usage:**
+```tsx
+import { Badge } from './ui';
+
+<Badge variant="default">Default</Badge>
+<Badge variant="success">Success</Badge>
+<Badge variant="warning">Warning</Badge>
+```
+
+**Variants:** `default`, `secondary`, `destructive`, `success`, `warning`, `outline`
+
+---
+
+### Other UI Components
+
+- **Checkbox** (`checkbox.tsx`) - Native shadcn checkbox
+- **Label** (`label.tsx`) - Native shadcn label
+- **RadioGroup** (`radio-group.tsx`) - Native shadcn radio group
+- **Separator** (`separator.tsx`) - Native shadcn separator
+
+All UI components support the theme system via CSS variables defined in `frontend/src/themes.css`.
+
+---
+
+## Component Usage Patterns
+
+### Theme Compliance
+
+All components MUST use semantic CSS variables for colors:
+
+```tsx
+// ✅ CORRECT
+<div style={{ backgroundColor: 'var(--color-bg-primary)' }}>...</div>
+
+// ❌ WRONG
+<div style={{ backgroundColor: '#1e293b' }}>...</div>
+```
+
+### Error Handling
+
+All user-facing errors MUST be displayed in the UI:
+
+```tsx
+const [error, setError] = useState<string>('');
+
+try {
+  await someOperation();
+  setError('');
+} catch (err) {
+  setError('Failed: ' + err.toString());
+}
+
+{error && (
+  <Alert variant="destructive">
+    <AlertDescription>{error}</AlertDescription>
+  </Alert>
+)}
+```
+
+### Loading States
+
+Use Button's `loading` prop for action buttons:
+
+```tsx
+<Button onClick={handleSave} loading={isSaving}>
+  Save
+</Button>
+```
+
+### Dialog Patterns
+
+Always handle `onOpenChange` to close dialogs:
+
+```tsx
+<Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+  {/* Content */}
+</Dialog>
+```
+
+---
+
+## Import Patterns
+
+**UI Components:**
+```tsx
+import { Button, Input, Select, Dialog, Alert, Card } from './ui';
+```
+
+**Wails Methods:**
+```tsx
+import { ListTopics, CreateTopic } from '../wailsjs/go/main/App';
+```
+
+**Types:**
+```tsx
+import type { Topic, Subscription, PubSubMessage } from '../types';
+```
+
+**Hooks:**
+```tsx
+import { useTheme } from '../hooks/useTheme';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+```
+
+---
+
+## Component Organization
+
+Components are organized by functionality:
+
+- **Layout**: `Layout.tsx`, `Sidebar.tsx`
+- **Connection**: `ConnectionDialog.tsx`, `ConnectionDropdown.tsx`, `StatusIndicator.tsx`
+- **Resources**: `TopicDetails.tsx`, `SubscriptionDetails.tsx`, `TopicCreateDialog.tsx`, `SubscriptionDialog.tsx`
+- **Monitoring**: `TopicMonitor.tsx`, `SubscriptionMonitor.tsx`, `MessageRow.tsx`, `MessageCard.tsx`, `MessageDetailDialog.tsx`
+- **Dialogs**: `DeleteConfirmDialog.tsx`, `SeekDialog.tsx`, `SnapshotManager.tsx`, `ConfigEditorDialog.tsx`
+- **Settings**: `SettingsDialog.tsx`, `Settings/*.tsx`
+- **Utility**: `EmptyState.tsx`, `CommandBar.tsx`, `JsonEditor.tsx`, `TemplateManager.tsx`, `TemplateSelector.tsx`, `UpgradeNotification.tsx`
+- **UI Primitives**: `ui/*.tsx`
+
+---
+
+**Last Updated:** 2026-01-06

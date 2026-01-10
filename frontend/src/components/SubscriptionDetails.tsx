@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import SubscriptionMonitor from './SubscriptionMonitor';
+import SnapshotManager from './SnapshotManager';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 import type { Subscription } from '../types';
 
@@ -50,6 +51,14 @@ export default function SubscriptionDetails({ subscription, onEdit, onDelete }: 
                   className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
                 >
                   Monitor
+                </Tabs.Trigger>
+              )}
+              {subscription.subscriptionType === 'pull' && (
+                <Tabs.Trigger
+                  value="snapshots"
+                  className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+                >
+                  Snapshots
                 </Tabs.Trigger>
               )}
             </Tabs.List>
@@ -211,6 +220,12 @@ export default function SubscriptionDetails({ subscription, onEdit, onDelete }: 
         {subscription.subscriptionType === 'pull' && (
           <Tabs.Content value="monitor" className="flex-1 overflow-hidden">
             <SubscriptionMonitor subscription={subscription} />
+          </Tabs.Content>
+        )}
+
+        {subscription.subscriptionType === 'pull' && (
+          <Tabs.Content value="snapshots" className="flex-1 overflow-auto">
+            <SnapshotManager subscription={subscription} />
           </Tabs.Content>
         )}
       </Tabs.Root>

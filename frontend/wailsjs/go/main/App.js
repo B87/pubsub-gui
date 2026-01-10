@@ -26,6 +26,10 @@ export function CreateFromTemplate(arg1) {
   return window['go']['main']['App']['CreateFromTemplate'](arg1);
 }
 
+export function CreateSnapshot(arg1, arg2) {
+  return window['go']['main']['App']['CreateSnapshot'](arg1, arg2);
+}
+
 export function CreateSubscription(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSubscription'](arg1, arg2, arg3);
 }
@@ -40,6 +44,10 @@ export function DeleteCustomTopicSubscriptionTemplate(arg1) {
 
 export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
+}
+
+export function DeleteSnapshot(arg1) {
+  return window['go']['main']['App']['DeleteSnapshot'](arg1);
 }
 
 export function DeleteSubscription(arg1) {
@@ -86,6 +94,10 @@ export function GetProfiles() {
   return window['go']['main']['App']['GetProfiles']();
 }
 
+export function GetSnapshot(arg1) {
+  return window['go']['main']['App']['GetSnapshot'](arg1);
+}
+
 export function GetSubscriptionMetadata(arg1) {
   return window['go']['main']['App']['GetSubscriptionMetadata'](arg1);
 }
@@ -108,6 +120,14 @@ export function GetTopicSubscriptionTemplatesByCategory(arg1) {
 
 export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
+}
+
+export function ListSnapshots() {
+  return window['go']['main']['App']['ListSnapshots']();
+}
+
+export function ListSnapshotsForSubscription(arg1) {
+  return window['go']['main']['App']['ListSnapshotsForSubscription'](arg1);
 }
 
 export function ListSubscriptions() {
@@ -140,6 +160,14 @@ export function SaveProfile(arg1) {
 
 export function SaveTemplate(arg1) {
   return window['go']['main']['App']['SaveTemplate'](arg1);
+}
+
+export function SeekToSnapshot(arg1, arg2) {
+  return window['go']['main']['App']['SeekToSnapshot'](arg1, arg2);
+}
+
+export function SeekToTimestamp(arg1, arg2) {
+  return window['go']['main']['App']['SeekToTimestamp'](arg1, arg2);
 }
 
 export function SetAutoAck(arg1) {

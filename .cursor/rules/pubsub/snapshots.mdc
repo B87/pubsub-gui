@@ -1,0 +1,556 @@
+---
+description: Guidelines for working with Snapshots in GCP Pub/Sub
+alwaysApply: false
+---
+
+# Pub/Sub Snapshots Guidelines
+
+> **Note:** This rule complements `pubsub.mdc` and `topics-and-subs.mdc` with specific patterns for snapshot management and seek operations.
+
+## What Are Snapshots?
+
+Pub/Sub snapshots are point-in-time captures of a subscription's message acknowledgment state. They allow you to:
+
+* **Preserve message state**: Save which messages have been acknowledged at a specific point in time
+* **Replay messages**: Seek a subscription back to a snapshot to redeliver messages that were acknowledged after the snapshot was created
+* **Debug and recover**: Restore subscription state for testing, debugging, or recovery scenarios
+
+**Key Concepts:**
+
+* Snapshots are created **from subscriptions** (they capture the subscription's acknowledgment state)
+* Snapshots are **topic-scoped** (can be used with any subscription on the same topic)
+* Snapshots have **expiration times** (automatically deleted by GCP after expiration)
+* Snapshots can be used to **seek subscriptions** (replay messages)
+
+## Snapshot Resource Structure
+
+### SnapshotInfo Type
+
+```go
+type SnapshotInfo struct {
+    Name         string            `json:"name"`          // Full resource name: projects/{project}/snapshots/{id}
+    DisplayName  string            `json:"displayName"`    // Short name extracted from full path
+    Topic        string            `json:"topic"`         // Topic this snapshot is associated with
+    Subscription string            `json:"subscription,omitempty"` // Original subscription (if available)
+    ExpireTime   string            `json:"expireTime"`    // ISO 8601 expiration timestamp
+    Labels       map[string]string `json:"labels,omitempty"` // Optional labels
+}
+```
+
+**Frontend TypeScript Interface:**
+
+```typescript
+export interface SnapshotInfo {
+  name: string;              // Full resource name
+  displayName: string;       // Short name for display
+  topic: string;             // Topic resource name
+  subscription?: string;     // Original subscription (optional)
+  expireTime: string;        // ISO 8601 timestamp
+  labels?: Record<string, string>; // Optional labels
+}
+```
+
+## Snapshot Operations
+
+### Creating Snapshots
+
+**Backend Implementation:**
+
+* Handler: `internal/app/snapshots.go:CreateSnapshot()`
+* Admin function: `internal/pubsub/admin/snapshots.go:CreateSnapshotAdmin()`
+* App method: `app.go:CreateSnapshot()`
+
+**Method Signature:**
+
+```go
+func (a *App) CreateSnapshot(subscriptionID, snapshotID string) error
+```
+
+**Parameters:**
+
+* `subscriptionID`: Full resource name or short name of the subscription to snapshot
+* `snapshotID`: Short name for the snapshot (will be normalized to full resource name)
+
+**Snapshot ID Requirements:**
+
+* Must start with a letter
+* Can contain letters, numbers, hyphens, and underscores
+* Must be unique within the project
+* Frontend validates: `/^[a-zA-Z][a-zA-Z0-9-_]*$/`
+
+**Example Usage:**
+
+```go
+// Create snapshot from subscription
+err := a.CreateSnapshot("projects/my-project/subscriptions/my-sub", "my-snapshot")
+// or with short names
+err := a.CreateSnapshot("my-sub", "my-snapshot")
+```
+
+**Event Emission:**
+
+After successful creation, emits `snapshot:created` event:
+
+```go
+runtime.EventsEmit(a.ctx, "snapshot:created", map[string]interface{}{
+    "subscriptionID": subscriptionID,
+    "snapshotID":     snapshotID,
+})
+```
+
+**Frontend Usage:**
+
+```typescript
+import { CreateSnapshot } from '../wailsjs/go/main/App';
+
+await CreateSnapshot(subscription.name, "my-snapshot");
+```
+
+### Listing Snapshots
+
+**List All Snapshots:**
+
+```go
+func (a *App) ListSnapshots() ([]admin.SnapshotInfo, error)
+```
+
+Returns all snapshots in the project.
+
+**List Snapshots for Subscription:**
+
+```go
+func (a *App) ListSnapshotsForSubscription(subscriptionID string) ([]admin.SnapshotInfo, error)
+```
+
+Returns snapshots that can be used with a specific subscription (i.e., snapshots from the same topic).
+
+**Implementation Details:**
+
+* `ListSnapshotsForSubscriptionAdmin()` filters snapshots by topic:
+  1. Gets the subscription to find its topic
+  2. Lists all snapshots in the project
+  3. Filters to snapshots where `snapshot.Topic == subscription.Topic`
+
+**Frontend Usage:**
+
+```typescript
+import { ListSnapshotsForSubscription } from '../wailsjs/go/main/App';
+
+const snapshots = await ListSnapshotsForSubscription(subscription.name);
+```
+
+### Getting Snapshot Metadata
+
+```go
+func (a *App) GetSnapshot(snapshotID string) (admin.SnapshotInfo, error)
+```
+
+Retrieves detailed metadata for a specific snapshot.
+
+**Resource Name Normalization:**
+
+* Accepts both full resource names (`projects/{project}/snapshots/{id}`) and short names (`{id}`)
+* Automatically normalizes to full resource name for API calls
+
+### Deleting Snapshots
+
+```go
+func (a *App) DeleteSnapshot(snapshotID string) error
+```
+
+Deletes a snapshot. Snapshots can also be automatically deleted when they expire.
+
+**Event Emission:**
+
+After successful deletion, emits `snapshot:deleted` event:
+
+```go
+runtime.EventsEmit(a.ctx, "snapshot:deleted", map[string]interface{}{
+    "snapshotID": snapshotID,
+})
+```
+
+**Frontend Usage:**
+
+```typescript
+import { DeleteSnapshot } from '../wailsjs/go/main/App';
+
+await DeleteSnapshot(snapshot.displayName);
+```
+
+## Seek Operations
+
+### Seeking to a Snapshot
+
+**What It Does:**
+
+Seeking to a snapshot replays messages that were acknowledged after the snapshot was created. All messages in the snapshot are marked as unacknowledged and will be redelivered.
+
+**Method Signature:**
+
+```go
+func (a *App) SeekToSnapshot(subscriptionID, snapshotID string) error
+```
+
+**Parameters:**
+
+* `subscriptionID`: Full resource name or short name of the subscription to seek
+* `snapshotID`: Full resource name or short name of the snapshot to seek to
+
+**Important Constraints:**
+
+* **Pull subscriptions only**: Push subscriptions cannot be sought (returns error)
+* **Topic compatibility**: Snapshot and subscription must be from the same topic
+* **Message replay**: All messages acknowledged after snapshot creation will be redelivered
+
+**Implementation Details:**
+
+See `internal/pubsub/admin/subscriptions.go:SeekToSnapshotAdmin()`:
+
+1. Normalizes subscription and snapshot IDs to full resource names
+2. Verifies subscription exists and is a pull subscription
+3. Creates seek request with snapshot target
+4. Executes seek operation
+
+**Error Handling:**
+
+```go
+// Push subscription error
+if sub.PushConfig != nil && sub.PushConfig.PushEndpoint != "" {
+    return fmt.Errorf("cannot seek push subscription %s; seek is only supported for pull subscriptions", subID)
+}
+```
+
+**Frontend Usage:**
+
+```typescript
+import { SeekToSnapshot } from '../wailsjs/go/main/App';
+
+await SeekToSnapshot(subscription.name, snapshot.displayName);
+```
+
+**Warning in UI:**
+
+The frontend displays a warning when seeking to a snapshot:
+
+> **Warning:** Seeking to a snapshot will replay messages that were acknowledged after the snapshot was created. This may cause duplicate message processing.
+
+## Snapshot Compatibility
+
+### Topic-Based Compatibility
+
+**Key Rule:** Snapshots can only be used with subscriptions that share the same topic.
+
+**Why:**
+
+* Snapshots capture message acknowledgment state for a specific topic
+* Messages are topic-scoped, not subscription-scoped
+* A snapshot created from subscription A can be used with subscription B if both are on the same topic
+
+**Example:**
+
+```
+Topic: projects/my-project/topics/orders
+├── Subscription: orders-sub-1 (creates snapshot)
+├── Subscription: orders-sub-2 (can use snapshot from orders-sub-1)
+└── Subscription: orders-sub-3 (can use snapshot from orders-sub-1)
+
+Topic: projects/my-project/topics/payments
+└── Subscription: payments-sub (CANNOT use snapshot from orders topic)
+```
+
+**Implementation:**
+
+`ListSnapshotsForSubscription()` filters snapshots by topic:
+
+```go
+// Snapshots can seek subscriptions that share the same topic
+if snapshot.Topic == sub.Topic {
+    filteredSnapshots = append(filteredSnapshots, snapshot)
+}
+```
+
+## Resource Name Normalization
+
+### Snapshot ID Normalization Pattern
+
+All snapshot operations handle both full resource names and short names:
+
+**Full Resource Name Format:**
+```
+projects/{project-id}/snapshots/{snapshot-id}
+```
+
+**Short Name Format:**
+```
+{snapshot-id}
+```
+
+**Normalization Logic:**
+
+See `internal/pubsub/admin/snapshots.go` for normalization patterns:
+
+```go
+// Normalize snapshot ID
+snapshotName := snapshotID
+if !strings.HasPrefix(snapshotID, "projects/") {
+    snapshotName = "projects/" + projectID + "/snapshots/" + snapshotID
+}
+```
+
+**Display Name Extraction:**
+
+```go
+// Extract short name from full resource path
+func extractSnapshotDisplayName(fullName string) string {
+    // Full name format: projects/{project}/snapshots/{snapshot-id}
+    parts := strings.Split(fullName, "/")
+    if len(parts) >= 4 && parts[2] == "snapshots" {
+        return parts[3]
+    }
+    return fullName
+}
+```
+
+## Event System
+
+### Snapshot Events
+
+**Event: `snapshot:created`**
+
+Emitted after successful snapshot creation.
+
+**Payload:**
+```typescript
+{
+  subscriptionID: string;  // Subscription that was snapshotted
+  snapshotID: string;      // Created snapshot ID
+}
+```
+
+**Event: `snapshot:deleted`**
+
+Emitted after successful snapshot deletion.
+
+**Payload:**
+```typescript
+{
+  snapshotID: string;  // Deleted snapshot ID
+}
+```
+
+**Frontend Event Listening:**
+
+```typescript
+import { EventsOn } from '../wailsjs/runtime/runtime';
+
+useEffect(() => {
+  const unsubscribeCreated = EventsOn('snapshot:created', () => {
+    loadSnapshots(); // Refresh snapshot list
+  });
+
+  const unsubscribeDeleted = EventsOn('snapshot:deleted', () => {
+    loadSnapshots(); // Refresh snapshot list
+  });
+
+  return () => {
+    unsubscribeCreated();
+    unsubscribeDeleted();
+  };
+}, [loadSnapshots]);
+```
+
+## Frontend Implementation
+
+### SnapshotManager Component
+
+**Location:** `frontend/src/components/SnapshotManager.tsx`
+
+**Features:**
+
+* Lists snapshots compatible with a subscription
+* Create new snapshots with name validation
+* Delete snapshots with confirmation dialog
+* Seek to snapshots with warning dialog
+* Auto-refreshes on snapshot events
+
+**Key Patterns:**
+
+```typescript
+// Load snapshots for subscription
+const snapshots = await ListSnapshotsForSubscription(subscription.name);
+
+// Create snapshot
+await CreateSnapshot(subscription.name, newSnapshotName);
+
+// Delete snapshot
+await DeleteSnapshot(snapshot.displayName);
+
+// Seek to snapshot
+await SeekToSnapshot(subscription.name, snapshot.displayName);
+```
+
+**Name Validation:**
+
+```typescript
+// Snapshot name must start with letter, contain only letters, numbers, hyphens, underscores
+const namePattern = /^[a-zA-Z][a-zA-Z0-9-_]*$/;
+if (!namePattern.test(newSnapshotName)) {
+    setActionError('Snapshot name must start with a letter and contain only letters, numbers, hyphens, and underscores');
+    return;
+}
+```
+
+## Backend Architecture
+
+### Handler Structure
+
+**SnapshotHandler** (`internal/app/snapshots.go`):
+
+* Handles all snapshot CRUD operations
+* Delegates to admin functions for GCP API calls
+* Does NOT emit events (events emitted at App level)
+
+**App Methods** (`app.go`):
+
+* Public API methods exposed to frontend
+* Emit events after successful operations
+* Handle error propagation
+
+**Admin Functions** (`internal/pubsub/admin/snapshots.go`):
+
+* Low-level GCP API interactions
+* Resource name normalization
+* Error handling with context
+
+### Method Delegation Pattern
+
+```go
+// App level (emits events)
+func (a *App) CreateSnapshot(subscriptionID, snapshotID string) error {
+    var opts map[string]string = nil // Future options
+    err := a.snapshots.CreateSnapshot(subscriptionID, snapshotID, opts)
+    if err != nil {
+        return err
+    }
+    runtime.EventsEmit(a.ctx, "snapshot:created", ...)
+    return nil
+}
+
+// Handler level (business logic)
+func (h *SnapshotHandler) CreateSnapshot(subscriptionID, snapshotID string, labels map[string]string) error {
+    // ... validation ...
+    return admin.CreateSnapshotAdmin(h.ctx, client, projectID, subscriptionID, snapshotID, labels)
+}
+
+// Admin level (GCP API)
+func CreateSnapshotAdmin(ctx context.Context, client *pubsub.Client, projectID, subscriptionID, snapshotID string, labels map[string]string) error {
+    // ... GCP API call ...
+}
+```
+
+## Error Handling
+
+### Common Errors
+
+**Snapshot Not Found:**
+
+```go
+// Returns error if snapshot doesn't exist
+err := GetSnapshot(snapshotID)
+// Error: "failed to get snapshot: rpc error: code = NotFound"
+```
+
+**Invalid Snapshot Name:**
+
+* Frontend validates before API call
+* GCP API validates format (must start with letter, valid characters only)
+
+**Push Subscription Seek Error:**
+
+```go
+// SeekToSnapshot returns error for push subscriptions
+if sub.PushConfig != nil && sub.PushConfig.PushEndpoint != "" {
+    return fmt.Errorf("cannot seek push subscription %s; seek is only supported for pull subscriptions", subID)
+}
+```
+
+**Topic Mismatch:**
+
+* Snapshots can only be used with subscriptions on the same topic
+* `ListSnapshotsForSubscription()` filters by topic automatically
+* Seeking to incompatible snapshot will fail at GCP API level
+
+### Error Handling Pattern
+
+```go
+// ✅ GOOD: Include context and actionable error messages
+if err != nil {
+    return fmt.Errorf("failed to create snapshot %s from subscription %s: %w", snapshotID, subscriptionID, err)
+}
+
+// ✅ GOOD: Check for specific error types
+if strings.Contains(err.Error(), "NotFound") {
+    return fmt.Errorf("snapshot not found: %s", snapshotID)
+}
+```
+
+## Best Practices
+
+### When to Create Snapshots
+
+* **Before major deployments**: Capture state before risky changes
+* **For testing**: Create snapshots to test message replay scenarios
+* **For debugging**: Preserve state when investigating message processing issues
+* **For recovery**: Create snapshots as recovery points
+
+### Snapshot Naming
+
+* Use descriptive names: `pre-deployment-2024-01-15`, `test-baseline`
+* Include timestamps or version info for easy identification
+* Follow naming conventions: lowercase, alphanumeric, hyphens, underscores
+
+### Seek Operations
+
+* **Warning**: Seeking will replay messages, potentially causing duplicate processing
+* Only seek pull subscriptions (push subscriptions cannot be sought)
+* Verify snapshot and subscription are from the same topic
+* Test seek operations in development before using in production
+
+### Snapshot Lifecycle
+
+* Snapshots have expiration times (set by GCP)
+* Expired snapshots are automatically deleted
+* Monitor snapshot expiration to avoid losing recovery points
+* Delete unused snapshots to avoid clutter
+
+## Related Operations
+
+### Seek to Timestamp
+
+The app also supports seeking subscriptions to timestamps (see `SeekToTimestamp` in `app.go` and `internal/app/resources.go`). This is a different operation from seeking to snapshots:
+
+* **Seek to Snapshot**: Replays messages from a specific point-in-time state
+* **Seek to Timestamp**: Replays messages published after a specific timestamp
+
+Both operations are available in the subscription details UI.
+
+## Implementation References
+
+**Backend Files:**
+
+* `app.go:641-694` - App-level snapshot methods
+* `internal/app/snapshots.go` - SnapshotHandler implementation
+* `internal/pubsub/admin/snapshots.go` - GCP API interactions
+* `internal/pubsub/admin/subscriptions.go:489-530` - SeekToSnapshotAdmin implementation
+
+**Frontend Files:**
+
+* `frontend/src/components/SnapshotManager.tsx` - Main snapshot UI component
+* `frontend/src/components/SubscriptionDetails.tsx` - Integrates SnapshotManager
+* `frontend/src/types/index.ts:166-173` - SnapshotInfo TypeScript interface
+
+**Wails Bindings:**
+
+* `frontend/wailsjs/go/main/App.js` - Auto-generated bindings
+* Methods: `CreateSnapshot`, `DeleteSnapshot`, `ListSnapshots`, `ListSnapshotsForSubscription`, `GetSnapshot`, `SeekToSnapshot`

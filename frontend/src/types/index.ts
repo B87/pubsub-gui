@@ -161,3 +161,13 @@ export interface TemplateCreateResult {
   warnings?: string[];
   error?: string;
 }
+
+// Snapshot Types
+export interface SnapshotInfo {
+  name: string;
+  displayName: string;
+  topic: string;
+  subscription?: string;
+  expireTime: string;
+  labels?: Record<string, string>;
+}

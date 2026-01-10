@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"pubsub-gui/internal/models"
 )
@@ -441,6 +442,90 @@ func CreateSubscriptionWithConfig(ctx context.Context, client *pubsub.Client, pr
 	_, err = client.SubscriptionAdminClient.CreateSubscription(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to create subscription %s for topic %s: %w. Ensure you have 'pubsub.subscriptions.create' permission", subName, topicName, err)
+	}
+
+	return nil
+}
+
+// SeekToTimestampAdmin seeks a subscription to a specific timestamp.
+// All messages published after the timestamp will be marked as unacknowledged and redelivered.
+func SeekToTimestampAdmin(ctx context.Context, client *pubsub.Client, projectID, subID string, timestamp time.Time) error {
+	// Normalize subscription ID
+	subName := subID
+	if !strings.HasPrefix(subID, "projects/") {
+		subName = "projects/" + projectID + "/subscriptions/" + subID
+	}
+
+	// Verify subscription exists and is a pull subscription
+	getReq := &pubsubpb.GetSubscriptionRequest{
+		Subscription: subName,
+	}
+	sub, err := client.SubscriptionAdminClient.GetSubscription(ctx, getReq)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Check if it's a push subscription
+	if sub.PushConfig != nil && sub.PushConfig.PushEndpoint != "" {
+		return fmt.Errorf("cannot seek push subscription %s; seek is only supported for pull subscriptions", subID)
+	}
+
+	// Create seek request with timestamp
+	seekReq := &pubsubpb.SeekRequest{
+		Subscription: subName,
+		Target: &pubsubpb.SeekRequest_Time{
+			Time: timestamppb.New(timestamp),
+		},
+	}
+
+	_, err = client.SubscriptionAdminClient.Seek(ctx, seekReq)
+	if err != nil {
+		return fmt.Errorf("failed to seek subscription to timestamp: %w", err)
+	}
+
+	return nil
+}
+
+// SeekToSnapshotAdmin seeks a subscription to a snapshot.
+// All messages in the snapshot will be marked as unacknowledged and redelivered.
+func SeekToSnapshotAdmin(ctx context.Context, client *pubsub.Client, projectID, subID, snapshotID string) error {
+	// Normalize subscription ID
+	subName := subID
+	if !strings.HasPrefix(subID, "projects/") {
+		subName = "projects/" + projectID + "/subscriptions/" + subID
+	}
+
+	// Normalize snapshot ID
+	snapshotName := snapshotID
+	if !strings.HasPrefix(snapshotID, "projects/") {
+		snapshotName = "projects/" + projectID + "/snapshots/" + snapshotID
+	}
+
+	// Verify subscription exists and is a pull subscription
+	getReq := &pubsubpb.GetSubscriptionRequest{
+		Subscription: subName,
+	}
+	sub, err := client.SubscriptionAdminClient.GetSubscription(ctx, getReq)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Check if it's a push subscription
+	if sub.PushConfig != nil && sub.PushConfig.PushEndpoint != "" {
+		return fmt.Errorf("cannot seek push subscription %s; seek is only supported for pull subscriptions", subID)
+	}
+
+	// Create seek request with snapshot
+	seekReq := &pubsubpb.SeekRequest{
+		Subscription: subName,
+		Target: &pubsubpb.SeekRequest_Snapshot{
+			Snapshot: snapshotName,
+		},
+	}
+
+	_, err = client.SubscriptionAdminClient.Seek(ctx, seekReq)
+	if err != nil {
+		return fmt.Errorf("failed to seek subscription to snapshot: %w", err)
 	}
 
 	return nil

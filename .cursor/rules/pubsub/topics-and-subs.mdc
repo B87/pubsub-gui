@@ -305,3 +305,15 @@ See `internal/models/template.go:TemplateOverrides` for structure.
 * Use lowercase, alphanumeric, hyphens only
 * Be descriptive: `production-critical`, `development-with-dlq`
 * Avoid generic names: prefer `payment-processing` over `template1`
+
+## Snapshots
+
+Snapshots allow you to preserve a subscription's message acknowledgment state and replay messages later. Snapshots are topic-scoped and can be used with any subscription on the same topic.
+
+**For complete snapshot documentation:** See `.cursor/rules/pubsub/snapshots.mdc` for detailed guidelines on:
+* Creating and managing snapshots
+* Seeking subscriptions to snapshots
+* Snapshot compatibility (topic-based)
+* Resource name normalization
+* Event system
+* Frontend implementation patterns

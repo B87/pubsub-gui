@@ -14,6 +14,28 @@ export namespace admin {
 	        this.maxDeliveryAttempts = source["maxDeliveryAttempts"];
 	    }
 	}
+	export class SnapshotInfo {
+	    name: string;
+	    displayName: string;
+	    topic: string;
+	    subscription?: string;
+	    expireTime: string;
+	    labels?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new SnapshotInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.displayName = source["displayName"];
+	        this.topic = source["topic"];
+	        this.subscription = source["subscription"];
+	        this.expireTime = source["expireTime"];
+	        this.labels = source["labels"];
+	    }
+	}
 	export class SubscriptionInfo {
 	    name: string;
 	    displayName: string;

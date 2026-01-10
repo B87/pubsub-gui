@@ -12,6 +12,7 @@ import {
 import { useMessageSearch } from '../hooks/useMessageSearch';
 import MessageRow from './MessageRow';
 import MessageDetailDialog from './MessageDetailDialog';
+import SeekDialog from './SeekDialog';
 import type { PubSubMessage } from '../types';
 import type { Subscription } from '../types';
 import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
@@ -31,6 +32,7 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<PubSubMessage | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isSeekDialogOpen, setIsSeekDialogOpen] = useState(false);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -224,6 +226,18 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
               <span className="text-sm text-slate-300">Auto-ack</span>
             </label>
 
+            {/* Seek Button */}
+            <button
+              onClick={() => setIsSeekDialogOpen(true)}
+              className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors flex items-center gap-2"
+              title="Seek subscription to replay messages from a specific time"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Seek
+            </button>
+
             {/* Clear Buffer Button */}
             <button
               onClick={handleClearBuffer}
@@ -394,6 +408,18 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
         message={selectedMessage}
         open={isDetailDialogOpen}
         onClose={handleCloseMessageDetail}
+      />
+
+      {/* Seek Dialog */}
+      <SeekDialog
+        open={isSeekDialogOpen}
+        subscriptionName={subscription.name}
+        subscriptionDisplayName={subscription.displayName}
+        onClose={() => setIsSeekDialogOpen(false)}
+        onSeekComplete={() => {
+          // Optionally clear messages after seek to show fresh data
+          setMessages([]);
+        }}
       />
     </div>
   );

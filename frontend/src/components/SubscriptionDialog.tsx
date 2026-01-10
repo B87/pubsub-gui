@@ -14,9 +14,6 @@ import {
   SelectContent,
   SelectItem,
   SelectValue,
-  RadioGroup,
-  RadioGroupItem,
-  Label,
   Alert,
   AlertDescription,
   Separator,
@@ -247,26 +244,89 @@ export default function SubscriptionDialog({
 
           {/* Subscription Type */}
           <FormField label="Subscription Type" required>
-            <RadioGroup
-              value={subscriptionType}
-              onValueChange={(value) => {
-                setSubscriptionType(value as 'pull' | 'push');
-                if (value === 'pull') {
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSubscriptionType('pull');
                   setPushEndpoint('');
-                }
-              }}
-              disabled={isSaving}
-              className="flex gap-4"
-            >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="pull" id="pull" />
-                <Label htmlFor="pull" className="cursor-pointer">Pull</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="push" id="push" />
-                <Label htmlFor="push" className="cursor-pointer">Push</Label>
-              </div>
-            </RadioGroup>
+                }}
+                disabled={isSaving}
+                className={`flex-1 px-4 py-3 rounded-md border-2 transition-all font-medium ${
+                  subscriptionType === 'pull'
+                    ? 'border-blue-500'
+                    : 'border-slate-700 hover:border-slate-600'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                style={{
+                  backgroundColor:
+                    subscriptionType === 'pull'
+                      ? 'color-mix(in srgb, var(--color-accent-primary) 15%, transparent)'
+                      : 'var(--color-bg-tertiary)',
+                  color: 'var(--color-text-primary)',
+                  borderColor:
+                    subscriptionType === 'pull'
+                      ? 'var(--color-accent-primary)'
+                      : 'var(--color-border-primary)',
+                }}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  {subscriptionType === 'pull' && (
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      style={{ color: 'var(--color-accent-primary)' }}
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                  <span>Pull</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSubscriptionType('push')}
+                disabled={isSaving}
+                className={`flex-1 px-4 py-3 rounded-md border-2 transition-all font-medium ${
+                  subscriptionType === 'push'
+                    ? 'border-blue-500'
+                    : 'border-slate-700 hover:border-slate-600'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                style={{
+                  backgroundColor:
+                    subscriptionType === 'push'
+                      ? 'color-mix(in srgb, var(--color-accent-primary) 15%, transparent)'
+                      : 'var(--color-bg-tertiary)',
+                  color: 'var(--color-text-primary)',
+                  borderColor:
+                    subscriptionType === 'push'
+                      ? 'var(--color-accent-primary)'
+                      : 'var(--color-border-primary)',
+                }}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  {subscriptionType === 'push' && (
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      style={{ color: 'var(--color-accent-primary)' }}
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                  <span>Push</span>
+                </div>
+              </button>
+            </div>
           </FormField>
 
           {/* Push Endpoint */}

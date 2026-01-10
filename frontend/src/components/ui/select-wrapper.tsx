@@ -63,6 +63,8 @@ const SelectContent = React.forwardRef<
 SelectContent.displayName = "SelectContent"
 
 // Wrapper for SelectItem with theme CSS variables
+// Note: Radix UI uses data-highlighted attribute for keyboard navigation
+// We use CSS to style both hover and highlighted states
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof ShadcnSelectItem>,
   React.ComponentPropsWithoutRef<typeof ShadcnSelectItem>
@@ -70,10 +72,28 @@ const SelectItem = React.forwardRef<
   return (
     <ShadcnSelectItem
       ref={ref}
-      className={className}
+      className={cn(
+        className,
+        // Override default focus styles with theme-aware hover/highlight styles
+        "[&[data-highlighted]]:bg-[var(--color-bg-hover)] [&[data-highlighted]]:text-[var(--color-text-primary)]"
+      )}
       style={{
         color: "var(--color-text-primary)",
+        backgroundColor: "transparent",
+        // Add hover background via CSS custom property
         ...style,
+      }}
+      onMouseEnter={(e) => {
+        // Apply hover background
+        if (!e.currentTarget.hasAttribute("data-highlighted")) {
+          e.currentTarget.style.backgroundColor = "var(--color-bg-hover)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        // Remove hover background if not highlighted
+        if (!e.currentTarget.hasAttribute("data-highlighted")) {
+          e.currentTarget.style.backgroundColor = "transparent";
+        }
       }}
       {...props}
     />

@@ -701,6 +701,12 @@ textarea,
               box-shadow var(--transition-normal) ease;
 }
 
+/* Select dropdown item hover and highlight states */
+[role="option"][data-highlighted] {
+  background-color: var(--color-bg-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
 /* Disable transitions for users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

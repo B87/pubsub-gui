@@ -339,3 +339,63 @@ func (h *ResourceHandler) UpdateSubscription(subID string, params SubscriptionUp
 
 	return nil
 }
+
+// SeekToTimestamp seeks a subscription to a specific timestamp.
+// Messages published after the timestamp will be redelivered.
+// The timestamp should be in RFC3339 format (e.g., "2024-01-15T10:30:00Z").
+func (h *ResourceHandler) SeekToTimestamp(subscriptionID, timestamp string, syncResources func()) error {
+	client := h.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	// Parse the timestamp
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return fmt.Errorf("invalid timestamp format (expected RFC3339, e.g., '2024-01-15T10:30:00Z'): %w", err)
+	}
+
+	projectID := h.clientManager.GetProjectID()
+	err = admin.SeekToTimestampAdmin(h.ctx, client, projectID, subscriptionID, t)
+	if err != nil {
+		return err
+	}
+
+	// Trigger background sync to update local store
+	if syncResources != nil {
+		go syncResources()
+	}
+
+	// Emit event for frontend
+	runtime.EventsEmit(h.ctx, "subscription:sought", map[string]interface{}{
+		"subscriptionID": subscriptionID,
+		"seekType":       "timestamp",
+		"timestamp":      timestamp,
+	})
+
+	return nil
+}
+
+// SeekToSnapshot seeks a subscription to a snapshot.
+// Messages in the snapshot will be redelivered.
+func (h *ResourceHandler) SeekToSnapshot(subscriptionID, snapshotID string) error {
+	client := h.clientManager.GetClient()
+	if client == nil {
+		return models.ErrNotConnected
+	}
+
+	projectID := h.clientManager.GetProjectID()
+	err := admin.SeekToSnapshotAdmin(h.ctx, client, projectID, subscriptionID, snapshotID)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for frontend
+	runtime.EventsEmit(h.ctx, "subscription:sought", map[string]interface{}{
+		"subscriptionID": subscriptionID,
+		"seekType":       "snapshot",
+		"snapshotID":     snapshotID,
+	})
+
+	return nil
+}
