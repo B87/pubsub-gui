@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { models } from '../../wailsjs/go/models';
+import { Button, Alert, AlertDescription } from '../ui';
 
 interface TemplatesTabProps {
   templates: models.TopicSubscriptionTemplate[];
@@ -32,33 +34,17 @@ export default function TemplatesTab({
             Create and manage your own topic/subscription templates
           </p>
         </div>
-        <button
-          onClick={onCreate}
-          style={{
-            backgroundColor: 'var(--color-accent-primary)',
-            color: 'var(--color-text-primary)',
-          }}
-          className="px-4 py-2 rounded-md transition-opacity hover:opacity-90 flex items-center gap-2 hover:[background-color:var(--color-accent-hover)]"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+        <Button onClick={onCreate}>
+          <Plus className="w-4 h-4 mr-1" />
           Create Template
-        </button>
+        </Button>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div
-          style={{
-            backgroundColor: 'var(--color-error-bg)',
-            borderColor: 'var(--color-error-border)',
-            color: 'var(--color-error)',
-          }}
-          className="p-3 border rounded-md text-sm"
-        >
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Loading State */}
@@ -123,28 +109,24 @@ export default function TemplatesTab({
                   </div>
                 </div>
                 <div className="flex gap-2 ml-4">
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => onEdit(template)}
-                    style={{
-                      backgroundColor: 'var(--color-bg-secondary)',
-                      color: 'var(--color-text-primary)',
-                    }}
-                    className="px-3 py-1.5 rounded text-sm transition-opacity hover:opacity-80"
                     title="Edit template"
                   >
+                    <Edit2 className="w-4 h-4 mr-1" />
                     Edit
-                  </button>
-                  <button
-                  onClick={() => onDelete(template)}
-                  style={{
-                    backgroundColor: 'var(--color-error)',
-                    color: 'var(--destructive-foreground)',
-                  }}
-                    className="px-3 py-1.5 rounded text-sm transition-opacity hover:opacity-80"
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onDelete(template)}
                     title="Delete template"
                   >
+                    <Trash2 className="w-4 h-4 mr-1" />
                     Delete
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

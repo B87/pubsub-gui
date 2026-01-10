@@ -1,0 +1,782 @@
+# Keyboard-First UI Development Guide
+
+This guide provides comprehensive patterns and best practices for developing keyboard-first user interfaces in React. All components should be fully navigable and operable using only the keyboard.
+
+## Core Principles
+
+1. **Tab Navigation**: All interactive elements must be reachable via Tab/Shift+Tab
+2. **Arrow Key Navigation**: Lists, menus, and grids should support arrow key navigation
+3. **Enter/Space Activation**: All buttons and interactive elements should activate with Enter or Space
+4. **Escape to Close**: Dialogs, dropdowns, and modals should close with Escape
+5. **Focus Management**: Focus should be visible, logical, and properly trapped in modals
+6. **No Mouse Required**: Every action should be achievable without a mouse
+
+## Navigation Patterns
+
+### Tab Order
+
+**Standard Tab Flow:**
+
+- Use natural DOM order for tab sequence
+- Use `tabIndex={0}` for focusable elements (default for interactive elements)
+- Use `tabIndex={-1}` to remove from tab order (but keep focusable programmatically)
+- Never use `tabIndex > 0` (creates confusing tab order)
+
+**Example:**
+
+```tsx
+// ✅ CORRECT: Natural tab order
+<button>Action 1</button>
+<button>Action 2</button>
+<input type="text" />
+
+// ✅ CORRECT: Programmatically focusable but not in tab order
+<div tabIndex={-1} ref={containerRef}>...</div>
+
+// ❌ WRONG: Positive tabIndex breaks natural order
+<button tabIndex={2}>Action</button>
+```
+
+### Arrow Key Navigation
+
+**For Lists and Menus:**
+
+```tsx
+const [selectedIndex, setSelectedIndex] = useState(0);
+
+useEffect(() => {
+  if (!isOpen) return;
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev => Math.min(prev + 1, items.length - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (items[selectedIndex]) {
+          handleSelect(items[selectedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        onClose();
+        break;
+      case 'Home':
+        e.preventDefault();
+        setSelectedIndex(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        setSelectedIndex(items.length - 1);
+        break;
+    }
+  };
+
+  document.addEventListener('keydown', handleKeyDown);
+  return () => document.removeEventListener('keydown', handleKeyDown);
+}, [isOpen, items, selectedIndex]);
+```
+
+**For Grids (2D Navigation):**
+
+```tsx
+const [selectedRow, setSelectedRow] = useState(0);
+const [selectedCol, setSelectedCol] = useState(0);
+
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedRow(prev => Math.min(prev + 1, rows - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedRow(prev => Math.max(prev - 1, 0));
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setSelectedCol(prev => Math.min(prev + 1, cols - 1));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        setSelectedCol(prev => Math.max(prev - 1, 0));
+        break;
+    }
+  };
+
+  document.addEventListener('keydown', handleKeyDown);
+  return () => document.removeEventListener('keydown', handleKeyDown);
+}, [rows, cols]);
+```
+
+**Scroll Selected Item Into View:**
+
+```tsx
+useEffect(() => {
+  if (containerRef.current) {
+    const selectedElement = containerRef.current.querySelector(
+      `[data-index="${selectedIndex}"]`
+    );
+    if (selectedElement) {
+      selectedElement.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth'
+      });
+    }
+  }
+}, [selectedIndex]);
+```
+
+### Enter and Space Activation
+
+**All interactive elements should respond to Enter and Space:**
+
+```tsx
+const handleKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    handleClick();
+  }
+};
+
+<button
+  onClick={handleClick}
+  onKeyDown={handleKeyDown}
+  aria-label="Action description"
+>
+  Action
+</button>
+```
+
+**Note:** Native buttons handle Enter automatically, but you may need to handle Space explicitly for custom interactive elements.
+
+### Escape to Close
+
+**Dialogs, Dropdowns, and Modals:**
+
+```tsx
+useEffect(() => {
+  if (!open) return;
+
+  const handleEscape = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  document.addEventListener('keydown', handleEscape);
+  return () => document.removeEventListener('keydown', handleEscape);
+}, [open, onClose]);
+```
+
+**Important:** Escape should work even when inputs are focused (see `useKeyboardShortcuts` hook for pattern).
+
+## Focus Management
+
+### Initial Focus
+
+**Set focus when component opens:**
+
+```tsx
+const inputRef = useRef<HTMLInputElement>(null);
+
+useEffect(() => {
+  if (open) {
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  }
+}, [open]);
+
+<input ref={inputRef} />
+```
+
+### Focus Trap (Modals)
+
+**Trap focus within modal/dialog:**
+
+```tsx
+const modalRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  if (!open) return;
+
+  const modal = modalRef.current;
+  if (!modal) return;
+
+  const focusableElements = modal.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  const firstElement = focusableElements[0] as HTMLElement;
+  const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+  const handleTab = (e: KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+
+    if (e.shiftKey) {
+      // Shift + Tab
+      if (document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+    } else {
+      // Tab
+      if (document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  };
+
+  document.addEventListener('keydown', handleTab);
+  firstElement?.focus();
+
+  return () => {
+    document.removeEventListener('keydown', handleTab);
+  };
+}, [open]);
+```
+
+**Note:** shadcn/ui Dialog component handles focus trap automatically. Use it for modals.
+
+### Return Focus on Close
+
+**Restore focus to trigger element:**
+
+```tsx
+const triggerRef = useRef<HTMLButtonElement>(null);
+const [open, setOpen] = useState(false);
+
+const handleClose = () => {
+  setOpen(false);
+  // Return focus to trigger
+  setTimeout(() => {
+    triggerRef.current?.focus();
+  }, 100);
+};
+
+<button ref={triggerRef} onClick={() => setOpen(true)}>
+  Open
+</button>
+```
+
+### Focus Indicators
+
+**Ensure focus is visible:**
+
+```tsx
+// Use CSS for focus styles (already in themes.css)
+button:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
+// Or use Tailwind focus utilities
+<button className="focus:outline-none focus:ring-2 focus:ring-accent-primary">
+  Button
+</button>
+```
+
+## ARIA Attributes
+
+### Roles and Labels
+
+**Use semantic HTML when possible:**
+
+```tsx
+// ✅ PREFERRED: Semantic HTML
+<button onClick={handleClick}>Delete</button>
+<nav aria-label="Main navigation">...</nav>
+
+// ✅ ACCEPTABLE: ARIA when semantic HTML isn't possible
+<div
+  role="button"
+  tabIndex={0}
+  onClick={handleClick}
+  onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+  aria-label="Delete item"
+>
+  Delete
+</div>
+```
+
+### List Navigation
+
+**For keyboard-navigable lists:**
+
+```tsx
+<ul role="listbox" aria-label="Topics">
+  {topics.map((topic, index) => (
+    <li
+      key={topic.id}
+      role="option"
+      aria-selected={index === selectedIndex}
+      data-index={index}
+      tabIndex={index === selectedIndex ? 0 : -1}
+      onKeyDown={handleKeyDown}
+      onClick={() => handleSelect(topic)}
+    >
+      {topic.name}
+    </li>
+  ))}
+</ul>
+```
+
+### Live Regions
+
+**For dynamic content updates:**
+
+```tsx
+<div aria-live="polite" aria-atomic="true" className="sr-only">
+  {statusMessage}
+</div>
+```
+
+**Live Region Types:**
+
+- `aria-live="polite"`: Updates announced when user is idle (recommended)
+- `aria-live="assertive"`: Updates announced immediately (use sparingly)
+- `aria-atomic="true"`: Entire region announced, not just changes
+
+### Button States
+
+**Indicate button states:**
+
+```tsx
+<button
+  aria-pressed={isActive}
+  aria-expanded={isOpen}
+  aria-disabled={isDisabled}
+  disabled={isDisabled}
+>
+  Toggle
+</button>
+```
+
+## Component-Specific Patterns
+
+### Dropdown Menus
+
+**Pattern (see `LogLevelFilter.tsx` for reference):**
+
+```tsx
+const [isOpen, setIsOpen] = useState(false);
+const [highlightedIndex, setHighlightedIndex] = useState(0);
+const buttonRef = useRef<HTMLButtonElement>(null);
+const dropdownRef = useRef<HTMLDivElement>(null);
+
+// Arrow key navigation when open
+useEffect(() => {
+  if (!isOpen || items.length === 0) return;
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    if (!dropdownRef.current?.contains(target)) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev + 1) % items.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev - 1 + items.length) % items.length);
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (items[highlightedIndex]) {
+          handleSelect(items[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        buttonRef.current?.focus();
+        break;
+    }
+  };
+
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, [isOpen, highlightedIndex, items]);
+
+// Button keyboard handling
+const handleButtonKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    setIsOpen(!isOpen);
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    setIsOpen(true);
+  }
+};
+
+<button
+  ref={buttonRef}
+  onClick={() => setIsOpen(!isOpen)}
+  onKeyDown={handleButtonKeyDown}
+  aria-expanded={isOpen}
+  aria-haspopup="listbox"
+>
+  Select
+</button>
+
+{isOpen && (
+  <div ref={dropdownRef} role="listbox">
+    {items.map((item, index) => (
+      <div
+        key={item.id}
+        role="option"
+        aria-selected={index === highlightedIndex}
+        onClick={() => handleSelect(item)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleSelect(item);
+          }
+        }}
+      >
+        {item.label}
+      </div>
+    ))}
+  </div>
+)}
+```
+
+### Command Bar / Command Palette
+
+**Pattern (see `CommandBar.tsx` for reference):**
+
+```tsx
+const [query, setQuery] = useState('');
+const [selectedIndex, setSelectedIndex] = useState(0);
+const inputRef = useRef<HTMLInputElement>(null);
+
+// Focus input when opened
+useEffect(() => {
+  if (open) {
+    setQuery('');
+    setSelectedIndex(0);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  }
+}, [open]);
+
+// Keyboard navigation
+useEffect(() => {
+  if (!open) return;
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (results[selectedIndex]) {
+        onExecute(results[selectedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  document.addEventListener('keydown', handleKeyDown);
+  return () => document.removeEventListener('keydown', handleKeyDown);
+}, [open, results, selectedIndex, onExecute, onClose]);
+```
+
+### Tabs
+
+**Pattern (see `SubscriptionDetails.tsx` for reference):**
+
+```tsx
+import * as Tabs from '@radix-ui/react-tabs';
+
+// Radix UI Tabs handles keyboard navigation automatically
+<Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+  <Tabs.List>
+    <Tabs.Trigger value="tab1">Tab 1</Tabs.Trigger>
+    <Tabs.Trigger value="tab2">Tab 2</Tabs.Trigger>
+  </Tabs.List>
+  <Tabs.Content value="tab1">Content 1</Tabs.Content>
+  <Tabs.Content value="tab2">Content 2</Tabs.Content>
+</Tabs.Root>
+```
+
+**Keyboard shortcuts for tabs:**
+
+```tsx
+useKeyboardShortcuts([
+  {
+    key: '1',
+    ctrlOrCmd: true,
+    action: () => setActiveTab('tab1'),
+    enabled: true,
+  },
+  {
+    key: '2',
+    ctrlOrCmd: true,
+    action: () => setActiveTab('tab2'),
+    enabled: true,
+  },
+]);
+```
+
+### Forms
+
+**Form navigation:**
+
+```tsx
+const formRef = useRef<HTMLFormElement>(null);
+
+const handleKeyDown = (e: React.KeyboardEvent) => {
+  // Submit on Enter (when not in textarea)
+  if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+    if (e.target.type !== 'textarea') {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }
+  // Escape to reset
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    handleReset();
+  }
+};
+
+<form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit}>
+  <input type="text" />
+  <textarea />
+  <button type="submit">Submit</button>
+  <button type="button" onClick={handleReset}>Reset</button>
+</form>
+```
+
+### Data Tables
+
+**Table navigation:**
+
+```tsx
+const [selectedRow, setSelectedRow] = useState<number | null>(null);
+
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (selectedRow === null) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedRow(prev => prev !== null ? Math.min(prev + 1, rows.length - 1) : 0);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedRow(prev => prev !== null ? Math.max(prev - 1, 0) : rows.length - 1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedRow !== null) {
+          handleRowAction(rows[selectedRow]);
+        }
+        break;
+    }
+  };
+
+  document.addEventListener('keydown', handleKeyDown);
+  return () => document.removeEventListener('keydown', handleKeyDown);
+}, [selectedRow, rows]);
+
+<table role="grid" aria-label="Data table">
+  <thead>
+    <tr role="row">
+      <th role="columnheader">Column 1</th>
+      <th role="columnheader">Column 2</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows.map((row, index) => (
+      <tr
+        key={row.id}
+        role="row"
+        aria-selected={index === selectedRow}
+        tabIndex={index === selectedRow ? 0 : -1}
+        onClick={() => setSelectedRow(index)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleRowAction(row);
+          }
+        }}
+      >
+        <td role="gridcell">{row.col1}</td>
+        <td role="gridcell">{row.col2}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+```
+
+## Global Keyboard Shortcuts
+
+**Use `useKeyboardShortcuts` hook for global shortcuts:**
+
+```tsx
+import { useKeyboardShortcuts, isInputFocused } from '../hooks/useKeyboardShortcuts';
+
+useKeyboardShortcuts([
+  {
+    key: 'p',
+    ctrlOrCmd: true,
+    action: () => {
+      if (!isInputFocused()) {
+        setShowCommandBar(true);
+      }
+    },
+    description: 'Open command bar',
+  },
+  {
+    key: 'r',
+    ctrlOrCmd: true,
+    action: () => {
+      if (isConnected && !loading) {
+        loadResources();
+      }
+    },
+    enabled: isConnected && !loading,
+    description: 'Refresh resources',
+  },
+  {
+    key: 'Escape',
+    action: () => {
+      // Close dialogs in order of priority
+      if (showCommandBar) {
+        setShowCommandBar(false);
+      } else if (showDialog) {
+        setShowDialog(false);
+      }
+    },
+    description: 'Close dialogs',
+  },
+]);
+```
+
+**Shortcut Guidelines:**
+
+- **Don't trigger when typing**: Check `isInputFocused()` before actions
+- **Allow Escape in inputs**: Escape should work even when inputs are focused (for closing dialogs)
+- **Platform-aware**: Use `ctrlOrCmd` for cross-platform shortcuts (⌘ on Mac, Ctrl on Windows/Linux)
+- **Show in UI**: Display shortcuts in tooltips or help text when possible
+
+## Common Keyboard Shortcuts
+
+**Standard shortcuts to implement:**
+
+| Shortcut | Action | Notes |
+| --------- | ------ | ----- |
+| `Ctrl/Cmd + P` | Open command bar | Universal |
+| `Ctrl/Cmd + R` | Refresh resources | When connected |
+| `Ctrl/Cmd + ,` | Open settings | Universal |
+| `Ctrl/Cmd + K` | Quick action | Alternative to Cmd+P |
+| `Escape` | Close dialogs/modals | Always works |
+| `Tab` | Navigate forward | Standard |
+| `Shift + Tab` | Navigate backward | Standard |
+| `Enter` | Activate/Submit | Standard |
+| `Space` | Activate/Toggle | Standard |
+| `Arrow Keys` | Navigate lists/menus | Context-dependent |
+| `Home` | First item | In lists |
+| `End` | Last item | In lists |
+
+## Testing Checklist
+
+**Before committing, verify:**
+
+- [ ] All interactive elements are reachable via Tab
+- [ ] Focus is visible on all elements
+- [ ] Arrow keys work in lists/menus
+- [ ] Enter/Space activate buttons and links
+- [ ] Escape closes dialogs and dropdowns
+- [ ] Focus is trapped in modals
+- [ ] Focus returns to trigger after closing
+- [ ] Keyboard shortcuts don't trigger when typing in inputs
+- [ ] Screen reader announces dynamic content (aria-live)
+- [ ] All interactive elements have accessible labels
+- [ ] Tab order is logical and intuitive
+
+## Best Practices
+
+### DO ✅
+
+- **Use semantic HTML** when possible (`<button>`, `<nav>`, `<form>`)
+- **Set initial focus** when opening dialogs/modals
+- **Trap focus** in modals (use shadcn/ui Dialog)
+- **Return focus** to trigger element on close
+- **Prevent default** for custom keyboard handlers
+- **Check input focus** before triggering global shortcuts
+- **Scroll into view** when navigating with arrow keys
+- **Use ARIA attributes** for complex widgets
+- **Test with keyboard only** (unplug mouse/trackpad)
+- **Test with screen reader** (VoiceOver, NVDA, JAWS)
+
+### DON'T ❌
+
+- **Don't use positive tabIndex** (breaks natural order)
+- **Don't skip focus management** in modals
+- **Don't trigger shortcuts** when typing in inputs
+- **Don't forget Escape handlers** for dialogs
+- **Don't hide focus indicators** (accessibility requirement)
+- **Don't use mouse-only interactions** (hover, click-only)
+- **Don't forget ARIA labels** for icon-only buttons
+- **Don't break browser defaults** (Tab, Enter, Space)
+
+## Integration with Existing Code
+
+**The codebase already has:**
+
+1. **`useKeyboardShortcuts` hook** (`frontend/src/hooks/useKeyboardShortcuts.ts`):
+   - Global keyboard shortcut management
+   - Input focus detection
+   - Platform-aware modifiers (⌘ vs Ctrl)
+
+2. **CommandBar component** (`frontend/src/components/CommandBar.tsx`):
+   - Arrow key navigation
+   - Enter to execute
+   - Escape to close
+   - Focus management
+
+3. **Example implementations:**
+   - `LogLevelFilter.tsx`: Dropdown with arrow key navigation
+   - `TopicDetails.tsx`: Context-specific shortcuts (Cmd+Enter to publish)
+   - `App.tsx`: Global shortcuts (Cmd+P, Cmd+R, Cmd+,)
+
+**When adding keyboard navigation:**
+
+1. **Check existing patterns** in similar components
+2. **Use `useKeyboardShortcuts`** for global shortcuts
+3. **Follow component patterns** above for specific UI elements
+4. **Test with keyboard only** before committing
+
+## Resources
+
+- [WAI-ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)
+- [MDN: Keyboard Navigation](https://developer.mozilla.org/en-US/docs/Web/Accessibility/Keyboard-navigable_JavaScript_widgets)
+- [WebAIM: Keyboard Accessibility](https://webaim.org/techniques/keyboard/)
+- [React A11y: Focus Management](https://react.dev/reference/react-dom/components/common#focus-management)
+
+---
+
+**Last Updated:** 2026-01-10

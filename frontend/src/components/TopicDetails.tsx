@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { MessageSquare, Copy, Plus, X } from 'lucide-react';
 import type { Topic, Subscription, MessageTemplate, PublishResult, PubSubMessage } from '../types';
 import { GetTemplates, PublishMessage, SaveTemplate, StartTopicMonitor, StopTopicMonitor, GetBufferedMessages, ClearMessageBuffer, GetAutoAck, SetAutoAck } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
@@ -7,7 +8,7 @@ import TopicMonitor from './TopicMonitor';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 import JsonEditor from './JsonEditor';
 import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
-import { Alert, AlertTitle, AlertDescription } from './ui';
+import { Alert, AlertTitle, AlertDescription, Button, Input, Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui';
 
 interface TopicDetailsProps {
   topic: Topic;
@@ -252,6 +253,12 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplateId(templateId);
+    if (!templateId || templateId.trim() === '') {
+      // Clear template - reset to default empty JSON
+      setPayload('{\n\n}');
+      setAttributes([{ key: '', value: '' }]);
+      return;
+    }
     const template = templates.find(t => t.id === templateId);
     if (template) {
       setPayload(template.payload);
@@ -380,137 +387,203 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
   };
 
   return (
-    <div className="p-8">
+    <div className="flex flex-col h-full p-8">
       <div className="w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-            </svg>
+            <div
+              className="h-8 w-8 rounded flex items-center justify-center"
+              style={{ backgroundColor: 'var(--color-accent-primary)' }}
+            >
+              <MessageSquare
+                className="w-5 h-5"
+                style={{ color: 'white' }}
+              />
+            </div>
             <div>
-              <h2 className="text-2xl font-bold">{topic.displayName}</h2>
-              <p className="text-sm text-slate-400">Topic</p>
+              <h2
+                className="text-2xl font-semibold"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                {topic.displayName}
+              </h2>
+              <p
+                className="text-sm"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                Topic
+              </p>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 border-b border-slate-700">
+        <div
+          className="mb-6 border-b"
+          style={{
+            borderBottomColor: 'var(--color-border-primary)',
+            borderBottomWidth: '1px',
+            borderBottomStyle: 'solid',
+          }}
+        >
           <div className="flex gap-4">
-            <button
-              onClick={() => setActiveTab('metadata')}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === 'metadata'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              Metadata
-            </button>
-            <button
-              onClick={() => setActiveTab('publish')}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === 'publish'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              Publish
-            </button>
-            <button
-              onClick={() => setActiveTab('monitor')}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === 'monitor'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              Monitor
-            </button>
-            <button
-              onClick={() => setActiveTab('subscriptions')}
-              className={`px-4 py-2 font-medium transition-colors relative ${
-                activeTab === 'subscriptions'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              Subscriptions
-              {(subscriptions?.length ?? 0) > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 rounded-full">
-                  {subscriptions?.length ?? 0}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('deadLetter')}
-              className={`px-4 py-2 font-medium transition-colors relative ${
-                activeTab === 'deadLetter'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              Dead Letter
-              {((deadLetterSubscriptions?.length ?? 0) > 0 || (deadLetterTopics?.length ?? 0) > 0) && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 rounded-full">
-                  {(deadLetterSubscriptions?.length ?? 0) + (deadLetterTopics?.length ?? 0)}
-                </span>
-              )}
-            </button>
+            {(['metadata', 'publish', 'monitor', 'subscriptions', 'deadLetter'] as Tab[]).map((tab) => {
+              const isActive = activeTab === tab;
+              const getBadgeCount = () => {
+                if (tab === 'subscriptions') return subscriptions?.length ?? 0;
+                if (tab === 'deadLetter') return (deadLetterSubscriptions?.length ?? 0) + (deadLetterTopics?.length ?? 0);
+                return 0;
+              };
+              const badgeCount = getBadgeCount();
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="px-4 py-2 font-medium transition-colors relative"
+                  style={{
+                    color: isActive
+                      ? 'var(--color-text-primary)'
+                      : 'var(--color-text-secondary)',
+                    borderBottomWidth: isActive ? '2px' : '0',
+                    borderBottomStyle: 'solid',
+                    borderBottomColor: isActive
+                      ? 'var(--color-accent-primary)'
+                      : 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.color = 'var(--color-text-primary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.color = 'var(--color-text-secondary)';
+                    }
+                  }}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {badgeCount > 0 && (
+                    <span
+                      className="ml-2 px-2 py-0.5 text-xs rounded-full"
+                      style={{
+                        backgroundColor: 'var(--color-accent-primary)',
+                        color: 'white',
+                      }}
+                    >
+                      {badgeCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Metadata Tab */}
         {activeTab === 'metadata' && (
-          <div className="bg-slate-800 rounded-lg border border-slate-700">
-            <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Metadata</h3>
+          <div
+            className="rounded-lg border"
+            style={{
+              backgroundColor: 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-border-primary)',
+              borderWidth: '1px',
+              borderStyle: 'solid',
+            }}
+          >
+            <div
+              className="px-6 py-4 border-b flex items-center justify-between"
+              style={{
+                borderBottomColor: 'var(--color-border-primary)',
+                borderBottomWidth: '1px',
+                borderBottomStyle: 'solid',
+              }}
+            >
+              <h3
+                className="text-lg font-semibold"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                Metadata
+              </h3>
               {onDelete && (
-                <button
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={() => setShowDeleteDialog(true)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
                 >
                   Delete Topic
-                </button>
+                </Button>
               )}
             </div>
 
             <div className="p-6 space-y-4">
               {/* Full Name */}
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
+                <label
+                  className="block text-sm font-medium mb-1"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Full Resource Name
                 </label>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-slate-900 rounded text-sm font-mono overflow-x-auto">
+                  <code
+                    className="flex-1 px-3 py-2 rounded text-sm font-mono overflow-x-auto"
+                    style={{
+                      backgroundColor: 'var(--color-bg-code)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
                     {topic.name}
                   </code>
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => copyToClipboard(topic.name)}
-                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
                     title="Copy to clipboard"
                   >
+                    <Copy className="w-4 h-4 mr-1" />
                     Copy
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {/* Display Name */}
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
+                <label
+                  className="block text-sm font-medium mb-1"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Display Name
                 </label>
-                <p className="px-3 py-2 bg-slate-900 rounded">{topic.displayName}</p>
+                <p
+                  className="px-3 py-2 rounded"
+                  style={{
+                    backgroundColor: 'var(--color-bg-code)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  {topic.displayName}
+                </p>
               </div>
 
               {/* Message Retention */}
               {topic.messageRetention && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                  <label
+                    className="block text-sm font-medium mb-1"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
                     Message Retention Duration
                   </label>
-                  <p className="px-3 py-2 bg-slate-900 rounded">{topic.messageRetention}</p>
+                  <p
+                    className="px-3 py-2 rounded"
+                    style={{
+                      backgroundColor: 'var(--color-bg-code)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    {topic.messageRetention}
+                  </p>
                 </div>
               )}
             </div>
@@ -522,21 +595,34 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
           <div className="space-y-6">
             {/* Template Dropdown */}
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">
+              <label
+                className="block text-sm font-medium mb-2"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
                 Template (Optional)
               </label>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => handleTemplateSelect(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Select
+                value={selectedTemplateId || 'none'}
+                onValueChange={(value) => handleTemplateSelect(value === 'none' ? '' : value)}
               >
-                <option value="">No template</option>
-                {templates.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} {t.topicId ? '(Topic-specific)' : '(Global)'}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  className="w-full"
+                  style={{
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    borderColor: 'var(--color-border-primary)',
+                  }}
+                >
+                  <SelectValue placeholder="No template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No template</SelectItem>
+                  {templates.map(t => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name} {t.topicId ? '(Topic-specific)' : '(Global)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Payload */}
@@ -549,40 +635,54 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
             {/* Attributes */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-400">
+                <label
+                  className="block text-sm font-medium"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Attributes
                 </label>
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={addAttribute}
-                  className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors"
                 >
-                  + Add
-                </button>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
               </div>
               <div className="space-y-2">
                 {attributes.map((attr, index) => (
                   <div key={index} className="flex gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={attr.key}
                       onChange={(e) => handleAttributeChange(index, 'key', e.target.value)}
                       placeholder="Key"
-                      className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1"
+                      style={{
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        borderColor: 'var(--color-border-primary)',
+                      }}
                     />
-                    <input
+                    <Input
                       type="text"
                       value={attr.value}
                       onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
                       placeholder="Value"
-                      className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1"
+                      style={{
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        borderColor: 'var(--color-border-primary)',
+                      }}
                     />
-                    <button
+                    <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={() => removeAttribute(index)}
                       disabled={attributes.length === 1}
-                      className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded transition-colors"
                     >
-                      Remove
-                    </button>
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -610,46 +710,70 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
 
             {/* Action Buttons */}
             <div className="flex gap-3">
-              <button
+              <Button
                 onClick={handlePublish}
                 disabled={isPublishing || !payload.trim()}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded font-medium transition-colors"
+                loading={isPublishing}
                 title={isPublishing ? 'Publishing...' : `Publish message (${formatShortcut({ key: 'Enter', ctrlOrCmd: true })})`}
               >
-                {isPublishing ? 'Publishing...' : 'Publish'}
-              </button>
-              <button
+                Publish
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setShowSaveTemplateDialog(true)}
                 disabled={!payload.trim()}
-                className="px-6 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:cursor-not-allowed rounded font-medium transition-colors"
               >
                 Save as Template
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setShowTemplateManager(true)}
-                className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded font-medium transition-colors"
               >
                 Manage Templates
-              </button>
+              </Button>
             </div>
 
             {/* Save Template Dialog */}
             {showSaveTemplateDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
-                  <h3 className="text-lg font-semibold mb-4">Save as Template</h3>
+              <div
+                className="fixed inset-0 flex items-center justify-center z-50"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-bg-primary) 50%, transparent)',
+                }}
+              >
+                <div
+                  className="rounded-lg p-6 max-w-md w-full mx-4"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    borderColor: 'var(--color-border-primary)',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                  }}
+                >
+                  <h3
+                    className="text-lg font-semibold mb-4"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    Save as Template
+                  </h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">
+                      <label
+                        className="block text-sm font-medium mb-2"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
                         Template Name *
                       </label>
-                      <input
+                      <Input
                         type="text"
                         value={templateName}
                         onChange={(e) => setTemplateName(e.target.value)}
                         placeholder="e.g., User Signup Event"
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         autoFocus
+                        style={{
+                          backgroundColor: 'var(--color-bg-tertiary)',
+                          borderColor: 'var(--color-border-primary)',
+                        }}
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -660,28 +784,31 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                         onChange={(e) => setLinkToTopic(e.target.checked)}
                         className="w-4 h-4"
                       />
-                      <label htmlFor="linkToTopic" className="text-sm text-slate-400">
+                      <label
+                        htmlFor="linkToTopic"
+                        className="text-sm"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
                         Link to this topic
                       </label>
                     </div>
                     <div className="flex gap-3 justify-end">
-                      <button
+                      <Button
+                        variant="outline"
                         onClick={() => {
                           setShowSaveTemplateDialog(false);
                           setTemplateName('');
                           setLinkToTopic(false);
                         }}
-                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
                       >
                         Cancel
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={handleSaveTemplate}
                         disabled={!templateName.trim()}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded transition-colors"
                       >
                         Save
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -702,34 +829,63 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
 
         {/* Monitor Tab */}
         {activeTab === 'monitor' && (
-          <TopicMonitor
-            topic={topic}
-            messages={monitoringMessages}
-            isMonitoring={isMonitoring}
-            tempSubId={tempSubId}
-            autoAck={autoAck}
-            monitoringError={monitoringError}
-            subscriptions={monitorSubscriptions}
-            selectedSubscription={selectedSubscriptionForMonitoring}
-            onSubscriptionChange={setSelectedSubscriptionForMonitoring}
-            onStartMonitoring={handleStartMonitoring}
-            onClearBuffer={handleClearMonitoringBuffer}
-            onToggleAutoAck={handleToggleAutoAck}
-          />
+          <div className="flex-1 flex flex-col min-h-0 -mx-8 -mb-8 px-8 pb-8">
+            <TopicMonitor
+              topic={topic}
+              messages={monitoringMessages}
+              isMonitoring={isMonitoring}
+              tempSubId={tempSubId}
+              autoAck={autoAck}
+              monitoringError={monitoringError}
+              subscriptions={monitorSubscriptions}
+              selectedSubscription={selectedSubscriptionForMonitoring}
+              onSubscriptionChange={setSelectedSubscriptionForMonitoring}
+              onStartMonitoring={handleStartMonitoring}
+              onClearBuffer={handleClearMonitoringBuffer}
+              onToggleAutoAck={handleToggleAutoAck}
+            />
+          </div>
         )}
 
         {/* Subscriptions Tab */}
         {activeTab === 'subscriptions' && (
-          <div className="bg-slate-800 rounded-lg border border-slate-700">
-            <div className="px-6 py-4 border-b border-slate-700">
-              <h3 className="text-lg font-semibold">Subscriptions</h3>
-              <p className="text-sm text-slate-400 mt-1">Subscriptions subscribed to this topic</p>
+          <div
+            className="rounded-lg border"
+            style={{
+              backgroundColor: 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-border-primary)',
+              borderWidth: '1px',
+              borderStyle: 'solid',
+            }}
+          >
+            <div
+              className="px-6 py-4 border-b"
+              style={{
+                borderBottomColor: 'var(--color-border-primary)',
+                borderBottomWidth: '1px',
+                borderBottomStyle: 'solid',
+              }}
+            >
+              <h3
+                className="text-lg font-semibold"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                Subscriptions
+              </h3>
+              <p
+                className="text-sm mt-1"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                Subscriptions subscribed to this topic
+              </p>
             </div>
 
             <div className="p-6">
               {loadingRelations ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="text-slate-400">Loading subscriptions...</div>
+                  <div style={{ color: 'var(--color-text-secondary)' }}>
+                    Loading subscriptions...
+                  </div>
                 </div>
               ) : relationsError ? (
                 <Alert variant="destructive">
@@ -737,42 +893,91 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                 </Alert>
               ) : (subscriptions?.length ?? 0) === 0 ? (
                 <div className="text-center py-8">
-                  <svg className="w-12 h-12 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-12 h-12 mx-auto mb-4"
+                    style={{ color: 'var(--color-text-muted)' }}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
-                  <p className="text-slate-400">No subscriptions found for this topic</p>
+                  <p style={{ color: 'var(--color-text-secondary)' }}>
+                    No subscriptions found for this topic
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {(subscriptions || []).map((sub) => (
                     <div
                       key={sub.name}
-                      className={`p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors ${
+                      className={`p-4 rounded-lg border transition-colors ${
                         onSelectSubscription ? 'cursor-pointer' : ''
                       }`}
+                      style={{
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        borderColor: 'var(--color-border-primary)',
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (onSelectSubscription) {
+                          e.currentTarget.style.borderColor = 'var(--color-border-secondary)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (onSelectSubscription) {
+                          e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                        }
+                      }}
                       onClick={() => onSelectSubscription?.(sub)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold text-slate-200">{sub.displayName}</h4>
-                            <span className={`px-2 py-1 text-xs rounded font-medium ${
-                              sub.subscriptionType === 'pull'
-                                ? 'bg-blue-900/50 text-blue-300 border border-blue-700'
-                                : 'bg-purple-900/50 text-purple-300 border border-purple-700'
-                            }`}>
+                            <h4
+                              className="font-semibold"
+                              style={{ color: 'var(--color-text-primary)' }}
+                            >
+                              {sub.displayName}
+                            </h4>
+                            <span
+                              className="px-2 py-1 text-xs rounded font-medium"
+                              style={{
+                                backgroundColor: sub.subscriptionType === 'pull'
+                                  ? 'color-mix(in srgb, var(--color-accent-primary) 20%, transparent)'
+                                  : 'color-mix(in srgb, var(--color-accent-primary) 20%, transparent)',
+                                color: sub.subscriptionType === 'pull'
+                                  ? 'var(--color-accent-primary)'
+                                  : 'var(--color-accent-primary)',
+                                borderColor: 'var(--color-border-primary)',
+                                borderWidth: '1px',
+                                borderStyle: 'solid',
+                              }}
+                            >
                               {sub.subscriptionType === 'pull' ? 'Pull' : 'Push'}
                             </span>
                           </div>
-                          <div className="space-y-1 text-sm text-slate-400">
+                          <div
+                            className="space-y-1 text-sm"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                          >
                             <div className="flex items-center gap-2">
                               <span>Ack Deadline:</span>
-                              <span className="text-slate-300">{sub.ackDeadline}s</span>
+                              <span style={{ color: 'var(--color-text-primary)' }}>
+                                {sub.ackDeadline}s
+                              </span>
                             </div>
                             {sub.filter && (
                               <div className="flex items-start gap-2">
                                 <span>Filter:</span>
-                                <code className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 break-all">
+                                <code
+                                  className="text-xs px-2 py-1 rounded break-all"
+                                  style={{
+                                    backgroundColor: 'var(--color-bg-code)',
+                                    color: 'var(--color-text-primary)',
+                                  }}
+                                >
                                   {sub.filter}
                                 </code>
                               </div>
@@ -780,7 +985,13 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                             {sub.deadLetterPolicy && (
                               <div className="flex items-start gap-2">
                                 <span>Dead Letter Topic:</span>
-                                <code className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 break-all">
+                                <code
+                                  className="text-xs px-2 py-1 rounded break-all"
+                                  style={{
+                                    backgroundColor: 'var(--color-bg-code)',
+                                    color: 'var(--color-text-primary)',
+                                  }}
+                                >
                                   {sub.deadLetterPolicy.deadLetterTopic.split('/').pop()}
                                 </code>
                               </div>
@@ -788,7 +999,13 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                             {sub.pushEndpoint && (
                               <div className="flex items-start gap-2">
                                 <span>Endpoint:</span>
-                                <code className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 break-all">
+                                <code
+                                  className="text-xs px-2 py-1 rounded break-all"
+                                  style={{
+                                    backgroundColor: 'var(--color-bg-code)',
+                                    color: 'var(--color-text-primary)',
+                                  }}
+                                >
                                   {sub.pushEndpoint}
                                 </code>
                               </div>
@@ -796,15 +1013,16 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
                           </div>
                         </div>
                         {onSelectSubscription && (
-                          <button
+                          <Button
+                            variant="default"
+                            size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               onSelectSubscription(sub);
                             }}
-                            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                           >
                             View
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -819,71 +1037,142 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
         {activeTab === 'deadLetter' && (
           <div className="space-y-6">
             {/* Used as Dead Letter Topic Section */}
-            <div className="bg-slate-800 rounded-lg border border-slate-700">
-              <div className="px-6 py-4 border-b border-slate-700">
-                <h3 className="text-lg font-semibold">Used as Dead Letter Topic</h3>
-                <p className="text-sm text-slate-400 mt-1">Subscriptions that use this topic as their dead letter topic</p>
+            <div
+              className="rounded-lg border"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-border-primary)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              <div
+                className="px-6 py-4 border-b"
+                style={{
+                  borderBottomColor: 'var(--color-border-primary)',
+                  borderBottomWidth: '1px',
+                  borderBottomStyle: 'solid',
+                }}
+              >
+                <h3
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Used as Dead Letter Topic
+                </h3>
+                <p
+                  className="text-sm mt-1"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  Subscriptions that use this topic as their dead letter topic
+                </p>
               </div>
 
               <div className="p-6">
                 {loadingRelations ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="text-slate-400">Loading...</div>
+                    <div style={{ color: 'var(--color-text-secondary)' }}>Loading...</div>
                   </div>
                 ) : (deadLetterSubscriptions?.length ?? 0) === 0 ? (
                   <div className="text-center py-8">
-                    <svg className="w-12 h-12 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-12 h-12 mx-auto mb-4"
+                      style={{ color: 'var(--color-text-muted)' }}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
-                    <p className="text-slate-400">No subscriptions use this topic as a dead letter topic</p>
+                    <p style={{ color: 'var(--color-text-secondary)' }}>
+                      No subscriptions use this topic as a dead letter topic
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {(deadLetterSubscriptions || []).map((sub) => (
                       <div
                         key={sub.name}
-                        className={`p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors ${
+                        className={`p-4 rounded-lg border transition-colors ${
                           onSelectSubscription ? 'cursor-pointer' : ''
                         }`}
+                        style={{
+                          backgroundColor: 'var(--color-bg-tertiary)',
+                          borderColor: 'var(--color-border-primary)',
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (onSelectSubscription) {
+                            e.currentTarget.style.borderColor = 'var(--color-border-secondary)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (onSelectSubscription) {
+                            e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                          }
+                        }}
                         onClick={() => onSelectSubscription?.(sub)}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-slate-200">{sub.displayName}</h4>
-                              <span className={`px-2 py-1 text-xs rounded font-medium ${
-                                sub.subscriptionType === 'pull'
-                                  ? 'bg-blue-900/50 text-blue-300 border border-blue-700'
-                                  : 'bg-purple-900/50 text-purple-300 border border-purple-700'
-                              }`}>
+                              <h4
+                                className="font-semibold"
+                                style={{ color: 'var(--color-text-primary)' }}
+                              >
+                                {sub.displayName}
+                              </h4>
+                              <span
+                                className="px-2 py-1 text-xs rounded font-medium"
+                                style={{
+                                  backgroundColor: 'color-mix(in srgb, var(--color-accent-primary) 20%, transparent)',
+                                  color: 'var(--color-accent-primary)',
+                                  borderColor: 'var(--color-border-primary)',
+                                  borderWidth: '1px',
+                                  borderStyle: 'solid',
+                                }}
+                              >
                                 {sub.subscriptionType === 'pull' ? 'Pull' : 'Push'}
                               </span>
                             </div>
-                            <div className="space-y-1 text-sm text-slate-400">
+                            <div
+                              className="space-y-1 text-sm"
+                              style={{ color: 'var(--color-text-secondary)' }}
+                            >
                               <div className="flex items-center gap-2">
                                 <span>Topic:</span>
-                                <code className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">
+                                <code
+                                  className="text-xs px-2 py-1 rounded"
+                                  style={{
+                                    backgroundColor: 'var(--color-bg-code)',
+                                    color: 'var(--color-text-primary)',
+                                  }}
+                                >
                                   {sub.topic.split('/').pop()}
                                 </code>
                               </div>
                               {sub.deadLetterPolicy && (
                                 <div className="flex items-center gap-2">
                                   <span>Max Delivery Attempts:</span>
-                                  <span className="text-slate-300">{sub.deadLetterPolicy.maxDeliveryAttempts}</span>
+                                  <span style={{ color: 'var(--color-text-primary)' }}>
+                                    {sub.deadLetterPolicy.maxDeliveryAttempts}
+                                  </span>
                                 </div>
                               )}
                             </div>
                           </div>
                           {onSelectSubscription && (
-                            <button
+                            <Button
+                              variant="default"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectSubscription(sub);
                               }}
-                              className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                             >
                               View
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -894,58 +1183,115 @@ export default function TopicDetails({ topic, allSubscriptions, allTopics, onDel
             </div>
 
             {/* Dead Letter Topics Used Section */}
-            <div className="bg-slate-800 rounded-lg border border-slate-700">
-              <div className="px-6 py-4 border-b border-slate-700">
-                <h3 className="text-lg font-semibold">Dead Letter Topics Used</h3>
-                <p className="text-sm text-slate-400 mt-1">Dead letter topics used by subscriptions subscribed to this topic</p>
+            <div
+              className="rounded-lg border"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-border-primary)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+              }}
+            >
+              <div
+                className="px-6 py-4 border-b"
+                style={{
+                  borderBottomColor: 'var(--color-border-primary)',
+                  borderBottomWidth: '1px',
+                  borderBottomStyle: 'solid',
+                }}
+              >
+                <h3
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Dead Letter Topics Used
+                </h3>
+                <p
+                  className="text-sm mt-1"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  Dead letter topics used by subscriptions subscribed to this topic
+                </p>
               </div>
 
               <div className="p-6">
                 {loadingRelations ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="text-slate-400">Loading...</div>
+                    <div style={{ color: 'var(--color-text-secondary)' }}>Loading...</div>
                   </div>
                 ) : (deadLetterTopics?.length ?? 0) === 0 ? (
                   <div className="text-center py-8">
-                    <svg className="w-12 h-12 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                    </svg>
-                    <p className="text-slate-400">No dead letter topics are used by subscriptions subscribed to this topic</p>
+                    <MessageSquare
+                      className="w-12 h-12 mx-auto mb-4"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    />
+                    <p style={{ color: 'var(--color-text-secondary)' }}>
+                      No dead letter topics are used by subscriptions subscribed to this topic
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {(deadLetterTopics || []).map((dlTopic) => (
                       <div
                         key={dlTopic.name}
-                        className={`p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors ${
+                        className={`p-4 rounded-lg border transition-colors ${
                           onSelectTopic ? 'cursor-pointer' : ''
                         }`}
+                        style={{
+                          backgroundColor: 'var(--color-bg-tertiary)',
+                          borderColor: 'var(--color-border-primary)',
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (onSelectTopic) {
+                            e.currentTarget.style.borderColor = 'var(--color-border-secondary)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (onSelectTopic) {
+                            e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                          }
+                        }}
                         onClick={() => onSelectTopic?.(dlTopic)}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                              </svg>
-                              <h4 className="font-semibold text-slate-200">{dlTopic.displayName}</h4>
+                              <MessageSquare
+                                className="w-5 h-5"
+                                style={{ color: 'var(--color-error)' }}
+                              />
+                              <h4
+                                className="font-semibold"
+                                style={{ color: 'var(--color-text-primary)' }}
+                              >
+                                {dlTopic.displayName}
+                              </h4>
                             </div>
-                            <div className="text-sm text-slate-400">
-                              <code className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">
+                            <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                              <code
+                                className="text-xs px-2 py-1 rounded"
+                                style={{
+                                  backgroundColor: 'var(--color-bg-code)',
+                                  color: 'var(--color-text-primary)',
+                                }}
+                              >
                                 {dlTopic.name}
                               </code>
                             </div>
                           </div>
                           {onSelectTopic && (
-                            <button
+                            <Button
+                              variant="default"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectTopic(dlTopic);
                               }}
-                              className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                             >
                               View
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>

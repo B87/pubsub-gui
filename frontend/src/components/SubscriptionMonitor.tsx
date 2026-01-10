@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Search, X, Clock, Check } from 'lucide-react';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import {
   StartMonitor,
@@ -16,7 +17,7 @@ import SeekDialog from './SeekDialog';
 import type { PubSubMessage } from '../types';
 import type { Subscription } from '../types';
 import { useKeyboardShortcuts, isInputFocused, formatShortcut } from '../hooks/useKeyboardShortcuts';
-import { Alert, AlertDescription } from './ui';
+import { Alert, AlertDescription, Button, Input, Checkbox } from './ui';
 
 interface SubscriptionMonitorProps {
   subscription: Subscription;
@@ -201,134 +202,190 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
   ]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-100">{subscription.displayName}</h2>
-            <p className="text-sm text-slate-400 mt-1">Subscription Monitor</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Message Count */}
-            <div className="text-sm text-slate-400">
-              {messages.length} message{messages.length !== 1 ? 's' : ''}
-            </div>
+    <div
+      className="flex flex-col h-full rounded-lg border overflow-hidden"
+      style={{
+        backgroundColor: 'var(--color-bg-secondary)',
+        borderColor: 'var(--color-border-primary)',
+      }}
+    >
+      {/* Error Notification */}
+      {error && (
+        <Alert variant="destructive" className="border-b-0 rounded-none">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-            {/* Auto-Ack Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoAck}
-                onChange={(e) => handleToggleAutoAck(e.target.checked)}
-                className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-green-500 focus:ring-green-500"
-              />
-              <span className="text-sm text-slate-300">Auto-ack</span>
-            </label>
-
-            {/* Seek Button */}
-            <button
-              onClick={() => setIsSeekDialogOpen(true)}
-              className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors flex items-center gap-2"
-              title="Seek subscription to replay messages from a specific time"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Seek
-            </button>
-
-            {/* Clear Buffer Button */}
-            <button
-              onClick={handleClearBuffer}
-              disabled={messages.length === 0}
-              className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
-            >
-              Clear Buffer
-            </button>
-
-            {/* Start/Stop Button */}
-            {isMonitoring ? (
-              <button
-                onClick={handleStopMonitoring}
-                disabled={isLoading}
-                className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded transition-colors"
-                title={`Stop monitoring (${formatShortcut({ key: 'm', ctrlOrCmd: true })})`}
-              >
-                {isLoading ? 'Stopping...' : 'Stop Monitoring'}
-              </button>
-            ) : (
-              <button
-                onClick={handleStartMonitoring}
-                disabled={isLoading}
-                className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded transition-colors"
-                title={`Start monitoring (${formatShortcut({ key: 'm', ctrlOrCmd: true })})`}
-              >
-                {isLoading ? 'Starting...' : 'Start Monitoring'}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Error Banner */}
-        {error && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Search Bar */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1 relative">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
+      {/* Toolbar */}
+      <div
+        className="p-4 border-b"
+        style={{
+          borderBottomColor: 'var(--color-border-primary)',
+          backgroundColor: 'color-mix(in srgb, var(--color-bg-secondary) 50%, transparent)',
+        }}
+      >
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex-1 max-w-md relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <Input
               type="text"
               placeholder="Search messages (payload, attributes, ID)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="pl-10 pr-10"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-muted)';
+                }}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
-          {searchQuery && (
-            <div className="text-sm text-slate-400">
-              {filteredMessages.length} of {messages.length} messages
+
+          <div className="flex items-center gap-4">
+            {searchQuery ? (
+              <div
+                className="text-xs"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                {filteredMessages.length} of {messages.length} messages
+              </div>
+            ) : (
+              <div
+                className="text-xs"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                {messages.length} messages
+              </div>
+            )}
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={autoAck}
+                onCheckedChange={(checked) => handleToggleAutoAck(checked === true)}
+              />
+              <span
+                className="text-xs"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                Auto-ack
+              </span>
+            </label>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearBuffer}
+              disabled={messages.length === 0}
+            >
+              Clear
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSeekDialogOpen(true)}
+              title="Seek subscription to replay messages from a specific time"
+            >
+              <Clock className="w-4 h-4 mr-1" />
+              Seek
+            </Button>
+
+            <div className="flex items-center gap-2">
+              {isMonitoring ? (
+                <span
+                  className="flex items-center gap-1.5 text-xs font-medium"
+                  style={{ color: 'var(--color-success)' }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full animate-pulse"
+                    style={{ backgroundColor: 'var(--color-success)' }}
+                  ></span>
+                  Monitoring
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleStartMonitoring}
+                  disabled={isLoading}
+                  loading={isLoading}
+                  title={`Start monitoring (${formatShortcut({ key: 'm', ctrlOrCmd: true })})`}
+                  style={{
+                    backgroundColor: 'var(--color-success)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-success-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-success)';
+                  }}
+                >
+                  {isLoading ? 'Starting...' : 'Start Monitoring'}
+                </Button>
+              )}
+              {isMonitoring && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleStopMonitoring}
+                  disabled={isLoading}
+                  loading={isLoading}
+                  title={`Stop monitoring (${formatShortcut({ key: 'm', ctrlOrCmd: true })})`}
+                >
+                  {isLoading ? 'Stopping...' : 'Stop'}
+                </Button>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* Message Table */}
-      <div ref={parentRef} className="flex-1 overflow-auto">
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-auto"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--color-bg-tertiary) 30%, transparent)',
+        }}
+      >
         {isLoading && messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-slate-400">Connecting to subscription...</div>
+            <div style={{ color: 'var(--color-text-muted)' }}>Connecting to subscription...</div>
           </div>
         ) : filteredMessages.length === 0 && searchQuery ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <svg className="w-16 h-16 text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <div className="text-slate-400 mb-1">No messages match your search</div>
+            <Search
+              className="w-16 h-16 mb-4"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <div
+              className="mb-1"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              No messages match your search
+            </div>
             <button
               onClick={() => setSearchQuery('')}
-              className="text-sm text-green-400 hover:text-green-300"
+              className="text-sm"
+              style={{ color: 'var(--color-accent-primary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-primary)';
+              }}
             >
               Clear search
             </button>
@@ -336,35 +393,68 @@ export default function SubscriptionMonitor({ subscription }: SubscriptionMonito
         ) : filteredMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <div className="text-slate-400 mb-2">No messages received yet</div>
-              <div className="text-sm text-slate-500">
+              <div
+                className="mb-2"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                No messages received yet
+              </div>
+              <div
+                className="text-sm"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
                 {isMonitoring ? 'Waiting for messages...' : 'Start monitoring to receive messages'}
               </div>
             </div>
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-slate-800 sticky top-0 z-10 border-b-2 border-slate-700">
+            <thead
+              className="sticky top-0 z-10 border-b-2"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderBottomColor: 'var(--color-border-primary)',
+              }}
+            >
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Time
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Message ID
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Payload Preview
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Attributes
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Attempt
                 </th>
                 <th className="px-4 py-3 w-12"></th>
               </tr>
             </thead>
-            <tbody className="bg-slate-800/50">
+            <tbody
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-bg-secondary) 50%, transparent)',
+              }}
+            >
               {/* Virtual spacer before visible items */}
               {virtualizer.getVirtualItems().length > 0 && virtualizer.getVirtualItems()[0].start > 0 && (
                 <tr>

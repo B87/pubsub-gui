@@ -1,8 +1,10 @@
 import { useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
+import { Bell, Copy, Edit2, Trash2 } from "lucide-react";
 import SubscriptionMonitor from "./SubscriptionMonitor";
 import SnapshotManager from "./SnapshotManager";
 import DeleteConfirmDialog from "./DeleteConfirmDialog";
+import { Button } from "./ui";
 import type { Subscription } from "../types";
 
 interface SubscriptionDetailsProps {
@@ -24,51 +26,99 @@ export default function SubscriptionDetails({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full p-8">
+      <style>{`
+        [data-state="active"] {
+          color: var(--color-text-primary) !important;
+          border-bottom-color: var(--color-accent-primary) !important;
+        }
+      `}</style>
       <Tabs.Root
         value={activeTab}
         onValueChange={setActiveTab}
         className="flex flex-col flex-1"
       >
-        <div className="p-8 border-b border-slate-700">
-          <div className="w-full">
+        <div className="w-full">
             {/* Header */}
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
-                <svg
-                  className="w-8 h-8 text-green-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <div
+                  className="h-8 w-8 rounded flex items-center justify-center"
+                  style={{ backgroundColor: 'var(--color-accent-primary)' }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                  />
-                </svg>
+                  <Bell className="h-5 w-5" style={{ color: 'white' }} />
+                </div>
                 <div>
-                  <h2 className="text-2xl font-bold">
+                  <h2
+                    className="text-2xl font-bold"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
                     {subscription.displayName}
                   </h2>
-                  <p className="text-sm text-slate-400">Subscription</p>
+                  <p
+                    className="text-sm"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Subscription
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Tabs */}
-            <Tabs.List className="flex gap-2 border-b border-slate-700">
+            <div
+              className="mb-6 border-b"
+              style={{
+                borderBottomColor: 'var(--color-border-primary)',
+                borderBottomWidth: '1px',
+                borderBottomStyle: 'solid',
+              }}
+            >
+              <Tabs.List
+                className="flex gap-4"
+              >
               <Tabs.Trigger
                 value="metadata"
-                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+                className="px-4 py-2 font-medium transition-colors relative"
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  borderBottomWidth: '2px',
+                  borderBottomStyle: 'solid',
+                  borderBottomColor: 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (e.currentTarget.getAttribute('data-state') !== 'active') {
+                    e.currentTarget.style.color = 'var(--color-text-primary)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (e.currentTarget.getAttribute('data-state') !== 'active') {
+                    e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  }
+                }}
               >
                 Metadata
               </Tabs.Trigger>
               {subscription.subscriptionType === "pull" && (
                 <Tabs.Trigger
                   value="monitor"
-                  className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+                  className="px-4 py-2 font-medium transition-colors relative"
+                  style={{
+                    color: 'var(--color-text-secondary)',
+                    borderBottomWidth: '2px',
+                    borderBottomStyle: 'solid',
+                    borderBottomColor: 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (e.currentTarget.getAttribute('data-state') !== 'active') {
+                      e.currentTarget.style.color = 'var(--color-text-primary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (e.currentTarget.getAttribute('data-state') !== 'active') {
+                      e.currentTarget.style.color = 'var(--color-text-secondary)';
+                    }
+                  }}
                 >
                   Monitor
                 </Tabs.Trigger>
@@ -76,39 +126,72 @@ export default function SubscriptionDetails({
               {subscription.subscriptionType === "pull" && (
                 <Tabs.Trigger
                   value="snapshots"
-                  className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-b-2 data-[state=active]:border-green-500 transition-colors"
+                  className="px-4 py-2 font-medium transition-colors relative"
+                  style={{
+                    color: 'var(--color-text-secondary)',
+                    borderBottomWidth: '2px',
+                    borderBottomStyle: 'solid',
+                    borderBottomColor: 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (e.currentTarget.getAttribute('data-state') !== 'active') {
+                      e.currentTarget.style.color = 'var(--color-text-primary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (e.currentTarget.getAttribute('data-state') !== 'active') {
+                      e.currentTarget.style.color = 'var(--color-text-secondary)';
+                    }
+                  }}
                 >
                   Snapshots
                 </Tabs.Trigger>
               )}
-            </Tabs.List>
+              </Tabs.List>
+            </div>
           </div>
-        </div>
 
         {/* Tab Content */}
         <Tabs.Content value="metadata" className="flex-1 overflow-auto">
-          <div className="p-8">
-            <div className="w-full">
+          <div className="w-full">
               {/* Metadata Card */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700">
-                <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Metadata</h3>
+              <div
+                className="rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  borderColor: 'var(--color-border-primary)',
+                }}
+              >
+                <div
+                  className="px-6 py-4 border-b flex items-center justify-between"
+                  style={{ borderBottomColor: 'var(--color-border-primary)' }}
+                >
+                  <h3
+                    className="text-lg font-semibold"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    Metadata
+                  </h3>
                   <div className="flex gap-2">
                     {onEdit && (
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => onEdit(subscription)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
                       >
+                        <Edit2 className="w-4 h-4 mr-1" />
                         Edit
-                      </button>
+                      </Button>
                     )}
                     {onDelete && (
-                      <button
+                      <Button
+                        variant="destructive"
+                        size="sm"
                         onClick={() => setShowDeleteDialog(true)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
                       >
+                        <Trash2 className="w-4 h-4 mr-1" />
                         Delete
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -116,54 +199,83 @@ export default function SubscriptionDetails({
                 <div className="p-6 space-y-4">
                   {/* Full Name */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                    <label
+                      className="block text-sm font-medium mb-1"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
                       Full Resource Name
                     </label>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 bg-slate-900 rounded text-sm font-mono overflow-x-auto">
+                      <code
+                        className="flex-1 px-3 py-2 rounded text-sm font-mono overflow-x-auto"
+                        style={{
+                          backgroundColor: 'var(--color-bg-code)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
                         {subscription.name}
                       </code>
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => copyToClipboard(subscription.name)}
-                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
                         title="Copy to clipboard"
                       >
+                        <Copy className="w-4 h-4 mr-1" />
                         Copy
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {/* Topic */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                    <label
+                      className="block text-sm font-medium mb-1"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
                       Topic
                     </label>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 bg-slate-900 rounded text-sm font-mono overflow-x-auto">
+                      <code
+                        className="flex-1 px-3 py-2 rounded text-sm font-mono overflow-x-auto"
+                        style={{
+                          backgroundColor: 'var(--color-bg-code)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
                         {subscription.topic}
                       </code>
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => copyToClipboard(subscription.topic)}
-                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
                         title="Copy to clipboard"
                       >
+                        <Copy className="w-4 h-4 mr-1" />
                         Copy
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {/* Subscription Type */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                    <label
+                      className="block text-sm font-medium mb-1"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
                       Subscription Type
                     </label>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`px-3 py-2 rounded text-sm font-medium ${
-                          subscription.subscriptionType === "pull"
-                            ? "bg-blue-900/50 text-blue-300 border border-blue-700"
-                            : "bg-purple-900/50 text-purple-300 border border-purple-700"
-                        }`}
+                        className="px-3 py-2 rounded text-sm font-medium border"
+                        style={{
+                          backgroundColor:
+                            subscription.subscriptionType === "pull"
+                              ? 'color-mix(in srgb, var(--color-accent-primary) 15%, transparent)'
+                              : 'color-mix(in srgb, var(--color-accent-primary) 15%, transparent)',
+                          color: 'var(--color-accent-primary)',
+                          borderColor: 'var(--color-accent-primary)',
+                        }}
                       >
                         {subscription.subscriptionType === "pull"
                           ? "Pull"
@@ -172,17 +284,29 @@ export default function SubscriptionDetails({
                       {subscription.subscriptionType === "push" &&
                         subscription.pushEndpoint && (
                           <div className="flex-1">
-                            <span className="text-xs text-slate-500 mr-2">
+                            <span
+                              className="text-xs mr-2"
+                              style={{ color: 'var(--color-text-muted)' }}
+                            >
                               Endpoint:
                             </span>
-                            <code className="px-3 py-2 bg-slate-900 rounded text-sm font-mono">
+                            <code
+                              className="px-3 py-2 rounded text-sm font-mono"
+                              style={{
+                                backgroundColor: 'var(--color-bg-code)',
+                                color: 'var(--color-text-primary)',
+                              }}
+                            >
                               {subscription.pushEndpoint}
                             </code>
                           </div>
                         )}
                     </div>
                     {subscription.subscriptionType === "push" && (
-                      <p className="mt-2 text-xs text-slate-500">
+                      <p
+                        className="mt-2 text-xs"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
                         Push subscriptions deliver messages via HTTP POST to an
                         endpoint. Monitoring is not available for push
                         subscriptions.
@@ -192,20 +316,38 @@ export default function SubscriptionDetails({
 
                   {/* Ack Deadline */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                    <label
+                      className="block text-sm font-medium mb-1"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
                       Acknowledgement Deadline
                     </label>
-                    <p className="px-3 py-2 bg-slate-900 rounded">
+                    <p
+                      className="px-3 py-2 rounded"
+                      style={{
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        color: 'var(--color-text-primary)',
+                      }}
+                    >
                       {subscription.ackDeadline} seconds
                     </p>
                   </div>
 
                   {/* Retention Duration */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                    <label
+                      className="block text-sm font-medium mb-1"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
                       Message Retention Duration
                     </label>
-                    <p className="px-3 py-2 bg-slate-900 rounded">
+                    <p
+                      className="px-3 py-2 rounded"
+                      style={{
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        color: 'var(--color-text-primary)',
+                      }}
+                    >
                       {subscription.retentionDuration}
                     </p>
                   </div>
@@ -213,10 +355,19 @@ export default function SubscriptionDetails({
                   {/* Filter */}
                   {subscription.filter && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-1">
+                      <label
+                        className="block text-sm font-medium mb-1"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
                         Filter Expression
                       </label>
-                      <code className="block px-3 py-2 bg-slate-900 rounded text-sm font-mono overflow-x-auto">
+                      <code
+                        className="block px-3 py-2 rounded text-sm font-mono overflow-x-auto"
+                        style={{
+                          backgroundColor: 'var(--color-bg-code)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
                         {subscription.filter}
                       </code>
                     </div>
@@ -225,23 +376,41 @@ export default function SubscriptionDetails({
                   {/* Dead Letter Policy */}
                   {subscription.deadLetterPolicy && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">
+                      <label
+                        className="block text-sm font-medium mb-2"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
                         Dead Letter Policy
                       </label>
-                      <div className="bg-slate-900 rounded p-4 space-y-2">
+                      <div
+                        className="rounded p-4 space-y-2"
+                        style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
+                      >
                         <div>
-                          <span className="text-sm text-slate-400">
+                          <span
+                            className="text-sm"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                          >
                             Dead Letter Topic:
                           </span>
-                          <code className="block text-sm font-mono mt-1">
+                          <code
+                            className="block text-sm font-mono mt-1"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
                             {subscription.deadLetterPolicy.deadLetterTopic}
                           </code>
                         </div>
                         <div>
-                          <span className="text-sm text-slate-400">
+                          <span
+                            className="text-sm"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                          >
                             Max Delivery Attempts:
                           </span>
-                          <p className="text-sm mt-1">
+                          <p
+                            className="text-sm mt-1"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
                             {subscription.deadLetterPolicy.maxDeliveryAttempts}
                           </p>
                         </div>
@@ -250,7 +419,6 @@ export default function SubscriptionDetails({
                   )}
                 </div>
               </div>
-            </div>
           </div>
         </Tabs.Content>
 

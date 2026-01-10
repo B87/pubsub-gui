@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Archive, RefreshCw, Clock, Trash2 } from 'lucide-react';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import {
   ListSnapshotsForSubscription,
@@ -161,15 +162,18 @@ export default function SnapshotManager({ subscription }: SnapshotManagerProps) 
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={loadSnapshots}
-            className="px-3 py-2 text-sm rounded border transition-colors hover:bg-slate-700"
-            style={{ borderColor: 'var(--color-border-primary)' }}
             disabled={isLoading}
+            loading={isLoading}
           >
+            <RefreshCw className="w-4 h-4 mr-1" />
             {isLoading ? 'Loading...' : 'Refresh'}
-          </button>
+          </Button>
           <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Archive className="w-4 h-4 mr-1" />
             Create Snapshot
           </Button>
         </div>
@@ -195,20 +199,10 @@ export default function SnapshotManager({ subscription }: SnapshotManagerProps) 
             borderColor: 'var(--color-border-primary)',
           }}
         >
-          <svg
+          <Archive
             className="w-12 h-12 mx-auto mb-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
             style={{ color: 'var(--color-text-muted)' }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-            />
-          </svg>
+          />
           <p style={{ color: 'var(--color-text-secondary)' }}>No snapshots available</p>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
             Create a snapshot to preserve the current message state for replay
@@ -234,22 +228,32 @@ export default function SnapshotManager({ subscription }: SnapshotManagerProps) 
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => openSeekDialog(snapshot)}
-                  className="px-3 py-1.5 text-sm rounded transition-colors bg-green-600 hover:bg-green-700 text-white"
-                >
-                  Seek
-                </button>
-                <button
-                  onClick={() => openDeleteDialog(snapshot)}
-                  className="px-3 py-1.5 text-sm rounded transition-colors"
                   style={{
-                    backgroundColor: 'var(--color-error-bg)',
-                    color: 'var(--color-error)',
+                    backgroundColor: 'var(--color-success)',
+                    color: 'white',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-success-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-success)';
                   }}
                 >
+                  <Clock className="w-4 h-4 mr-1" />
+                  Seek
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => openDeleteDialog(snapshot)}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
                   Delete
-                </button>
+                </Button>
               </div>
             </div>
           ))}

@@ -12,3 +12,4 @@ build/darwin
 build/windows
 
 dist/
+frontend/src/assets/.DS_Store

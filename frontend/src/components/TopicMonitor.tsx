@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Search, X, Info } from 'lucide-react';
 import { useMessageSearch } from '../hooks/useMessageSearch';
 import MessageRow from './MessageRow';
 import MessageDetailDialog from './MessageDetailDialog';
 import type { PubSubMessage, Topic, Subscription } from '../types';
-import { Alert, AlertTitle, AlertDescription } from './ui';
+import { Alert, AlertTitle, AlertDescription, Button, Input, Checkbox, Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui';
 
 interface TopicMonitorProps {
   topic: Topic;
@@ -81,7 +82,13 @@ export default function TopicMonitor({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-280px)] bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+    <div
+      className="flex flex-col h-full rounded-lg border overflow-hidden"
+      style={{
+        backgroundColor: 'var(--color-bg-secondary)',
+        borderColor: 'var(--color-border-primary)',
+      }}
+    >
       {/* Error Notification */}
       {monitoringError && (
         <Alert variant="destructive" className="border-b-0 rounded-none">
@@ -91,78 +98,110 @@ export default function TopicMonitor({
       )}
 
       {/* Toolbar */}
-      <div className="p-4 border-b border-slate-700 bg-slate-800/50">
+      <div
+        className="p-4 border-b"
+        style={{
+          borderBottomColor: 'var(--color-border-primary)',
+          backgroundColor: 'color-mix(in srgb, var(--color-bg-secondary) 50%, transparent)',
+        }}
+      >
         <div className="flex items-center justify-between gap-4 mb-3">
           <div className="flex-1 max-w-md relative">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <Input
               type="text"
               placeholder="Search messages (payload, attributes, ID)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="pl-10 pr-10"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-muted)';
+                }}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
           <div className="flex items-center gap-4">
             {searchQuery ? (
-              <div className="text-xs text-slate-400">
+              <div
+                className="text-xs"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
                 {filteredMessages.length} of {messages.length} messages
               </div>
             ) : (
-              <div className="text-xs text-slate-400">
+              <div
+                className="text-xs"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
                 {messages.length} messages
               </div>
             )}
 
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={autoAck}
-                onChange={(e) => onToggleAutoAck(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-blue-500"
+                onCheckedChange={(checked) => onToggleAutoAck(checked === true)}
               />
-              <span className="text-xs text-slate-300">Auto-ack</span>
+              <span
+                className="text-xs"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                Auto-ack
+              </span>
             </label>
 
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={onClearBuffer}
               disabled={messages.length === 0}
-              className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded transition-colors"
             >
               Clear
-            </button>
+            </Button>
 
             <div className="flex items-center gap-2">
               {isMonitoring ? (
-                <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                <span
+                  className="flex items-center gap-1.5 text-xs font-medium"
+                  style={{ color: 'var(--color-success)' }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full animate-pulse"
+                    style={{ backgroundColor: 'var(--color-success)' }}
+                  ></span>
                   Monitoring
                 </span>
               ) : (
-                <button
+                <Button
+                  size="sm"
                   onClick={onStartMonitoring}
-                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 rounded transition-colors font-medium"
+                  style={{
+                    backgroundColor: 'var(--color-success)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-success-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-success)';
+                  }}
                 >
                   Start Monitoring
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -170,26 +209,35 @@ export default function TopicMonitor({
 
         {/* Subscription Selector */}
         <div className="flex items-center gap-3">
-          <label className="text-xs text-slate-400 whitespace-nowrap">Subscription:</label>
-          <select
-            value={selectedSubscription || ''}
-            onChange={(e) => onSubscriptionChange(e.target.value || null)}
-            disabled={isMonitoring}
-            className="flex-1 max-w-xs px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={isMonitoring ? 'Stop monitoring to change subscription' : 'Select a subscription to monitor or use auto-create'}
+          <label
+            className="text-xs whitespace-nowrap"
+            style={{ color: 'var(--color-text-secondary)' }}
           >
-            <option value="">Auto-create subscription</option>
-            {subscriptions.map((sub) => (
-              <option key={sub.name} value={sub.name}>
-                {sub.displayName}
-              </option>
-            ))}
-          </select>
+            Subscription:
+          </label>
+          <Select
+            value={selectedSubscription || 'none'}
+            onValueChange={(value) => onSubscriptionChange(value === 'none' ? null : value)}
+            disabled={isMonitoring}
+          >
+            <SelectTrigger className="flex-1 max-w-xs" title={isMonitoring ? 'Stop monitoring to change subscription' : 'Select a subscription to monitor or use auto-create'}>
+              <SelectValue placeholder="Auto-create subscription" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Auto-create subscription</SelectItem>
+              {subscriptions.map((sub) => (
+                <SelectItem key={sub.name} value={sub.name}>
+                  {sub.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {isMonitoring && tempSubId && (
-            <div className="text-xs text-slate-500 flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div
+              className="text-xs flex items-center gap-1"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              <Info className="w-3 h-3" />
               <span>
                 {tempSubId.startsWith('ps-gui-mon-')
                   ? 'Using temporary subscription'
@@ -201,53 +249,105 @@ export default function TopicMonitor({
       </div>
 
       {/* Message Table */}
-      <div ref={parentRef} className="flex-1 overflow-auto bg-slate-900/30">
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-auto"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--color-bg-tertiary) 30%, transparent)',
+        }}
+      >
         {!isMonitoring ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-slate-500 mb-4">
+            <div
+              className="mb-4"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
               Click "Start Monitoring" to begin receiving messages
             </div>
           </div>
         ) : filteredMessages.length === 0 && searchQuery ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <svg className="w-16 h-16 text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <div className="text-slate-400 mb-1">No messages match your search</div>
+            <Search
+              className="w-16 h-16 mb-4"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <div
+              className="mb-1"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              No messages match your search
+            </div>
             <button
               onClick={() => setSearchQuery('')}
-              className="text-sm text-blue-400 hover:text-blue-300"
+              className="text-sm"
+              style={{ color: 'var(--color-accent-primary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-primary)';
+              }}
             >
               Clear search
             </button>
           </div>
         ) : filteredMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-slate-500 mb-2">Waiting for messages...</div>
+            <div
+              className="mb-2"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Waiting for messages...
+            </div>
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-slate-800 sticky top-0 z-10 border-b-2 border-slate-700">
+            <thead
+              className="sticky top-0 z-10 border-b-2"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderBottomColor: 'var(--color-border-primary)',
+              }}
+            >
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Time
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Message ID
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Payload Preview
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Attributes
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <th
+                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   Attempt
                 </th>
                 <th className="px-4 py-3 w-12"></th>
               </tr>
             </thead>
-            <tbody className="bg-slate-800/50">
+            <tbody
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-bg-secondary) 50%, transparent)',
+              }}
+            >
               {/* Virtual spacer before visible items */}
               {virtualizer.getVirtualItems().length > 0 && virtualizer.getVirtualItems()[0].start > 0 && (
                 <tr>

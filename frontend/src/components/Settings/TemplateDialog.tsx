@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { models } from '../../wailsjs/go/models';
-import { Button, Input, Label, FormField, Select, SelectTrigger, SelectContent, SelectItem, SelectValue, Checkbox, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Alert, AlertDescription } from '../ui';
+import { Button, Input, Label, FormField, Select, SelectTrigger, SelectContent, SelectItem, SelectValue, Checkbox, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Alert, AlertDescription, Separator } from '../ui';
 
 interface TemplateDialogProps {
   template: models.TopicSubscriptionTemplate | null;
@@ -134,16 +134,16 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Edit Template' : 'Create Template'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="space-y-4">
           {(error || externalError) && (
-            <Alert variant="destructive" showIcon>
+            <Alert variant="destructive">
               <AlertDescription>{error || externalError}</AlertDescription>
             </Alert>
           )}
@@ -187,7 +187,7 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                   color: 'var(--color-text-primary)',
                   borderColor: 'var(--color-border-primary)',
                 }}
-                className="w-full px-3 py-2 rounded-md text-sm border focus:outline-none focus:ring-2 resize-none"
+                className="w-full px-3 py-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-offset-0 resize-none"
               />
             </FormField>
 
@@ -209,8 +209,14 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
           </div>
 
           {/* Topic Config */}
-          <div className="space-y-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
-            <h4 className="font-medium">Topic Configuration</h4>
+          <div className="space-y-4 pt-4">
+            <Separator className="mb-4" />
+            <h4
+              className="font-medium"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              Topic Configuration
+            </h4>
             <FormField
               label="Message Retention Duration"
               helperText="Format: 10m, 1h, 24h, 168h (7 days), 720h (30 days). Leave empty for default."
@@ -225,8 +231,14 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
           </div>
 
           {/* Subscription Config */}
-          <div className="space-y-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
-            <h4 className="font-medium">Subscription Configuration</h4>
+          <div className="space-y-4 pt-4">
+            <Separator className="mb-4" />
+            <h4
+              className="font-medium"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              Subscription Configuration
+            </h4>
             <FormField label="Subscription Name">
               <Input
                 type="text"
@@ -266,7 +278,13 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                   checked={formData.enableExactlyOnce}
                   onCheckedChange={(checked) => { setFormData({ ...formData, enableExactlyOnce: checked === true }); }}
                 />
-                <Label htmlFor="exactly-once" className="text-sm">Enable Exactly-Once Delivery</Label>
+                <Label
+                  htmlFor="exactly-once"
+                  className="text-sm"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Enable Exactly-Once Delivery
+                </Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -274,7 +292,13 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
                   checked={formData.enableOrdering}
                   onCheckedChange={(checked) => { setFormData({ ...formData, enableOrdering: checked === true }); }}
                 />
-                <Label htmlFor="ordering" className="text-sm">Enable Message Ordering</Label>
+                <Label
+                  htmlFor="ordering"
+                  className="text-sm"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Enable Message Ordering
+                </Label>
               </div>
             </div>
 
@@ -289,14 +313,21 @@ export default function TemplateDialog({ template, onSave, onClose, error: exter
           </div>
 
           {/* Dead Letter Config */}
-          <div className="space-y-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
+          <div className="space-y-4 pt-4">
+            <Separator className="mb-4" />
             <div className="flex items-center gap-2">
               <Checkbox
                 id="dead-letter"
                 checked={formData.hasDeadLetter}
                 onCheckedChange={(checked) => { setFormData({ ...formData, hasDeadLetter: checked === true }); }}
               />
-              <Label htmlFor="dead-letter" className="font-medium">Enable Dead Letter Queue</Label>
+              <Label
+                htmlFor="dead-letter"
+                className="font-medium"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                Enable Dead Letter Queue
+              </Label>
             </div>
 
             {formData.hasDeadLetter && (

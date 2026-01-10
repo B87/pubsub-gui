@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import StatusIndicator from './StatusIndicator';
+import { Search, RefreshCw, Plus, Settings, ChevronRight, Edit2 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import ConnectionDropdown from './ConnectionDropdown';
+import { Input } from './ui';
 import type { Topic, Subscription, ConnectionStatus } from '../types';
 import { GetVersion } from '../../wailsjs/go/main/App';
+import appIcon from '../assets/images/appicon.png';
 
 interface SidebarProps {
   status: ConnectionStatus;
@@ -71,22 +74,47 @@ export default function Sidebar({
     sub.displayName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getStatusType = (): 'connected' | 'disconnected' | 'connecting' | 'emulator' => {
-    if (!status.isConnected) return 'disconnected';
-    if (status.emulatorHost) return 'emulator';
-    return 'connected';
-  };
-
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full"
+      style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+    >
       {/* Header */}
-      <div className="p-4 border-b border-slate-700">
+      <div
+        className="p-4 border-b"
+        style={{
+          borderBottomColor: 'var(--color-border-primary)',
+          borderBottomWidth: '1px',
+          borderBottomStyle: 'solid',
+        }}
+      >
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-lg font-bold">Pub/Sub GUI</h1>
+          <div className="flex items-center gap-2">
+            <div className="h-12 w-12 flex items-center justify-center shrink-0">
+              <img
+                src={appIcon}
+                alt="Pub/Sub GUI"
+                className="h-full w-auto object-contain"
+              />
+            </div>
+            <h1
+              className="text-lg font-semibold"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              Pub/Sub GUI
+            </h1>
+          </div>
           {status.isConnected && (
             <button
               onClick={onDisconnect}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              className="text-xs transition-colors"
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }}
               title="Disconnect"
             >
               Disconnect
@@ -138,19 +166,51 @@ export default function Sidebar({
 
       {/* Search & Actions */}
       {status.isConnected && (
-        <div className="p-4 border-b border-slate-700 space-y-2">
-          <input
-            type="text"
-            placeholder="Search resources..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        <div
+          className="p-4 border-b space-y-2"
+          style={{
+            borderBottomColor: 'var(--color-border-primary)',
+            borderBottomWidth: '1px',
+            borderBottomStyle: 'solid',
+          }}
+        >
+          <div className="relative">
+            <Search
+              className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5"
+              style={{ color: 'var(--color-text-secondary)' }}
+            />
+            <Input
+              type="text"
+              placeholder="Search resources..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 h-8 text-sm"
+              style={{
+                backgroundColor: 'var(--color-bg-tertiary)',
+                borderColor: 'var(--color-border-primary)',
+              }}
+            />
+          </div>
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="w-full px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700 disabled:opacity-50 text-sm rounded-md transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: 'var(--color-bg-tertiary)',
+              color: 'var(--color-text-primary)',
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+              }
+            }}
           >
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             {loading ? 'Refreshing...' : 'Refresh Resources'}
           </button>
         </div>
@@ -160,24 +220,48 @@ export default function Sidebar({
       {status.isConnected && (
         <div className="flex-1 overflow-y-auto">
           {/* Topics Section */}
-          <div className="border-b border-slate-700">
+          <div
+            className="border-b"
+            style={{
+              borderBottomColor: 'var(--color-border-primary)',
+              borderBottomWidth: '1px',
+              borderBottomStyle: 'solid',
+            }}
+          >
             <div className="flex items-center">
               <button
                 onClick={() => setTopicsExpanded(!topicsExpanded)}
-                className="flex-1 px-4 py-3 flex items-center justify-between hover:bg-slate-700 transition-colors"
+                className="flex-1 px-4 py-3 flex items-center justify-between transition-colors"
+                style={{ backgroundColor: 'transparent' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
               >
                 <div className="flex items-center gap-2">
-                  <svg
-                    className={`w-4 h-4 transition-transform ${topicsExpanded ? 'rotate-90' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <ChevronRight
+                    className={cn(
+                      'h-4 w-4 transition-transform',
+                      topicsExpanded && 'rotate-90'
+                    )}
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  />
+                  <span
+                    className="font-medium"
+                    style={{ color: 'var(--color-text-primary)' }}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span className="font-medium">Topics</span>
+                    Topics
+                  </span>
                 </div>
-                <span className="text-xs text-slate-400 bg-slate-700 px-2 py-1 rounded">
+                <span
+                  className="text-xs px-2 py-1 rounded"
+                  style={{
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
                   {filteredTopics.length}
                 </span>
               </button>
@@ -187,12 +271,19 @@ export default function Sidebar({
                     e.stopPropagation();
                     onCreateTopic();
                   }}
-                  className="px-3 py-3 text-blue-400 hover:text-blue-300 transition-colors"
+                  className="px-3 py-3 transition-colors"
+                  style={{ color: 'var(--color-accent-primary)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--color-accent-hover)';
+                    e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-accent-primary) 10%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--color-accent-primary)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                   title="Create topic"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="w-5 h-5" />
                 </button>
               )}
             </div>
@@ -200,30 +291,67 @@ export default function Sidebar({
             {topicsExpanded && (
               <div className="pb-2">
                 {loading ? (
-                  <div className="px-4 py-2 text-sm text-slate-400">Loading...</div>
+                  <div
+                    className="px-4 py-2 text-sm"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    Loading...
+                  </div>
                 ) : filteredTopics.length === 0 ? (
-                  <div className="px-4 py-2 text-sm text-slate-400">
+                  <div
+                    className="px-4 py-2 text-sm"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
                     {searchQuery ? 'No topics match your search' : 'No topics found'}
                   </div>
                 ) : (
-                  filteredTopics.map((topic) => (
-                    <button
-                      key={topic.name}
-                      onClick={() => onSelectTopic(topic)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-700 transition-colors ${
-                        selectedResource?.type === 'topic' && selectedResource?.id === topic.name
-                          ? 'bg-blue-900 border-l-4 border-blue-500'
-                          : ''
-                      }`}
-                    >
-                      <div className="truncate">{topic.displayName}</div>
-                      {topic.messageRetention && (
-                        <div className="text-xs text-slate-400 truncate">
-                          Retention: {topic.messageRetention}
+                  filteredTopics.map((topic) => {
+                    const isSelected =
+                      selectedResource?.type === 'topic' &&
+                      selectedResource?.id === topic.name;
+                    return (
+                      <button
+                        key={topic.name}
+                        onClick={() => onSelectTopic(topic)}
+                        className="w-full px-4 py-2 text-left text-sm transition-colors"
+                        style={{
+                          backgroundColor: isSelected
+                            ? 'color-mix(in srgb, var(--color-accent-primary) 15%, transparent)'
+                            : 'transparent',
+                          borderLeftWidth: isSelected ? '3px' : '0',
+                          borderLeftStyle: 'solid',
+                          borderLeftColor: isSelected
+                            ? 'var(--color-accent-primary)'
+                            : 'transparent',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        <div
+                          className="truncate"
+                          style={{ color: 'var(--color-text-primary)' }}
+                        >
+                          {topic.displayName}
                         </div>
-                      )}
-                    </button>
-                  ))
+                        {topic.messageRetention && (
+                          <div
+                            className="text-xs truncate"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                          >
+                            Retention: {topic.messageRetention}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -234,20 +362,37 @@ export default function Sidebar({
             <div className="flex items-center">
               <button
                 onClick={() => setSubscriptionsExpanded(!subscriptionsExpanded)}
-                className="flex-1 px-4 py-3 flex items-center justify-between hover:bg-slate-700 transition-colors"
+                className="flex-1 px-4 py-3 flex items-center justify-between transition-colors"
+                style={{ backgroundColor: 'transparent' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
               >
                 <div className="flex items-center gap-2">
-                  <svg
-                    className={`w-4 h-4 transition-transform ${subscriptionsExpanded ? 'rotate-90' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <ChevronRight
+                    className={cn(
+                      'h-4 w-4 transition-transform',
+                      subscriptionsExpanded && 'rotate-90'
+                    )}
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  />
+                  <span
+                    className="font-medium"
+                    style={{ color: 'var(--color-text-primary)' }}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span className="font-medium">Subscriptions</span>
+                    Subscriptions
+                  </span>
                 </div>
-                <span className="text-xs text-slate-400 bg-slate-700 px-2 py-1 rounded">
+                <span
+                  className="text-xs px-2 py-1 rounded"
+                  style={{
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
                   {filteredSubscriptions.length}
                 </span>
               </button>
@@ -257,12 +402,19 @@ export default function Sidebar({
                     e.stopPropagation();
                     onCreateSubscription();
                   }}
-                  className="px-3 py-3 text-blue-400 hover:text-blue-300 transition-colors"
+                  className="px-3 py-3 transition-colors"
+                  style={{ color: 'var(--color-accent-primary)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--color-accent-hover)';
+                    e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-accent-primary) 10%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--color-accent-primary)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                   title="Create subscription"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="w-5 h-5" />
                 </button>
               )}
             </div>
@@ -270,48 +422,99 @@ export default function Sidebar({
             {subscriptionsExpanded && (
               <div className="pb-2">
                 {loading ? (
-                  <div className="px-4 py-2 text-sm text-slate-400">Loading...</div>
+                  <div
+                    className="px-4 py-2 text-sm"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    Loading...
+                  </div>
                 ) : filteredSubscriptions.length === 0 ? (
-                  <div className="px-4 py-2 text-sm text-slate-400">
-                    {searchQuery ? 'No subscriptions match your search' : 'No subscriptions found'}
+                  <div
+                    className="px-4 py-2 text-sm"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    {searchQuery
+                      ? 'No subscriptions match your search'
+                      : 'No subscriptions found'}
                   </div>
                 ) : (
-                  filteredSubscriptions.map((sub) => (
-                    <div
-                      key={sub.name}
-                      className={`group relative ${
-                        selectedResource?.type === 'subscription' && selectedResource?.id === sub.name
-                          ? 'bg-blue-900 border-l-4 border-blue-500'
-                          : ''
-                      }`}
-                      onMouseEnter={() => setHoveredSubscription(sub.name)}
-                      onMouseLeave={() => setHoveredSubscription(null)}
-                    >
-                      <button
-                        onClick={() => onSelectSubscription(sub)}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 transition-colors"
+                  filteredSubscriptions.map((sub) => {
+                    const isSelected =
+                      selectedResource?.type === 'subscription' &&
+                      selectedResource?.id === sub.name;
+                    return (
+                      <div
+                        key={sub.name}
+                        className="group relative"
+                        style={{
+                          backgroundColor: isSelected
+                            ? 'color-mix(in srgb, var(--color-accent-primary) 15%, transparent)'
+                            : 'transparent',
+                          borderLeftWidth: isSelected ? '3px' : '0',
+                          borderLeftStyle: 'solid',
+                          borderLeftColor: isSelected
+                            ? 'var(--color-accent-primary)'
+                            : 'transparent',
+                        }}
+                        onMouseEnter={() => setHoveredSubscription(sub.name)}
+                        onMouseLeave={() => setHoveredSubscription(null)}
                       >
-                        <div className="truncate">{sub.displayName}</div>
-                        <div className="text-xs text-slate-400 truncate">
-                          Topic: {sub.topic.split('/').pop()}
-                        </div>
-                      </button>
-                      {onEditSubscription && hoveredSubscription === sub.name && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditSubscription(sub);
+                          onClick={() => onSelectSubscription(sub)}
+                          className="w-full px-4 py-2 text-left text-sm transition-colors"
+                          style={{ backgroundColor: 'transparent' }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                            }
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-colors"
-                          title="Edit subscription"
+                          onMouseLeave={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
+                          <div
+                            className="truncate"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
+                            {sub.displayName}
+                          </div>
+                          <div
+                            className="text-xs truncate"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                          >
+                            Topic: {sub.topic.split('/').pop()}
+                          </div>
                         </button>
-                      )}
-                    </div>
-                  ))
+                        {onEditSubscription && hoveredSubscription === sub.name && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditSubscription(sub);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded transition-colors"
+                            style={{
+                              color: 'var(--color-accent-primary)',
+                              backgroundColor: 'transparent',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--color-accent-hover)';
+                              e.currentTarget.style.backgroundColor =
+                                'color-mix(in srgb, var(--color-accent-primary) 20%, transparent)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--color-accent-primary)';
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Edit subscription"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -320,22 +523,42 @@ export default function Sidebar({
       )}
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-700">
+      <div
+        className="p-4 border-t"
+        style={{
+          borderTopColor: 'var(--color-border-primary)',
+          borderTopWidth: '1px',
+          borderTopStyle: 'solid',
+        }}
+      >
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs text-slate-400">
+          <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             <p>Pub/Sub Desktop GUI</p>
-            {version && <p className="mt-1">Version {version}</p>}
+            {version && (
+              <p className="mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                Version {version}
+              </p>
+            )}
           </div>
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
+              className="p-2 rounded transition-colors"
+              style={{
+                color: 'var(--color-text-secondary)',
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
               title="Settings"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
+              <Settings className="w-5 h-5" />
             </button>
           )}
         </div>
