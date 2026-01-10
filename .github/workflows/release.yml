@@ -115,8 +115,10 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Build with Wails
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           wails build -ldflags "-X main.version=$VERSION -X internal/version.Version=$VERSION" -platform ${{ matrix.platform }} -clean
 
       - name: Package artifacts (macOS/Linux)
@@ -175,6 +177,7 @@ jobs:
 
       - name: Set version from tag
         id: version
+        shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
