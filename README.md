@@ -17,7 +17,10 @@
 - 🎨 **Customizable Themes** - 5 beautiful themes (Auto, Dark, Light, Dracula, Monokai) with adjustable font sizes
 - 🏗️ **Resource Management** - Create, update, and delete topics and subscriptions
 - 🔐 **Multi-Project Support** - Manage multiple GCP projects with saved connection profiles
+- 🔑 **Multiple Auth Methods** - Support for ADC, Service Account JSON, and OAuth2 personal accounts
 - 🧪 **Emulator Support** - Seamlessly switch between production GCP and [local Pub/Sub Emulator](https://cloud.google.com/pubsub/docs/emulator)
+- 📸 **Snapshots & Seek** - Create snapshots, seek to snapshots, and seek to timestamps for message replay
+- 📋 **Structured Logging** - Built-in logs viewer with filtering, search, and date range selection
 - ⚡ **Fast & Responsive** - Optimized for performance with local caching and virtual scrolling
 
 ## 📸 Screenshots
@@ -60,6 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install
    - Choose authentication method:
      - **Application Default Credentials (ADC)**: Uses your local `gcloud` credentials
      - **Service Account**: Upload a JSON key file
+     - **OAuth2**: Authenticate with your Google account via browser
    - Enter your GCP project ID
 
 3. **Browse resources**:
@@ -142,13 +146,15 @@ pubsub-gui/
 ├── app.go                 # Main application struct and Wails bindings
 ├── main.go                # Wails initialization and entry point
 ├── internal/
-│   ├── auth/              # GCP authentication (ADC, service account)
+│   ├── auth/              # GCP authentication (ADC, service account, OAuth)
 │   ├── config/            # Configuration persistence
 │   ├── models/            # Shared data structures and errors
+│   ├── logger/            # Structured logging system
+│   ├── version/           # Version checking and upgrade notifications
 │   └── pubsub/
-│       ├── admin/         # Topic/subscription management
-│       ├── publisher/     # Message publishing
-│       └── subscriber/    # Message streaming and monitoring
+│       ├── admin/         # Topic/subscription/snapshot management
+│       ├── publisher/      # Message publishing
+│       └── subscriber/     # Message streaming and monitoring
 ├── frontend/
 │   ├── src/
 │   │   ├── components/   # React components
@@ -253,7 +259,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺️ Roadmap
 
-### Missing for 1.0.0
 
 #### Integration Tests with Emulator
 
@@ -277,8 +282,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 #### Advanced Replay Tools
 
-- Subscription snapshots (create, list, seek to snapshot)
-- Seek to timestamp functionality
+- ✅ Subscription snapshots (create, list, seek to snapshot) - **Implemented**
+- ✅ Seek to timestamp functionality - **Implemented**
 - Dead-letter queue viewer with message re-drive
 - Message history export (JSON, CSV formats)
 

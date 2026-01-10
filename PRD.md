@@ -1,8 +1,8 @@
 # PRD: Google Cloud Pub/Sub Desktop GUI
 
 **Version:** 1.0
-**Last Updated:** 2026-01-06
-**Status:** Draft
+**Last Updated:** 2026-01-10
+**Status:** Active Development
 
 ---
 
@@ -38,11 +38,18 @@ The application has successfully completed its MVP (Minimum Viable Product) mile
 - Full CRUD operations for topics and subscriptions
 - Topic monitoring via temporary subscriptions
 - Advanced subscription features (dead letter topics, filters, push config viewing)
+- **OAuth2 authentication** - Browser-based authentication with personal Google accounts
+- **Subscription snapshots** - Create, list, delete, and seek to snapshots
+- **Seek to timestamp** - Seek subscriptions to specific timestamps for message replay
+- **Structured logging** - Dual-output logging (stdout + JSON files) with logs viewer
+- **Upgrade checking** - Automatic version checking with upgrade notifications
 - Config file editor with Monaco Editor
 - JSON syntax highlighting throughout the app
 - Virtual scrolling for large message lists
-- Theme support (light/dark/auto)
+- Enhanced theme system (5 themes: Auto, Dark, Light, Dracula, Monokai)
+- Configurable font sizes (small/medium/large)
 - Connection profile switching without restart
+- Keyboard shortcuts and command bar
 
 ---
 
@@ -60,10 +67,7 @@ The application has successfully completed its MVP (Minimum Viable Product) mile
 ## 3. Non-Goals (Out of Scope for MVP)
 
 - Multi-broker support (Kafka, RabbitMQ, NATS)
-- ~~Full CRUD operations for topics/subscriptions (create/delete) — read-only focus~~ **Note:** Implemented beyond MVP scope
 - Schema Registry integration and validation
-- Advanced replay tooling (snapshots, seek operations)
-- ~~Push subscription configuration~~ **Note:** View-only support implemented
 - IAM role management
 - Cloud monitoring/metrics integration
 - Custom plugin system
@@ -135,6 +139,7 @@ See `CLAUDE.md` for detailed method signatures, event payloads, and communicatio
 ### 6.1 Authentication & Connection Management
 
 **Functional Requirements:**
+
 - Support Application Default Credentials (ADC) as default auth method
 - Support Service Account JSON key file upload
 - Store connection profiles locally (name, auth method, project ID, emulator host)
@@ -142,11 +147,13 @@ See `CLAUDE.md` for detailed method signatures, event payloads, and communicatio
 - Detect and respect `PUBSUB_EMULATOR_HOST` environment variable
 
 **UI Requirements:**
+
 - Connection dialog on first launch
 - Dropdown selector for saved profiles in sidebar header
 - Visual indicator showing: connected project, auth method, emulator mode
 
 **Acceptance Criteria:**
+
 - [ ] User can authenticate with ADC in < 5 seconds
 - [ ] User can import and use a service account JSON file
 - [ ] Profiles persist across app restarts
@@ -158,6 +165,7 @@ See `CLAUDE.md` for detailed method signatures, event payloads, and communicatio
 ### 6.2 Resource Explorer (Topics & Subscriptions)
 
 **Functional Requirements:**
+
 - List all topics in selected project with pagination
 - List all subscriptions in selected project with pagination
 - Display metadata:
@@ -167,12 +175,14 @@ See `CLAUDE.md` for detailed method signatures, event payloads, and communicatio
 - Search/filter topics and subscriptions by name
 
 **UI Requirements:**
+
 - Left sidebar with collapsible "Topics" and "Subscriptions" sections
 - Click topic/subscription to view details in main area
 - Loading states during API calls
 - Empty states when no resources exist
 
 **Acceptance Criteria:**
+
 - [ ] Topics and subscriptions load within 3 seconds for typical projects (<100 resources)
 - [ ] Pagination handles projects with >100 topics/subscriptions
 - [ ] Search filters list in real-time (client-side filtering)
@@ -265,18 +275,18 @@ See `CLAUDE.md` for detailed method signatures, event payloads, and communicatio
   - `UNAUTHENTICATED` → "Authentication failed. Check credentials."
   - Network errors → "Connection lost. Retrying..."
 - Automatic retry with exponential backoff for transient errors
-- Optional log panel showing last 200 events (connections, publishes, errors)
+- Structured logging system with logs viewer in Settings (filtering, search, date range selection)
 
 **UI Requirements:**
 - Status badge in top-right corner (green = connected, red = error, yellow = connecting)
 - Toast notifications for critical errors
 - Inline error banners for form validation failures
-- Optional debug log panel (toggle via menu)
+- Logs viewer in Settings dialog with filtering and search capabilities
 
 **Acceptance Criteria:**
-- [ ] All error states display actionable user-facing messages (no raw API errors)
-- [ ] Stream monitor retries connection up to 3 times before requiring manual restart
-- [ ] Log panel records all publish attempts with timestamps
+- [x] All error states display actionable user-facing messages (no raw API errors)
+- [x] Stream monitor retries connection up to 3 times before requiring manual restart
+- [x] Logs viewer records all events with timestamps, filtering, and search
 
 ---
 
@@ -550,9 +560,9 @@ Currently, users must build from source using `wails build`. Packaging will enab
 
 ---
 
-### Milestone 6: Polish ⏳ **PARTIALLY COMPLETE**
-**Status:** In Progress (75% complete)
-**Current Sprint**
+### Milestone 6: Polish ✅ **MOSTLY COMPLETE**
+**Status:** 90% Complete
+**Current Focus:** Final polish items
 
 **Completed:**
 - [x] Error handling and user-facing messages
@@ -564,6 +574,8 @@ Currently, users must build from source using `wails build`. Packaging will enab
 - [x] **Monaco Editor theme matching**
 - [x] Keyboard shortcuts (Cmd/Ctrl+R refresh, Cmd/Ctrl+P publish, etc.)
 - [x] Command bar for quick actions
+- [x] **Structured logging system** with logs viewer
+- [x] **Upgrade checking** with automatic notifications
 
 **Remaining:**
 - [ ] Template variables/placeholders ({{timestamp}}, {{uuid}}, {{random}})
@@ -572,12 +584,14 @@ Currently, users must build from source using `wails build`. Packaging will enab
 - [ ] Performance profiling and optimization
 
 **Next Up:**
-The immediate focus is template variables support.
+Template variables support and final branding.
 
 **Acceptance:**
 - ✅ Core user flows work end-to-end
 - ✅ Enhanced theme system with 5 presets and font size control complete
-- ⏳ Remaining polish features: keyboard shortcuts, template variables, onboarding
+- ✅ Keyboard shortcuts and command bar implemented
+- ✅ Logging and upgrade systems operational
+- ⏳ Remaining: template variables, branding, onboarding
 
 ---
 
@@ -589,6 +603,11 @@ The following features have been implemented beyond the original MVP requirement
 - **Topic/Subscription CRUD Operations** - Full create, update, delete support (see Milestone 2)
 - **Topic Monitoring** - Direct topic monitoring via temporary subscriptions (see Milestone 4)
 - **Advanced Subscription Features** - Dead letter topics, filters, push subscription viewing (see Milestone 2)
+- **OAuth2 Authentication** - Browser-based authentication with personal Google accounts (see Milestone 1)
+- **Subscription Snapshots** - Create, list, delete, and seek to snapshots for message replay (see Priority 3)
+- **Seek to Timestamp** - Seek subscriptions to specific timestamps for message replay (see Priority 3)
+- **Structured Logging** - Dual-output logging with logs viewer, filtering, and search (see Milestone 6)
+- **Upgrade Checking** - Automatic version checking with upgrade notifications (see Milestone 6)
 - **Enhanced UI Features** - Config editor, JSON syntax highlighting, virtual scrolling, template manager (see Milestones 3-4)
 - **Configuration Management** - Enhanced theme system (5 themes), font sizes, auto-ack, buffer size (see Milestone 6)
 
@@ -600,7 +619,7 @@ The following features have been implemented beyond the original MVP requirement
 | Question | Decision | Rationale |
 |----------|----------|-----------|
 | Auto-ack default behavior? | **Yes, auto-ack ON by default** | Prevents accidental redelivery storms; advanced users can toggle off |
-| CRUD for topics/subs in MVP? | **No, read-only** | Reduces scope; users can use `gcloud` or console for admin tasks |
+| CRUD for topics/subs in MVP? | **No, read-only** (originally) | Reduces scope; users can use `gcloud` or console for admin tasks. **Note:** Full CRUD implemented beyond MVP scope |
 | Multiple projects simultaneously? | **No, one at a time** | Simplifies UI; can add workspace tabs in v2 if needed |
 
 ### Pending Questions
@@ -618,7 +637,7 @@ The following features have been implemented beyond the original MVP requirement
 ## 15. Roadmap (Prioritized)
 
 ### Priority 1: Theme System & Polish
-**Status:** Partially Complete
+**Status:** Mostly Complete (90%)
 **Goal:** Complete Milestone 6 (Polish)
 
 **Completed:**
@@ -627,10 +646,13 @@ The following features have been implemented beyond the original MVP requirement
 - ✅ Configurable font sizes independent of theme
 - ✅ Monaco Editor theme matching
 - ✅ Keyboard shortcuts and command bar
+- ✅ Structured logging system with logs viewer
+- ✅ Upgrade checking with automatic notifications
 
 **Remaining:**
 - ⏳ Template variables ({{timestamp}}, {{uuid}}, etc.)
 - ⏳ Application icon and branding finalization
+- ⏳ User onboarding tooltips/walkthrough
 
 ---
 
@@ -649,18 +671,20 @@ The following features have been implemented beyond the original MVP requirement
 ---
 
 ### Priority 3: Advanced Replay Tools
-**Status:** Not Started
+**Status:** Partially Complete (40%)
 **Goal:** Enable power users to debug complex message flows
 
-**Features:**
-- Subscription snapshots (create, list, seek to snapshot)
-- Seek to timestamp functionality
+**Completed:**
+- ✅ Subscription snapshots (create, list, seek to snapshot)
+- ✅ Seek to timestamp functionality
+
+**Remaining:**
 - Dead-letter queue viewer with message re-drive capability
 - Message history export (JSON, CSV formats)
 - Bulk message republish
 
 **Use Cases:**
-- Replay messages from a specific point in time
+- ✅ Replay messages from a specific point in time (via snapshots and seek)
 - Debug dead-letter queue issues
 - Export messages for compliance/auditing
 
@@ -822,3 +846,4 @@ Once open-sourced:
 - 2026-01-06: Merged ROADMAP.md content into PRD.md - Added roadmap sections, known limitations, versioning strategy, and community information
 - 2026-01-06: Updated Milestone 6 status - Enhanced theme system (5 themes), configurable font sizes, and Monaco Editor theme matching marked as complete
 - 2026-01-06: Removed success metrics section and date-specific timelines - Restructured roadmap to focus on sequential priorities
+- 2026-01-10: Updated project status - Added OAuth2 authentication, snapshots, seek to timestamp, structured logging, and upgrade checking to implemented features. Updated Milestone 6 to 90% complete. Updated Priority 3 (Advanced Replay Tools) to reflect completed snapshot and seek functionality.

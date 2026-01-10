@@ -26,12 +26,15 @@ This is a **Wails v2** desktop application for Google Cloud Pub/Sub management. 
 ### Key Features
 
 - **Multi-Project Support**: Connect to multiple GCP projects with saved profiles
+- **Multiple Auth Methods**: Support for ADC, Service Account JSON, and OAuth2 personal accounts
 - **Real-Time Monitoring**: Stream messages from topics and subscriptions in real-time
 - **Message Publishing**: Publish messages with custom attributes and payloads
 - **Template System**: Save and reuse message templates
 - **Theme Support**: 5 themes (Auto, Dark, Light, Dracula, Monokai) with 3 font sizes
 - **Resource Management**: Create, update, and delete topics and subscriptions
+- **Snapshots & Seek**: Create snapshots, seek to snapshots, and seek to timestamps for message replay
 - **Structured Logging**: Dual-output logging (stdout + JSON files) with daily rotation and built-in logs viewer
+- **Upgrade Checking**: Automatic version checking with upgrade notifications
 
 **For comprehensive requirements:** See `PRD.md` for detailed product specifications and architecture.
 
@@ -714,6 +717,11 @@ Deletes a snapshot. Emits `snapshot:deleted` event on success.
 func (a *App) SeekToSnapshot(subscriptionID, snapshotID string) error
 ```
 Seeks a subscription to a snapshot. All messages in the snapshot will be marked as unacknowledged and redelivered. Only works with pull subscriptions.
+
+```go
+func (a *App) SeekToTimestamp(subscriptionID, timestamp string) error
+```
+Seeks a subscription to a specific timestamp. All messages published after the timestamp will be marked as unacknowledged and redelivered. Only works with pull subscriptions.
 
 **For detailed snapshot documentation:** See `.cursor/rules/pubsub/snapshots.mdc` for complete guidelines on snapshot operations, seek functionality, and best practices.
 
