@@ -424,7 +424,6 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         <DialogHeader className="px-6 py-4 border-b">
           <div>
             <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>Customize your application appearance</DialogDescription>
           </div>
         </DialogHeader>
 
