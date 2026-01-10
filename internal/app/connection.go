@@ -24,11 +24,11 @@ type ConnectionStatus struct {
 
 // ConnectionHandler handles connection and profile management
 type ConnectionHandler struct {
-	ctx           context.Context
-	config        *models.AppConfig
-	configManager *config.Manager
-	clientManager *auth.ClientManager
-	syncResources func() // Callback to trigger resource sync
+	ctx                 context.Context
+	config              *models.AppConfig
+	configManager       *config.Manager
+	clientManager       *auth.ClientManager
+	syncResources       func() // Callback to trigger resource sync
 	currentEmulatorHost string // Track emulator host from current connection (for status display)
 	currentAuthMethod   string // Track auth method from current connection (for status display)
 	emulatorHostMu      sync.RWMutex
