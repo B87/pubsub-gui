@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/pubsub/v2"
+	pubsubpb "cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 
 	"pubsub-gui/internal/app"
 	"pubsub-gui/internal/auth"
@@ -88,6 +91,11 @@ func (a *App) startup(ctx context.Context) {
 		cfg = models.NewDefaultConfig()
 	}
 	a.config = cfg
+
+	// Set emulator host from config if env var is not set (env has priority)
+	if os.Getenv("PUBSUB_EMULATOR_HOST") == "" && cfg.EmulatorHost != "" {
+		os.Setenv("PUBSUB_EMULATOR_HOST", cfg.EmulatorHost)
+	}
 
 	// Initialize handlers
 	// Note: resources handler must be initialized first as connection handler needs syncResources callback
@@ -796,6 +804,79 @@ func (a *App) UpdateFontSize(size string) error {
 // GetConfigFileContent returns the raw JSON content of the config file
 func (a *App) GetConfigFileContent() (string, error) {
 	return a.configH.GetConfigFileContent()
+}
+
+// UpdateEmulatorHost updates the emulator host setting and saves it to config
+func (a *App) UpdateEmulatorHost(emulatorHost string) error {
+	return a.configH.UpdateEmulatorHost(emulatorHost)
+}
+
+// CheckEmulatorStatus checks if the emulator is reachable and returns status information
+func (a *App) CheckEmulatorStatus() (map[string]interface{}, error) {
+	envHost := os.Getenv("PUBSUB_EMULATOR_HOST")
+	configHost := ""
+	if a.config != nil {
+		configHost = a.config.EmulatorHost
+	}
+
+	// Determine which host to use (env has priority)
+	emulatorHost := envHost
+	source := "none"
+	if envHost != "" {
+		source = "environment"
+	} else if configHost != "" {
+		emulatorHost = configHost
+		source = "config"
+	}
+
+	result := map[string]interface{}{
+		"emulatorHost": emulatorHost,
+		"isConfigured": emulatorHost != "",
+		"isReachable":  false,
+		"error":        "",
+		"source":       source,
+	}
+
+	if emulatorHost == "" {
+		return result, nil
+	}
+
+	// Temporarily set env var if it's only in config (needed for pubsub client to use it)
+	wasEnvSet := envHost != ""
+	needsTempEnv := !wasEnvSet && configHost != ""
+	if needsTempEnv {
+		os.Setenv("PUBSUB_EMULATOR_HOST", configHost)
+		defer func() {
+			// Restore original state (unset if it wasn't set)
+			os.Unsetenv("PUBSUB_EMULATOR_HOST")
+		}()
+	}
+
+	// Try to connect to the emulator with a test project
+	ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
+	defer cancel()
+
+	client, err := pubsub.NewClient(ctx, "test-project", option.WithoutAuthentication())
+	if err != nil {
+		result["error"] = err.Error()
+		return result, nil
+	}
+	defer client.Close()
+
+	// Try to list topics to verify emulator is responding
+	req := &pubsubpb.ListTopicsRequest{
+		Project: "projects/test-project",
+	}
+	it := client.TopicAdminClient.ListTopics(ctx, req)
+	_, err = it.Next()
+
+	if err == iterator.Done || err == nil {
+		result["isReachable"] = true
+	} else {
+		result["error"] = err.Error()
+	}
+
+	return result, nil
 }
 
 // SaveConfigFileContent saves the raw JSON content to the config file

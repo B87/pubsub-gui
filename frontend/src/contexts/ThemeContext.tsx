@@ -1,6 +1,7 @@
-import { createContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { WindowSetLightTheme, WindowSetDarkTheme, WindowSetSystemDefaultTheme } from '../../wailsjs/runtime/runtime';
+import { GetConfigFileContent } from '../../wailsjs/go/main/App';
 import type { Theme, FontSize, EffectiveTheme } from '../types/theme';
 
 interface ThemeContextValue {
@@ -22,6 +23,45 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>('auto');
   const [fontSize, setFontSize] = useState<FontSize>('medium');
   const [effectiveTheme, setEffectiveTheme] = useState<EffectiveTheme>('dark');
+  const themeRef = useRef(theme);
+  const fontSizeRef = useRef(fontSize);
+
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
+
+  useEffect(() => {
+    fontSizeRef.current = fontSize;
+  }, [fontSize]);
+
+  // Load persisted theme and font size on startup.
+  useEffect(() => {
+    let isActive = true;
+
+    const loadConfigTheme = async () => {
+      try {
+        const content = await GetConfigFileContent();
+        if (!isActive) return;
+        const parsed = JSON.parse(content);
+        const configTheme = parsed?.theme;
+        const configFontSize = parsed?.fontSize;
+
+        if (typeof configTheme === 'string' && isValidTheme(configTheme) && themeRef.current === 'auto') {
+          setTheme(configTheme as Theme);
+        }
+        if (typeof configFontSize === 'string' && isValidFontSize(configFontSize) && fontSizeRef.current === 'medium') {
+          setFontSize(configFontSize as FontSize);
+        }
+      } catch (error) {
+        console.warn('Failed to load theme config:', error);
+      }
+    };
+
+    loadConfigTheme();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // Determine effective theme when "auto" is selected
   useEffect(() => {
@@ -51,12 +91,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     htmlElement.setAttribute('data-theme', theme);
 
     // Sync Wails window theme for native window chrome
-    if (effectiveTheme === 'light') {
+    if (isLightTheme(effectiveTheme)) {
       WindowSetLightTheme();
     } else if (theme === 'auto') {
       WindowSetSystemDefaultTheme();
     } else {
-      // For dark, dracula, monokai - use dark window theme
+      // For dark, dracula, monokai, nord - use dark window theme
       WindowSetDarkTheme();
     }
   }, [theme, effectiveTheme]);
@@ -105,7 +145,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
 // Helper function to validate theme
 function isValidTheme(theme: string): boolean {
-  return ['light', 'dark', 'auto', 'dracula', 'monokai'].includes(theme);
+  return ['light', 'dark', 'auto', 'dracula', 'monokai', 'nord', 'sienna'].includes(theme);
 }
 
 // Helper function to validate font size
@@ -124,7 +164,15 @@ function getMonacoTheme(effectiveTheme: EffectiveTheme): string {
       return 'dracula';
     case 'monokai':
       return 'monokai';
+    case 'nord':
+      return 'vs-dark';
+    case 'sienna':
+      return 'vs-light';
     default:
       return 'vs-dark';
   }
+}
+
+function isLightTheme(theme: EffectiveTheme): boolean {
+  return theme === 'light' || theme === 'sienna';
 }

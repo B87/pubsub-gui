@@ -7,6 +7,8 @@ import {app} from '../models';
 import {admin} from '../models';
 import {main} from '../models';
 
+export function CheckEmulatorStatus():Promise<Record<string, any>>;
+
 export function CheckForUpdates():Promise<version.UpdateInfo>;
 
 export function ClearMessageBuffer(arg1:string):Promise<void>;
@@ -108,6 +110,8 @@ export function StopTopicMonitor(arg1:string):Promise<void>;
 export function SwitchProfile(arg1:string):Promise<void>;
 
 export function SyncResources():Promise<void>;
+
+export function UpdateEmulatorHost(arg1:string):Promise<void>;
 
 export function UpdateFontSize(arg1:string):Promise<void>;
 

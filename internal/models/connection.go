@@ -27,7 +27,7 @@ type AppConfig struct {
 	ActiveProfileID            string                      `json:"activeProfileId,omitempty"`
 	MessageBufferSize          int                         `json:"messageBufferSize"`
 	AutoAck                    bool                        `json:"autoAck"`
-	Theme                      string                      `json:"theme"`                                // "light" | "dark" | "auto" | "dracula" | "monokai"
+	Theme                      string                      `json:"theme"`                                // "light" | "dark" | "auto" | "dracula" | "monokai" | "nord" | "sienna"
 	FontSize                   string                      `json:"fontSize"`                             // "small" | "medium" | "large"
 	Templates                  []MessageTemplate           `json:"templates"`                            // Message templates
 	TopicSubscriptionTemplates []TopicSubscriptionTemplate `json:"topicSubscriptionTemplates,omitempty"` // Topic/subscription templates
@@ -35,6 +35,7 @@ type AppConfig struct {
 	UpgradeCheckInterval       int                         `json:"upgradeCheckInterval"` // hours
 	LastUpgradeCheck           time.Time                   `json:"lastUpgradeCheck,omitempty"`
 	DismissedUpgradeVersion    string                      `json:"dismissedUpgradeVersion,omitempty"`
+	EmulatorHost               string                      `json:"emulatorHost,omitempty"` // Default emulator host (env var has priority)
 }
 
 // Validate checks if the ConnectionProfile has all required fields

@@ -1,5 +1,5 @@
 /* Theme System for Pub/Sub GUI
- * Supports 5 themes: auto, dark, light, dracula, monokai
+ * Supports 7 themes: auto, dark, light, dracula, monokai, nord, sienna
  * Uses CSS custom properties for dynamic theme switching
  *
  * CONTRAST RATIOS (WCAG AA Compliance):
@@ -40,22 +40,26 @@
   --color-accent-active: #1d4ed8;   /* blue-700 */
   --color-accent-light: #60a5fa;    /* blue-400 */
   --color-accent-dark: #1e40af;     /* blue-800 */
+  --color-accent-text: #60a5fa;     /* blue-400 */
 
   /* Status colors */
-  --color-success: #22c55e;         /* green-500 */
-  --color-success-hover: #16a34a;   /* green-600 */
+  --color-success: #15803d;         /* green-700 */
+  --color-success-hover: #166534;   /* green-800 */
   --color-success-bg: rgba(34, 197, 94, 0.1);
-  --color-success-border: #15803d;  /* green-700 */
+  --color-success-border: #14532d;  /* green-900 */
+  --color-success-text: #22c55e;    /* green-500 */
 
-  --color-error: #ef4444;           /* red-500 */
-  --color-error-hover: #dc2626;     /* red-600 */
+  --color-error: #dc2626;           /* red-600 */
+  --color-error-hover: #b91c1c;     /* red-700 */
   --color-error-bg: rgba(239, 68, 68, 0.1);
-  --color-error-border: #b91c1c;    /* red-700 */
+  --color-error-border: #991b1b;    /* red-800 */
+  --color-error-text: #ef4444;      /* red-500 */
 
-  --color-warning: #eab308;         /* yellow-500 */
-  --color-warning-hover: #ca8a04;   /* yellow-600 */
+  --color-warning: #b45309;         /* amber-700 */
+  --color-warning-hover: #92400e;   /* amber-800 */
   --color-warning-bg: rgba(234, 179, 8, 0.1);
-  --color-warning-border: #a16207;  /* yellow-700 */
+  --color-warning-border: #78350f;  /* amber-900 */
+  --color-warning-text: #eab308;    /* yellow-500 */
 
   /* Special colors */
   --color-purple-bg: rgba(168, 85, 247, 0.1);
@@ -65,7 +69,7 @@
   --color-orange: #f97316;          /* orange-500 */
 
   /* Link color */
-  --link-color: var(--color-accent-light);  /* blue-400 for dark theme */
+  --link-color: var(--color-accent-text);  /* blue-400 for dark theme */
 
   /* Font sizes - Base (medium) */
   --font-size-xs: 0.75rem;      /* 12px */
@@ -97,12 +101,12 @@
   --destructive-foreground: white;
   --border: var(--color-border-primary);
   --input: var(--color-bg-input);
-  --ring: var(--color-accent-primary);
+  --ring: var(--color-accent-text);
   --radius: 0.5rem;
-  --chart-1: var(--color-accent-primary);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-warning);
-  --chart-4: var(--color-error);
+  --chart-1: var(--color-accent-text);
+  --chart-2: var(--color-success-text);
+  --chart-3: var(--color-warning-text);
+  --chart-4: var(--color-error-text);
   --chart-5: var(--color-purple-text);
 }
 
@@ -142,22 +146,26 @@
   --color-accent-active: #1d4ed8;   /* blue-700 */
   --color-accent-light: #60a5fa;    /* blue-400 */
   --color-accent-dark: #1e40af;     /* blue-800 */
+  --color-accent-text: #3b82f6;     /* blue-500 */
 
   /* Status colors */
-  --color-success: #16a34a;         /* green-600 */
-  --color-success-hover: #15803d;   /* green-700 */
-  --color-success-bg: rgba(22, 163, 74, 0.1);
-  --color-success-border: #15803d;  /* green-700 */
+  --color-success: #15803d;         /* green-700 */
+  --color-success-hover: #166534;   /* green-800 */
+  --color-success-bg: rgba(21, 128, 61, 0.1);
+  --color-success-border: #14532d;  /* green-900 */
+  --color-success-text: #15803d;    /* green-700 */
 
   --color-error: #dc2626;           /* red-600 */
   --color-error-hover: #b91c1c;     /* red-700 */
   --color-error-bg: rgba(220, 38, 38, 0.1);
-  --color-error-border: #b91c1c;    /* red-700 */
+  --color-error-border: #991b1b;    /* red-800 */
+  --color-error-text: #dc2626;      /* red-600 */
 
-  --color-warning: #ca8a04;         /* yellow-600 */
-  --color-warning-hover: #a16207;   /* yellow-700 */
-  --color-warning-bg: rgba(202, 138, 4, 0.1);
-  --color-warning-border: #a16207;  /* yellow-700 */
+  --color-warning: #b45309;         /* amber-700 */
+  --color-warning-hover: #92400e;   /* amber-800 */
+  --color-warning-bg: rgba(180, 83, 9, 0.1);
+  --color-warning-border: #78350f;  /* amber-900 */
+  --color-warning-text: #b45309;    /* amber-700 */
 
   /* Special colors */
   --color-purple-bg: rgba(168, 85, 247, 0.1);
@@ -167,7 +175,7 @@
   --color-orange: #ea580c;          /* orange-600 */
 
   /* Link color */
-  --link-color: var(--color-accent-primary);  /* blue-500 for light theme */
+  --link-color: var(--color-accent-text);  /* blue-500 for light theme */
 
   /* shadcn/ui CSS variables - mapped to theme system */
   --background: var(--color-bg-primary);
@@ -188,12 +196,12 @@
   --destructive-foreground: white;
   --border: var(--color-border-primary);
   --input: var(--color-bg-input);
-  --ring: var(--color-accent-primary);
+  --ring: var(--color-accent-text);
   --radius: 0.5rem;
-  --chart-1: var(--color-accent-primary);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-warning);
-  --chart-4: var(--color-error);
+  --chart-1: var(--color-accent-text);
+  --chart-2: var(--color-success-text);
+  --chart-3: var(--color-warning-text);
+  --chart-4: var(--color-error-text);
   --chart-5: var(--color-purple-text);
 }
 
@@ -222,27 +230,31 @@
   --color-border-secondary: #44475a;
 
   /* Accent colors - Dracula Purple */
-  --color-accent-primary: #bd93f9;  /* Dracula purple */
-  --color-accent-hover: #c9a8fc;
-  --color-accent-active: #a578f0;
-  --color-accent-light: #d4b3ff;
-  --color-accent-dark: #9065e6;
+  --color-accent-primary: #7c3aed;  /* Violet-600 (UI-safe) */
+  --color-accent-hover: #6d28d9;    /* Violet-700 */
+  --color-accent-active: #5b21b6;   /* Violet-800 */
+  --color-accent-light: #bd93f9;    /* Dracula purple */
+  --color-accent-dark: #4c1d95;     /* Violet-900 */
+  --color-accent-text: #bd93f9;     /* Dracula purple */
 
   /* Status colors */
-  --color-success: #50fa7b;         /* Dracula green */
-  --color-success-hover: #6bff8f;
+  --color-success: #15803d;         /* Green-700 (UI-safe) */
+  --color-success-hover: #166534;   /* Green-800 */
   --color-success-bg: rgba(80, 250, 123, 0.1);
-  --color-success-border: #3fe167;
+  --color-success-border: #14532d;  /* Green-900 */
+  --color-success-text: #50fa7b;    /* Dracula green */
 
-  --color-error: #ff5555;           /* Dracula red */
-  --color-error-hover: #ff6e6e;
+  --color-error: #dc2626;           /* Red-600 (UI-safe) */
+  --color-error-hover: #b91c1c;     /* Red-700 */
   --color-error-bg: rgba(255, 85, 85, 0.1);
-  --color-error-border: #ff3c3c;
+  --color-error-border: #991b1b;    /* Red-800 */
+  --color-error-text: #ff5555;      /* Dracula red */
 
-  --color-warning: #f1fa8c;         /* Dracula yellow */
-  --color-warning-hover: #f5fca8;
+  --color-warning: #b45309;         /* Amber-700 (UI-safe) */
+  --color-warning-hover: #92400e;   /* Amber-800 */
   --color-warning-bg: rgba(241, 250, 140, 0.1);
-  --color-warning-border: #e7f66e;
+  --color-warning-border: #78350f;  /* Amber-900 */
+  --color-warning-text: #f1fa8c;    /* Dracula yellow */
 
   /* Special colors */
   --color-purple-bg: rgba(189, 147, 249, 0.15);
@@ -252,7 +264,7 @@
   --color-orange: #ffb86c;          /* Dracula orange */
 
   /* Link color */
-  --link-color: var(--color-accent-primary);  /* Dracula purple */
+  --link-color: var(--color-accent-text);  /* Dracula purple */
 
   /* shadcn/ui CSS variables - mapped to theme system */
   --background: var(--color-bg-primary);
@@ -273,12 +285,12 @@
   --destructive-foreground: white;
   --border: var(--color-border-primary);
   --input: var(--color-bg-input);
-  --ring: var(--color-accent-primary);
+  --ring: var(--color-accent-text);
   --radius: 0.5rem;
-  --chart-1: var(--color-accent-primary);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-warning);
-  --chart-4: var(--color-error);
+  --chart-1: var(--color-accent-text);
+  --chart-2: var(--color-success-text);
+  --chart-3: var(--color-warning-text);
+  --chart-4: var(--color-error-text);
   --chart-5: var(--color-purple-text);
 }
 
@@ -307,27 +319,31 @@
   --color-border-secondary: #3e3d32;
 
   /* Accent colors - Monokai Cyan */
-  --color-accent-primary: #66d9ef;  /* Monokai cyan */
-  --color-accent-hover: #7fe0f4;
-  --color-accent-active: #4dd2ea;
-  --color-accent-light: #99e5f7;
-  --color-accent-dark: #3bc9e0;
+  --color-accent-primary: #0e7490;  /* Cyan-700 (UI-safe) */
+  --color-accent-hover: #155e75;    /* Cyan-800 */
+  --color-accent-active: #164e63;   /* Cyan-900 */
+  --color-accent-light: #66d9ef;    /* Monokai cyan */
+  --color-accent-dark: #164e63;     /* Cyan-900 */
+  --color-accent-text: #66d9ef;     /* Monokai cyan */
 
   /* Status colors */
-  --color-success: #a6e22e;         /* Monokai green */
-  --color-success-hover: #b8e84d;
+  --color-success: #4d7c0f;         /* Lime-700 (UI-safe) */
+  --color-success-hover: #3f6212;   /* Lime-800 */
   --color-success-bg: rgba(166, 226, 46, 0.1);
-  --color-success-border: #8fd61f;
+  --color-success-border: #365314;  /* Lime-900 */
+  --color-success-text: #a6e22e;    /* Monokai green */
 
-  --color-error: #f92672;           /* Monokai red/pink */
-  --color-error-hover: #fc4488;
+  --color-error: #e11d48;           /* Rose-600 (UI-safe) */
+  --color-error-hover: #be123c;     /* Rose-700 */
   --color-error-bg: rgba(249, 38, 114, 0.1);
-  --color-error-border: #e21060;
+  --color-error-border: #9f1239;    /* Rose-800 */
+  --color-error-text: #f92672;      /* Monokai red/pink */
 
-  --color-warning: #e6db74;         /* Monokai yellow */
-  --color-warning-hover: #efe490;
+  --color-warning: #b45309;         /* Amber-700 (UI-safe) */
+  --color-warning-hover: #92400e;   /* Amber-800 */
   --color-warning-bg: rgba(230, 219, 116, 0.1);
-  --color-warning-border: #d9cc58;
+  --color-warning-border: #78350f;  /* Amber-900 */
+  --color-warning-text: #e6db74;    /* Monokai yellow */
 
   /* Special colors */
   --color-purple-bg: rgba(174, 129, 255, 0.15);
@@ -337,7 +353,7 @@
   --color-orange: #fd971f;          /* Monokai orange */
 
   /* Link color */
-  --link-color: var(--color-accent-primary);  /* Monokai cyan */
+  --link-color: var(--color-accent-text);  /* Monokai cyan */
 
   /* shadcn/ui CSS variables - mapped to theme system */
   --background: var(--color-bg-primary);
@@ -347,7 +363,7 @@
   --popover: var(--color-bg-secondary);
   --popover-foreground: var(--color-text-primary);
   --primary: var(--color-accent-primary);
-  --primary-foreground: var(--color-bg-primary);
+  --primary-foreground: white;
   --secondary: var(--color-bg-tertiary);
   --secondary-foreground: var(--color-text-primary);
   --muted: var(--color-bg-tertiary);
@@ -358,12 +374,190 @@
   --destructive-foreground: white;
   --border: var(--color-border-primary);
   --input: var(--color-bg-input);
-  --ring: var(--color-accent-primary);
+  --ring: var(--color-accent-text);
   --radius: 0.5rem;
-  --chart-1: var(--color-accent-primary);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-warning);
-  --chart-4: var(--color-error);
+  --chart-1: var(--color-accent-text);
+  --chart-2: var(--color-success-text);
+  --chart-3: var(--color-warning-text);
+  --chart-4: var(--color-error-text);
+  --chart-5: var(--color-purple-text);
+}
+
+/* ===========================
+   Nord Theme
+   =========================== */
+
+[data-theme="nord"] {
+  /* Background colors */
+  --color-bg-primary: #2e3440;      /* Nord polar night */
+  --color-bg-secondary: #3b4252;
+  --color-bg-tertiary: #434c5e;
+  --color-bg-hover: #4c566a;
+  --color-bg-input: #3b4252;
+  --color-bg-code: #242933;
+
+  /* Text colors */
+  --color-text-primary: #eceff4;
+  --color-text-secondary: #e5e9f0;
+  --color-text-tertiary: #d8dee9;
+  --color-text-muted: #a7b0c0;
+  --color-text-disabled: #7c8796;
+
+  /* Border colors */
+  --color-border-primary: #4c566a;
+  --color-border-secondary: #5b677a;
+
+  /* Accent colors */
+  --color-accent-primary: #4c6a91;
+  --color-accent-hover: #3e5b7d;
+  --color-accent-active: #344e6c;
+  --color-accent-light: #88c0d0;
+  --color-accent-dark: #2d3f59;
+  --color-accent-text: #88c0d0;
+
+  /* Status colors */
+  --color-success: #1f7a4a;
+  --color-success-hover: #1a6a40;
+  --color-success-bg: rgba(127, 212, 166, 0.12);
+  --color-success-border: #16583c;
+  --color-success-text: #7fd4a6;
+
+  --color-error: #b91c1c;
+  --color-error-hover: #991b1b;
+  --color-error-bg: rgba(248, 113, 113, 0.12);
+  --color-error-border: #7f1d1d;
+  --color-error-text: #f87171;
+
+  --color-warning: #b45309;
+  --color-warning-hover: #92400e;
+  --color-warning-bg: rgba(251, 191, 36, 0.12);
+  --color-warning-border: #78350f;
+  --color-warning-text: #fbbf24;
+
+  /* Special colors */
+  --color-purple-bg: rgba(180, 142, 173, 0.14);
+  --color-purple-text: #b48ead;
+  --color-purple-border: #9d7bbf;
+
+  --color-orange: #d08770;
+
+  /* Link color */
+  --link-color: var(--color-accent-text);
+
+  /* shadcn/ui CSS variables - mapped to theme system */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-secondary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-primary);
+  --primary-foreground: white;
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-error);
+  --destructive-foreground: white;
+  --border: var(--color-border-primary);
+  --input: var(--color-bg-input);
+  --ring: var(--color-accent-text);
+  --radius: 0.5rem;
+  --chart-1: var(--color-accent-text);
+  --chart-2: var(--color-success-text);
+  --chart-3: var(--color-warning-text);
+  --chart-4: var(--color-error-text);
+  --chart-5: var(--color-purple-text);
+}
+
+/* ===========================
+   Sienna Theme
+   =========================== */
+
+[data-theme="sienna"] {
+  /* Background colors */
+  --color-bg-primary: #f7f3e9;
+  --color-bg-secondary: #efe6d6;
+  --color-bg-tertiary: #e4d8c3;
+  --color-bg-hover: #d7c8b0;
+  --color-bg-input: #fbf7ef;
+  --color-bg-code: #efe6d6;
+
+  /* Text colors */
+  --color-text-primary: #2f2a24;
+  --color-text-secondary: #4a433c;
+  --color-text-tertiary: #5f564e;
+  --color-text-muted: #7a6f65;
+  --color-text-disabled: #a19487;
+
+  /* Border colors */
+  --color-border-primary: #d6c7b4;
+  --color-border-secondary: #c9b8a2;
+
+  /* Accent colors */
+  --color-accent-primary: #0f766e;
+  --color-accent-hover: #0f5e56;
+  --color-accent-active: #0b4a43;
+  --color-accent-light: #5eead4;
+  --color-accent-dark: #0b4a43;
+  --color-accent-text: #0f766e;
+
+  /* Status colors */
+  --color-success: #15803d;
+  --color-success-hover: #166534;
+  --color-success-bg: rgba(21, 128, 61, 0.1);
+  --color-success-border: #14532d;
+  --color-success-text: #166534;
+
+  --color-error: #b91c1c;
+  --color-error-hover: #991b1b;
+  --color-error-bg: rgba(185, 28, 28, 0.1);
+  --color-error-border: #7f1d1d;
+  --color-error-text: #b91c1c;
+
+  --color-warning: #b45309;
+  --color-warning-hover: #92400e;
+  --color-warning-bg: rgba(180, 83, 9, 0.1);
+  --color-warning-border: #78350f;
+  --color-warning-text: #b45309;
+
+  /* Special colors */
+  --color-purple-bg: rgba(124, 58, 237, 0.12);
+  --color-purple-text: #7c3aed;
+  --color-purple-border: #6d28d9;
+
+  --color-orange: #c2410c;
+
+  /* Link color */
+  --link-color: var(--color-accent-text);
+
+  /* shadcn/ui CSS variables - mapped to theme system */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-secondary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-primary);
+  --primary-foreground: white;
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-error);
+  --destructive-foreground: white;
+  --border: var(--color-border-primary);
+  --input: var(--color-bg-input);
+  --ring: var(--color-accent-text);
+  --radius: 0.5rem;
+  --chart-1: var(--color-accent-text);
+  --chart-2: var(--color-success-text);
+  --chart-3: var(--color-warning-text);
+  --chart-4: var(--color-error-text);
   --chart-5: var(--color-purple-text);
 }
 
@@ -404,22 +598,26 @@
     --color-accent-active: #1d4ed8;
     --color-accent-light: #60a5fa;
     --color-accent-dark: #1e40af;
+    --color-accent-text: #3b82f6;
 
     /* Status colors */
-    --color-success: #16a34a;
-    --color-success-hover: #15803d;
-    --color-success-bg: rgba(22, 163, 74, 0.1);
-    --color-success-border: #15803d;
+    --color-success: #15803d;
+    --color-success-hover: #166534;
+    --color-success-bg: rgba(21, 128, 61, 0.1);
+    --color-success-border: #14532d;
+    --color-success-text: #15803d;
 
     --color-error: #dc2626;
     --color-error-hover: #b91c1c;
     --color-error-bg: rgba(220, 38, 38, 0.1);
-    --color-error-border: #b91c1c;
+    --color-error-border: #991b1b;
+    --color-error-text: #dc2626;
 
-    --color-warning: #ca8a04;
-    --color-warning-hover: #a16207;
-    --color-warning-bg: rgba(202, 138, 4, 0.1);
-    --color-warning-border: #a16207;
+    --color-warning: #b45309;
+    --color-warning-hover: #92400e;
+    --color-warning-bg: rgba(180, 83, 9, 0.1);
+    --color-warning-border: #78350f;
+    --color-warning-text: #b45309;
 
     /* Special colors */
     --color-purple-bg: rgba(168, 85, 247, 0.1);
@@ -429,7 +627,7 @@
     --color-orange: #ea580c;
 
     /* Link color */
-    --link-color: var(--color-accent-primary);  /* blue-500 for light theme (auto) */
+    --link-color: var(--color-accent-text);  /* blue-500 for light theme (auto) */
 
     /* shadcn/ui CSS variables - mapped to theme system */
     --background: var(--color-bg-primary);
@@ -450,12 +648,12 @@
     --destructive-foreground: white;
     --border: var(--color-border-primary);
     --input: var(--color-bg-input);
-    --ring: var(--color-accent-primary);
+    --ring: var(--color-accent-text);
     --radius: 0.5rem;
-    --chart-1: var(--color-accent-primary);
-    --chart-2: var(--color-success);
-    --chart-3: var(--color-warning);
-    --chart-4: var(--color-error);
+    --chart-1: var(--color-accent-text);
+    --chart-2: var(--color-success-text);
+    --chart-3: var(--color-warning-text);
+    --chart-4: var(--color-error-text);
     --chart-5: var(--color-purple-text);
   }
 }
@@ -525,6 +723,7 @@
 .bg-slate-900 { background-color: var(--color-bg-primary) !important; }
 .bg-slate-800 { background-color: var(--color-bg-secondary) !important; }
 .bg-slate-700 { background-color: var(--color-bg-tertiary) !important; }
+.bg-slate-750 { background-color: color-mix(in srgb, var(--color-bg-secondary) 50%, var(--color-bg-tertiary)) !important; }
 .bg-slate-600 { background-color: var(--color-bg-hover) !important; }
 
 /* Background opacity variants - use defined CSS variables for transparency */
@@ -544,21 +743,49 @@
 .bg-slate-700\/opacity-30 {
   background-color: color-mix(in srgb, var(--color-bg-tertiary) 30%, transparent) !important;
 }
+.bg-slate-700\/50,
+.bg-slate-700\/opacity-50 {
+  background-color: color-mix(in srgb, var(--color-bg-tertiary) 50%, transparent) !important;
+}
 .bg-red-900\/50,
 .bg-red-900\/opacity-50 {
   background-color: var(--color-error-bg) !important;
 }
 .bg-red-900\/20,
 .bg-red-900\/opacity-20 {
-  background-color: color-mix(in srgb, var(--color-error) 10%, transparent) !important;
+  background-color: var(--color-error-bg) !important;
 }
 .bg-green-900\/30,
 .bg-green-900\/opacity-30 {
   background-color: var(--color-success-bg) !important;
 }
+.bg-green-500\/10,
+.bg-green-500\/opacity-10 {
+  background-color: var(--color-success-bg) !important;
+}
 .bg-yellow-900\/30,
 .bg-yellow-900\/opacity-30 {
   background-color: var(--color-warning-bg) !important;
+}
+.bg-yellow-500\/30,
+.bg-yellow-500\/opacity-30 {
+  background-color: var(--color-warning-bg) !important;
+}
+
+.bg-blue-900 {
+  background-color: color-mix(in srgb, var(--color-accent-text) 18%, var(--color-bg-secondary)) !important;
+}
+.bg-blue-900\/20,
+.bg-blue-900\/opacity-20 {
+  background-color: color-mix(in srgb, var(--color-accent-text) 12%, transparent) !important;
+}
+.bg-blue-900\/50,
+.bg-blue-900\/opacity-50 {
+  background-color: color-mix(in srgb, var(--color-accent-text) 20%, transparent) !important;
+}
+.bg-purple-900\/50,
+.bg-purple-900\/opacity-50 {
+  background-color: color-mix(in srgb, var(--color-purple-text) 20%, transparent) !important;
 }
 
 /* Text mappings */
@@ -576,6 +803,7 @@
 .border-slate-700 { border-color: var(--color-border-primary) !important; }
 .border-slate-600 { border-color: var(--color-border-secondary) !important; }
 .border-slate-800 { border-color: var(--color-border-primary) !important; }
+.border-slate-500 { border-color: var(--color-text-disabled) !important; }
 
 /* Border opacity variants */
 .border-red-700\/50,
@@ -595,33 +823,41 @@
 .bg-blue-600 { background-color: var(--color-accent-hover) !important; }
 .bg-blue-500 { background-color: var(--color-accent-primary) !important; }
 .bg-blue-700 { background-color: var(--color-accent-active) !important; }
-.text-blue-400 { color: var(--color-accent-light) !important; }
-.text-blue-500 { color: var(--color-accent-primary) !important; }
-.text-blue-300 { color: var(--color-accent-light) !important; }
+.text-blue-300 { color: var(--color-accent-text) !important; }
+.text-blue-400 { color: var(--color-accent-text) !important; }
+.text-blue-500 { color: var(--color-accent-text) !important; }
 .border-blue-500 { border-color: var(--color-accent-primary) !important; }
 .border-blue-700 { border-color: var(--color-accent-dark) !important; }
+.border-blue-400 { border-color: var(--color-accent-text) !important; }
 
 /* Success mappings */
-.text-green-400 { color: var(--color-success) !important; }
-.text-green-500 { color: var(--color-success) !important; }
+.text-green-300 { color: var(--color-success-text) !important; }
+.text-green-400 { color: var(--color-success-text) !important; }
+.text-green-500 { color: var(--color-success-text) !important; }
+.bg-green-400 { background-color: var(--color-success-text) !important; }
 .bg-green-500 { background-color: var(--color-success) !important; }
 .bg-green-600 { background-color: var(--color-success) !important; }
 .bg-green-700 { background-color: var(--color-success-hover) !important; }
+.border-green-500 { border-color: var(--color-success-text) !important; }
 .border-green-700 { border-color: var(--color-success-border) !important; }
 
 /* Error mappings */
-.text-red-400 { color: var(--color-error) !important; }
-.text-red-300 { color: var(--color-error) !important; }
+.text-red-200 { color: var(--color-error-text) !important; }
+.text-red-300 { color: var(--color-error-text) !important; }
+.text-red-400 { color: var(--color-error-text) !important; }
+.text-red-500 { color: var(--color-error-text) !important; }
 .bg-red-500 { background-color: var(--color-error) !important; }
 .bg-red-600 { background-color: var(--color-error) !important; }
 .bg-red-700 { background-color: var(--color-error-hover) !important; }
 .border-red-700 { border-color: var(--color-error-border) !important; }
 
 /* Warning mappings */
-.text-yellow-400 { color: var(--color-warning) !important; }
-.text-yellow-500 { color: var(--color-warning) !important; }
+.text-yellow-200 { color: var(--color-warning-text) !important; }
+.text-yellow-400 { color: var(--color-warning-text) !important; }
+.text-yellow-500 { color: var(--color-warning-text) !important; }
 .bg-yellow-500 { background-color: var(--color-warning) !important; }
 .border-yellow-700 { border-color: var(--color-warning-border) !important; }
+.border-yellow-800 { border-color: var(--color-warning-border) !important; }
 
 /* Special colors */
 .text-purple-300 { color: var(--color-purple-text) !important; }
@@ -630,20 +866,20 @@
 .bg-orange-500 { background-color: var(--color-orange) !important; }
 
 /* Focus ring colors */
-.ring-blue-500 { --tw-ring-color: var(--color-accent-primary) !important; }
-.ring-green-500 { --tw-ring-color: var(--color-success) !important; }
-.ring-red-500 { --tw-ring-color: var(--color-error) !important; }
-.ring-yellow-500 { --tw-ring-color: var(--color-warning) !important; }
+.ring-blue-500 { --tw-ring-color: var(--color-accent-text) !important; }
+.ring-green-500 { --tw-ring-color: var(--color-success-text) !important; }
+.ring-red-500 { --tw-ring-color: var(--color-error-text) !important; }
+.ring-yellow-500 { --tw-ring-color: var(--color-warning-text) !important; }
 
 /* Divide colors (for dividers between elements) */
 .divide-slate-700 > * + * { border-color: var(--color-border-primary) !important; }
 .divide-slate-600 > * + * { border-color: var(--color-border-secondary) !important; }
 
 /* Outline colors */
-.outline-blue-500 { outline-color: var(--color-accent-primary) !important; }
-.outline-green-500 { outline-color: var(--color-success) !important; }
-.outline-red-500 { outline-color: var(--color-error) !important; }
-.outline-yellow-500 { outline-color: var(--color-warning) !important; }
+.outline-blue-500 { outline-color: var(--color-accent-text) !important; }
+.outline-green-500 { outline-color: var(--color-success-text) !important; }
+.outline-red-500 { outline-color: var(--color-error-text) !important; }
+.outline-yellow-500 { outline-color: var(--color-warning-text) !important; }
 
 /* Gradient support (if needed in future) */
 .from-blue-500 { --tw-gradient-from: var(--color-accent-primary) !important; }
@@ -655,9 +891,13 @@
 .hover\:bg-slate-800:hover { background-color: var(--color-bg-secondary) !important; }
 .hover\:bg-blue-700:hover { background-color: var(--color-accent-active) !important; }
 .hover\:bg-blue-600:hover { background-color: var(--color-accent-hover) !important; }
-.hover\:text-blue-300:hover { color: var(--color-accent-light) !important; }
+.hover\:text-blue-300:hover { color: var(--color-accent-text) !important; }
 .hover\:bg-green-700:hover { background-color: var(--color-success-hover) !important; }
 .hover\:text-slate-300:hover { color: var(--color-text-tertiary) !important; }
+.hover\:bg-blue-900\/20:hover,
+.hover\:bg-blue-900\/opacity-20:hover {
+  background-color: color-mix(in srgb, var(--color-accent-text) 12%, transparent) !important;
+}
 
 /* Hover opacity variants */
 .hover\:bg-slate-700\/30:hover,

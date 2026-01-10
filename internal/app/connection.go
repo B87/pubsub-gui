@@ -47,9 +47,22 @@ func NewConnectionHandler(
 	}
 }
 
+// getEmulatorHost returns the emulator host with env var having priority over config
+func (h *ConnectionHandler) getEmulatorHost() string {
+	// Check environment variable first (has priority)
+	if envHost := os.Getenv("PUBSUB_EMULATOR_HOST"); envHost != "" {
+		return envHost
+	}
+	// Fall back to config if env var is not set
+	if h.config != nil && h.config.EmulatorHost != "" {
+		return h.config.EmulatorHost
+	}
+	return ""
+}
+
 // GetConnectionStatus returns the current connection status
 func (h *ConnectionHandler) GetConnectionStatus() ConnectionStatus {
-	emulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST")
+	emulatorHost := h.getEmulatorHost()
 
 	return ConnectionStatus{
 		IsConnected:  h.clientManager.IsConnected(),
@@ -319,9 +332,17 @@ func (h *ConnectionHandler) SwitchProfile(profileID string, disconnect func() er
 
 // connectWithProfile is a helper method to connect using a profile's settings
 func (h *ConnectionHandler) connectWithProfile(profile *models.ConnectionProfile) error {
-	// Set emulator host if specified in profile
+	// Set emulator host: profile has priority, then config, then env (already set)
+	emulatorHost := ""
 	if profile.EmulatorHost != "" {
-		os.Setenv("PUBSUB_EMULATOR_HOST", profile.EmulatorHost)
+		emulatorHost = profile.EmulatorHost
+	} else if h.config != nil && h.config.EmulatorHost != "" {
+		emulatorHost = h.config.EmulatorHost
+	}
+
+	// Only set env var if we have a value and env var is not already set
+	if emulatorHost != "" && os.Getenv("PUBSUB_EMULATOR_HOST") == "" {
+		os.Setenv("PUBSUB_EMULATOR_HOST", emulatorHost)
 	}
 
 	switch profile.AuthMethod {

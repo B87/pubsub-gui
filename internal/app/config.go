@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -79,8 +80,8 @@ func (h *ConfigHandler) UpdateTheme(theme string) error {
 	}
 
 	// Validate theme value
-	if theme != "light" && theme != "dark" && theme != "auto" && theme != "dracula" && theme != "monokai" {
-		return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', or 'monokai'")
+	if theme != "light" && theme != "dark" && theme != "auto" && theme != "dracula" && theme != "monokai" && theme != "nord" && theme != "sienna" {
+		return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', 'monokai', 'nord', or 'sienna'")
 	}
 
 	// Load current config to preserve other settings
@@ -188,8 +189,8 @@ func (h *ConfigHandler) SaveConfigFileContent(content string) error {
 		return fmt.Errorf("messageBufferSize must be between 100 and 10000")
 	}
 
-	if tempConfig.Theme != "light" && tempConfig.Theme != "dark" && tempConfig.Theme != "auto" && tempConfig.Theme != "dracula" && tempConfig.Theme != "monokai" {
-		return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', or 'monokai'")
+	if tempConfig.Theme != "light" && tempConfig.Theme != "dark" && tempConfig.Theme != "auto" && tempConfig.Theme != "dracula" && tempConfig.Theme != "monokai" && tempConfig.Theme != "nord" && tempConfig.Theme != "sienna" {
+		return fmt.Errorf("theme must be 'light', 'dark', 'auto', 'dracula', 'monokai', 'nord', or 'sienna'")
 	}
 
 	if tempConfig.FontSize != "small" && tempConfig.FontSize != "medium" && tempConfig.FontSize != "large" {
@@ -234,4 +235,50 @@ func (h *ConfigHandler) SaveConfigFileContent(content string) error {
 	}
 
 	return nil
+}
+
+// UpdateEmulatorHost updates the emulator host setting and saves it to config
+// If environment variable is not set, also sets it so the change takes effect immediately
+func (h *ConfigHandler) UpdateEmulatorHost(emulatorHost string) error {
+	if h.configManager == nil {
+		return fmt.Errorf("config manager not initialized")
+	}
+
+	// Load current config to preserve other settings
+	if h.config == nil {
+		var err error
+		h.config, err = h.configManager.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+
+	// Update emulator host (empty string clears it)
+	h.config.EmulatorHost = emulatorHost
+
+	// Save config
+	if err := h.configManager.SaveConfig(h.config); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Update environment variable if it's not already set (env has priority)
+	// This makes the change take effect immediately
+	if os.Getenv("PUBSUB_EMULATOR_HOST") == "" {
+		if emulatorHost != "" {
+			os.Setenv("PUBSUB_EMULATOR_HOST", emulatorHost)
+		} else {
+			// Clear env var if config is cleared
+			os.Unsetenv("PUBSUB_EMULATOR_HOST")
+		}
+	}
+
+	return nil
+}
+
+// GetEmulatorHost returns the emulator host from config (env var has priority, checked elsewhere)
+func (h *ConfigHandler) GetEmulatorHost() string {
+	if h.config == nil {
+		return ""
+	}
+	return h.config.EmulatorHost
 }

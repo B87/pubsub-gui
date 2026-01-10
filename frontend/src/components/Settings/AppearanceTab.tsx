@@ -14,6 +14,8 @@ const themes: { value: Theme; name: string; description: string }[] = [
   { value: 'auto', name: 'Auto', description: 'Matches your system theme' },
   { value: 'dark', name: 'Dark', description: 'Dark slate backgrounds with blue accents' },
   { value: 'light', name: 'Light', description: 'Bright, clean appearance' },
+  { value: 'nord', name: 'Nord', description: 'Cool arctic palette with icy blues' },
+  { value: 'sienna', name: 'Sienna', description: 'Warm parchment with teal accents' },
   { value: 'dracula', name: 'Dracula', description: 'Purple-accent cyberpunk aesthetic' },
   { value: 'monokai', name: 'Monokai', description: 'Cyan-accent coding theme' },
 ];
@@ -33,6 +35,8 @@ const getThemeColors = (themeValue: Theme) => {
     light: { bg: '#ffffff', text: '#111827', accent: '#3b82f6' },
     dracula: { bg: '#282a36', text: '#f8f8f2', accent: '#bd93f9' },
     monokai: { bg: '#272822', text: '#f8f8f2', accent: '#66d9ef' },
+    nord: { bg: '#2e3440', text: '#eceff4', accent: '#4c6a91' },
+    sienna: { bg: '#f7f3e9', text: '#2f2a24', accent: '#0f766e' },
     auto: { bg: '#0f172a', text: '#f1f5f9', accent: '#3b82f6' }, // Default to dark
   };
   return colorMap[themeValue];

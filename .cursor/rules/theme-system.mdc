@@ -7,7 +7,7 @@ alwaysApply: false
 
 > **Note:** For UI development patterns and component styling guidelines that use the theme system, see `react-tailwind.mdc`. For Wails event patterns related to theme changes, see `wails.mdc`.
 
-The application supports a comprehensive theme system with 5 themes (Auto, Dark, Light, Dracula, Monokai) and 3 font sizes (small, medium, large). Theme configuration is independent of font size, allowing users to mix any theme with any font size.
+The application supports a comprehensive theme system with 7 themes (Auto, Dark, Light, Dracula, Monokai, Nord, Sienna) and 3 font sizes (small, medium, large). Theme configuration is independent of font size, allowing users to mix any theme with any font size.
 
 ## Architecture Overview
 
@@ -17,14 +17,14 @@ The application supports a comprehensive theme system with 5 themes (Auto, Dark,
 
 * Location: `internal/models/connection.go` (AppConfig struct)
 * Fields:
-  * `Theme string` - "light" | "dark" | "auto" | "dracula" | "monokai"
+  * `Theme string` - "light" | "dark" | "auto" | "dracula" | "monokai" | "nord" | "sienna"
   * `FontSize string` - "small" | "medium" | "large"
 * Defaults: `Theme: "auto"`, `FontSize: "medium"`
 
 **Validation**
 
 * Location: `internal/app/config.go` (ConfigHandler methods)
-* `UpdateTheme()` method: Validates theme values: `["light", "dark", "auto", "dracula", "monokai"]`
+* `UpdateTheme()` method: Validates theme values: `["light", "dark", "auto", "dracula", "monokai", "nord", "sienna"]`
 * `UpdateFontSize()` method: Validates font size values: `["small", "medium", "large"]`
 * `SaveConfigFileContent()` method: Validates both theme and font size when saving raw JSON
 * Returns validation errors for invalid values
@@ -45,7 +45,7 @@ The application supports a comprehensive theme system with 5 themes (Auto, Dark,
 
 * Location: `frontend/src/themes.css`
 * Uses CSS custom properties (variables) for all colors
-* 5 complete theme palettes defined
+* 7 complete theme palettes defined
 * Backward compatibility mapping for existing Tailwind classes
 * Smooth 200ms transitions between themes
 
@@ -99,26 +99,30 @@ All themes define the following semantic color tokens:
 --color-border-primary    /* Primary borders */
 --color-border-secondary  /* Secondary borders */
 
---color-accent-primary    /* Primary accent (buttons, links) */
+--color-accent-primary    /* Primary accent (filled buttons, accents) */
 --color-accent-hover      /* Accent hover state */
 --color-accent-active     /* Accent active state */
 --color-accent-light      /* Light accent variant */
 --color-accent-dark       /* Dark accent variant */
+--color-accent-text       /* Accent text/icon/link color */
 
 --color-success           /* Success state */
 --color-success-hover     /* Success hover */
 --color-success-bg        /* Success background */
 --color-success-border    /* Success border */
+--color-success-text      /* Success text/icon */
 
 --color-error             /* Error state */
 --color-error-hover       /* Error hover */
 --color-error-bg          /* Error background */
 --color-error-border      /* Error border */
+--color-error-text        /* Error text/icon */
 
 --color-warning           /* Warning state */
 --color-warning-hover     /* Warning hover */
 --color-warning-bg        /* Warning background */
 --color-warning-border    /* Warning border */
+--color-warning-text      /* Warning text/icon */
 
 --color-purple-bg         /* Special: purple background */
 --color-purple-text       /* Special: purple text */
@@ -126,6 +130,8 @@ All themes define the following semantic color tokens:
 
 --color-orange            /* Special: orange color */
 ```
+
+**Note:** `--color-*-text` tokens preserve brighter theme hues for inline text/icons. The base `--color-accent|success|error|warning` values are tuned for solid backgrounds (buttons/badges) to keep good contrast with light text across all themes.
 
 ### Theme Palettes
 
@@ -145,19 +151,37 @@ All themes define the following semantic color tokens:
 
 * Background: #282a36, #44475a, #6272a4 (purple-tinted grays)
 * Text: #f8f8f2 (Dracula foreground)
-* Accent: #bd93f9 (Dracula purple)
-* Success: #50fa7b (Dracula green)
-* Error: #ff5555 (Dracula red)
-* Warning: #f1fa8c (Dracula yellow)
+* Accent (UI): #7c3aed (violet-600); Accent text: #bd93f9 (Dracula purple)
+* Success (UI): #15803d (green-700); Success text: #50fa7b (Dracula green)
+* Error (UI): #dc2626 (red-600); Error text: #ff5555 (Dracula red)
+* Warning (UI): #b45309 (amber-700); Warning text: #f1fa8c (Dracula yellow)
 
 **Monokai Theme**
 
 * Background: #272822, #3e3d32, #49483e (olive-tinted grays)
 * Text: #f8f8f2 (Monokai foreground)
-* Accent: #66d9ef (Monokai cyan)
-* Success: #a6e22e (Monokai green)
-* Error: #f92672 (Monokai pink)
-* Warning: #e6db74 (Monokai yellow)
+* Accent (UI): #0e7490 (cyan-700); Accent text: #66d9ef (Monokai cyan)
+* Success (UI): #4d7c0f (lime-700); Success text: #a6e22e (Monokai green)
+* Error (UI): #e11d48 (rose-600); Error text: #f92672 (Monokai pink)
+* Warning (UI): #b45309 (amber-700); Warning text: #e6db74 (Monokai yellow)
+
+**Nord Theme**
+
+* Background: #2e3440, #3b4252, #434c5e (polar night)
+* Text: #eceff4 (Nord snow)
+* Accent (UI): #4c6a91 (deep frost); Accent text: #88c0d0 (Nord frost)
+* Success (UI): #1f7a4a; Success text: #7fd4a6
+* Error (UI): #b91c1c; Error text: #f87171
+* Warning (UI): #b45309; Warning text: #fbbf24
+
+**Sienna Theme**
+
+* Background: #f7f3e9, #efe6d6, #e4d8c3 (warm parchment)
+* Text: #2f2a24 (ink)
+* Accent (UI): #0f766e (deep teal); Accent text: #0f766e
+* Success (UI): #15803d; Success text: #166534
+* Error (UI): #b91c1c; Error text: #b91c1c
+* Warning (UI): #b45309; Warning text: #b45309
 
 **Auto Theme**
 
@@ -302,18 +326,18 @@ function App() {
 
 2. **Frontend Initialization** (`ThemeContext.tsx`):
    * ThemeProvider initializes with hardcoded defaults: `theme: 'auto'`, `fontSize: 'medium'`
-   * These defaults match backend defaults, ensuring consistency
+   * Loads `~/.pubsub-gui/config.json` via `GetConfigFileContent()` and applies `theme`/`fontSize` if valid
    * Event listeners are set up to receive theme changes from backend
 
 3. **Theme Sync**:
    * When user changes theme via UI (AppearanceTab or ConfigEditorDialog), backend emits events
    * Frontend receives events and updates state automatically
-   * **Note:** There is no explicit initial fetch - frontend starts with defaults and updates via events when changes occur
+   * Config file edits also emit events and update state
 
 **Why This Works:**
-* Defaults match between frontend and backend
-* If user has custom theme, they'll change it via UI which triggers events
-* No race conditions because both start with same defaults
+* Defaults match between frontend and backend, avoiding invalid startup state
+* Initial config load applies persisted theme/font size before user interaction
+* Event listeners keep the UI in sync with live changes
 
 ## User Configuration
 
@@ -325,7 +349,7 @@ Users can change themes and font sizes through two methods:
 
 1. Open Settings Dialog (sidebar menu or keyboard shortcut)
 2. Navigate to "Appearance" tab
-3. Select theme from visual preview cards (Auto, Dark, Light, Dracula, Monokai)
+3. Select theme from visual preview cards (Auto, Dark, Light, Dracula, Monokai, Nord, Sienna)
 4. Select font size (Small, Medium, Large)
 5. Changes apply instantly via `UpdateTheme()` and `UpdateFontSize()` backend methods
 6. Both methods emit events that update frontend state
@@ -421,9 +445,9 @@ Key features of `ThemeContext.tsx`:
 2. **Auto Theme Detection**: Uses `window.matchMedia('(prefers-color-scheme: dark)')` to detect system preference
 3. **HTML Attributes**: Applies `data-theme` and `data-font-size` to `<html>` element
 4. **Wails Window Theme Sync**: Syncs native window chrome theme:
-   * `WindowSetLightTheme()` - when `effectiveTheme === 'light'`
+   * `WindowSetLightTheme()` - when `effectiveTheme === 'light'` or `sienna`
    * `WindowSetSystemDefaultTheme()` - when `theme === 'auto'` (respects OS preference)
-   * `WindowSetDarkTheme()` - for all other themes (`dark`, `dracula`, `monokai`)
+   * `WindowSetDarkTheme()` - for all other themes (`dark`, `dracula`, `monokai`, `nord`)
 5. **Monaco Mapping**: Maps app theme to Monaco editor theme name
 6. **Validation**: Validates received theme/font size values before applying (prevents invalid states)
 
