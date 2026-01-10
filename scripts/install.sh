@@ -4,6 +4,11 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install.sh | bash
 # Or with version: curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install.sh | bash -s -- v1.0.0
 #
+# Features:
+# - Automatic platform detection (Linux, macOS, Windows)
+# - SHA256 checksum verification for downloaded archives
+# - Support for latest release or specific version
+#
 
 set -euo pipefail
 
@@ -130,6 +135,110 @@ determine_install_dir() {
     esac
 }
 
+# Calculate SHA256 checksum of a file
+calculate_checksum() {
+    local file="$1"
+
+    if command -v shasum >/dev/null 2>&1; then
+        # macOS
+        shasum -a 256 "$file" | cut -d' ' -f1
+    elif command -v sha256sum >/dev/null 2>&1; then
+        # Linux
+        sha256sum "$file" | cut -d' ' -f1
+    else
+        echo -e "${RED}Error: shasum or sha256sum is required for checksum verification${NC}" >&2
+        exit 1
+    fi
+}
+
+# Download and verify checksum file
+verify_checksum() {
+    local archive_path="$1"
+    local archive_name="$2"
+    local version="$3"
+    local normalized_url="$4"
+    local tmp_dir="$5"
+
+    # Construct checksum file URL
+    local checksum_file_name="${BINARY_NAME}_${version}_checksums.txt"
+    local checksum_url="${normalized_url%/}/releases/download/${version}/${checksum_file_name}"
+    local checksum_path="${tmp_dir}/${checksum_file_name}"
+
+    echo -e "${BLUE}Downloading checksum file...${NC}"
+
+    # Download checksum file
+    local checksum_download_failed=false
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -fsSL -o "$checksum_path" "$checksum_url" 2>/dev/null; then
+            checksum_download_failed=true
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if ! wget -q -O "$checksum_path" "$checksum_url" 2>/dev/null; then
+            checksum_download_failed=true
+        fi
+    else
+        echo -e "${YELLOW}Warning: curl or wget not available for checksum download${NC}"
+        echo -e "${YELLOW}Checksum verification will be skipped${NC}"
+        return 0  # Continue without checksum verification
+    fi
+
+    # Check if download failed or file is empty
+    if [ "$checksum_download_failed" = true ] || [ ! -f "$checksum_path" ] || [ ! -s "$checksum_path" ]; then
+        echo -e "${YELLOW}Warning: Failed to download checksum file from ${checksum_url}${NC}"
+        echo -e "${YELLOW}Checksum verification will be skipped${NC}"
+        return 0  # Continue without checksum verification
+    fi
+
+    # Find the expected checksum for our archive
+    local expected_checksum=""
+    # Look for line matching our archive name
+    # Format can be: <checksum>  <filename> or <checksum>  ./<filename> or <checksum>  *<filename>
+    # Try multiple patterns to handle different checksum file formats
+
+    # First try: exact match with ./ prefix (common in Goreleaser)
+    expected_checksum=$(grep -E "^[0-9a-f]{64}[[:space:]]+\./${archive_name}" "$checksum_path" 2>/dev/null | head -1 | awk '{print $1}')
+
+    # Second try: exact match without prefix
+    if [ -z "$expected_checksum" ]; then
+        expected_checksum=$(grep -E "^[0-9a-f]{64}[[:space:]]+[*]?${archive_name}" "$checksum_path" 2>/dev/null | head -1 | awk '{print $1}')
+    fi
+
+    # Third try: match just the filename (basename) with ./ prefix
+    if [ -z "$expected_checksum" ]; then
+        local archive_basename=$(basename "$archive_name")
+        expected_checksum=$(grep -E "^[0-9a-f]{64}[[:space:]]+\./${archive_basename}" "$checksum_path" 2>/dev/null | head -1 | awk '{print $1}')
+    fi
+
+    # Fourth try: match just the filename (basename) without prefix
+    if [ -z "$expected_checksum" ]; then
+        expected_checksum=$(grep -E "^[0-9a-f]{64}[[:space:]]+[*]?${archive_basename}" "$checksum_path" 2>/dev/null | head -1 | awk '{print $1}')
+    fi
+
+    if [ -z "$expected_checksum" ]; then
+        echo -e "${YELLOW}Warning: Could not find checksum for ${archive_name} in checksum file${NC}"
+        echo -e "${YELLOW}Checksum file contents:${NC}"
+        cat "$checksum_path" | head -5
+        echo -e "${YELLOW}Checksum verification will be skipped${NC}"
+        return 0  # Continue without checksum verification
+    fi
+
+    # Calculate actual checksum
+    echo -e "${BLUE}Verifying checksum...${NC}"
+    local actual_checksum=$(calculate_checksum "$archive_path")
+
+    # Compare checksums
+    if [ "$expected_checksum" = "$actual_checksum" ]; then
+        echo -e "${GREEN}✓ Checksum verified${NC}"
+        return 0
+    else
+        echo -e "${RED}Error: Checksum verification failed!${NC}" >&2
+        echo -e "${RED}Expected: ${expected_checksum}${NC}" >&2
+        echo -e "${RED}Actual:   ${actual_checksum}${NC}" >&2
+        echo -e "${RED}The downloaded file may be corrupted or tampered with.${NC}" >&2
+        exit 1
+    fi
+}
+
 # Download and install
 install_binary() {
     local version="$1"
@@ -177,6 +286,9 @@ install_binary() {
         echo -e "${RED}Error: curl or wget is required${NC}" >&2
         exit 1
     fi
+
+    # Verify checksum
+    verify_checksum "$archive_path" "$archive_name" "$version" "$normalized_url" "$tmp_dir"
 
     # Extract archive
     echo -e "${BLUE}Extracting archive...${NC}"
