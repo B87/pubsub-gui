@@ -132,24 +132,64 @@ export default function SeekDialog({
               </label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSeekMode('preset')}
-                  className={`flex-1 px-3 py-2 text-sm rounded border transition-colors ${
-                    seekMode === 'preset'
-                      ? 'border-green-500 bg-green-500/10 text-green-400'
-                      : 'border-slate-600 hover:border-slate-500'
-                  }`}
-                  style={seekMode !== 'preset' ? { color: 'var(--color-text-secondary)' } : undefined}
+                  onClick={() => {
+                    setSeekMode('preset');
+                  }}
+                  aria-pressed={seekMode === 'preset'}
+                  aria-label="Select quick preset time options"
+                  className="flex-1 px-3 py-2 text-sm rounded border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  style={{
+                    borderColor: seekMode === 'preset'
+                      ? 'var(--color-accent-primary)'
+                      : 'var(--color-border-primary)',
+                    backgroundColor: seekMode === 'preset'
+                      ? 'color-mix(in srgb, var(--color-accent-primary) 10%, transparent)'
+                      : 'transparent',
+                    color: seekMode === 'preset'
+                      ? 'var(--color-accent-text)'
+                      : 'var(--color-text-secondary)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (seekMode !== 'preset') {
+                      e.currentTarget.style.borderColor = 'var(--color-border-secondary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (seekMode !== 'preset') {
+                      e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                    }
+                  }}
                 >
                   Quick Presets
                 </button>
                 <button
-                  onClick={() => setSeekMode('timestamp')}
-                  className={`flex-1 px-3 py-2 text-sm rounded border transition-colors ${
-                    seekMode === 'timestamp'
-                      ? 'border-green-500 bg-green-500/10 text-green-400'
-                      : 'border-slate-600 hover:border-slate-500'
-                  }`}
-                  style={seekMode !== 'timestamp' ? { color: 'var(--color-text-secondary)' } : undefined}
+                  onClick={() => {
+                    setSeekMode('timestamp');
+                  }}
+                  aria-pressed={seekMode === 'timestamp'}
+                  aria-label="Select custom date and time"
+                  className="flex-1 px-3 py-2 text-sm rounded border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  style={{
+                    borderColor: seekMode === 'timestamp'
+                      ? 'var(--color-accent-primary)'
+                      : 'var(--color-border-primary)',
+                    backgroundColor: seekMode === 'timestamp'
+                      ? 'color-mix(in srgb, var(--color-accent-primary) 10%, transparent)'
+                      : 'transparent',
+                    color: seekMode === 'timestamp'
+                      ? 'var(--color-accent-text)'
+                      : 'var(--color-text-secondary)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (seekMode !== 'timestamp') {
+                      e.currentTarget.style.borderColor = 'var(--color-border-secondary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (seekMode !== 'timestamp') {
+                      e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                    }
+                  }}
                 >
                   Custom Time
                 </button>
@@ -162,13 +202,33 @@ export default function SeekDialog({
                 {(['1h', '6h', '24h', '7d'] as PresetOption[]).map((preset) => (
                   <button
                     key={preset}
-                    onClick={() => setSelectedPreset(preset)}
-                    className={`px-4 py-3 text-sm rounded border transition-colors ${
-                      selectedPreset === preset
-                        ? 'border-green-500 bg-green-500/10 text-green-400'
-                        : 'border-slate-600 hover:border-slate-500'
-                    }`}
-                    style={selectedPreset !== preset ? { color: 'var(--color-text-primary)' } : undefined}
+                    onClick={() => {
+                      setSelectedPreset(preset);
+                    }}
+                    aria-pressed={selectedPreset === preset}
+                    aria-label={`Seek to ${getPresetLabel(preset)}`}
+                    className="px-4 py-3 text-sm rounded border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    style={{
+                      borderColor: selectedPreset === preset
+                        ? 'var(--color-accent-primary)'
+                        : 'var(--color-border-primary)',
+                      backgroundColor: selectedPreset === preset
+                        ? 'color-mix(in srgb, var(--color-accent-primary) 10%, transparent)'
+                        : 'transparent',
+                      color: selectedPreset === preset
+                        ? 'var(--color-accent-text)'
+                        : 'var(--color-text-primary)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedPreset !== preset) {
+                        e.currentTarget.style.borderColor = 'var(--color-border-secondary)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedPreset !== preset) {
+                        e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                      }
+                    }}
                   >
                     {getPresetLabel(preset)}
                   </button>

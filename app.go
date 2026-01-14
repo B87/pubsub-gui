@@ -654,7 +654,7 @@ func (a *App) SeekToTimestamp(subscriptionID, timestamp string) error {
 // SeekToSnapshot seeks a subscription to a snapshot.
 // Messages in the snapshot will be redelivered.
 func (a *App) SeekToSnapshot(subscriptionID, snapshotID string) error {
-	return a.resources.SeekToSnapshot(subscriptionID, snapshotID)
+	return a.resources.SeekToSnapshot(subscriptionID, snapshotID, a.syncResources)
 }
 
 // ListSnapshots returns all snapshots in the project

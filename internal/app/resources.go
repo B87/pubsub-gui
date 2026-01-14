@@ -431,7 +431,7 @@ func (h *ResourceHandler) SeekToTimestamp(subscriptionID, timestamp string, sync
 
 // SeekToSnapshot seeks a subscription to a snapshot.
 // Messages in the snapshot will be redelivered.
-func (h *ResourceHandler) SeekToSnapshot(subscriptionID, snapshotID string) error {
+func (h *ResourceHandler) SeekToSnapshot(subscriptionID, snapshotID string, syncResources func()) error {
 	client := h.clientManager.GetClient()
 	if client == nil {
 		return models.ErrNotConnected
@@ -449,6 +449,11 @@ func (h *ResourceHandler) SeekToSnapshot(subscriptionID, snapshotID string) erro
 		"seekType":       "snapshot",
 		"snapshotID":     snapshotID,
 	})
+
+	// Trigger background sync to update local store
+	if syncResources != nil {
+		go syncResources()
+	}
 
 	return nil
 }
