@@ -1,8 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
+import * as monaco from 'monaco-editor';
 import { GetConfigFileContent, SaveConfigFileContent } from '../../wailsjs/go/main/App';
 import { useTheme } from '../hooks/useTheme';
 import { registerCustomThemes } from '../utils/monacoThemes';
+
+// Type for Monaco instance from @monaco-editor/react
+type MonacoInstance = Parameters<NonNullable<React.ComponentProps<typeof Editor>['onMount']>>[1];
 
 interface ConfigEditorDialogProps {
   open: boolean;
@@ -19,8 +24,8 @@ export default function ConfigEditorDialog({ open, onClose, error: externalError
   const [error, setError] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [isValidJSON, setIsValidJSON] = useState(true);
-  const editorRef = useRef<any>(null);
-  const monacoRef = useRef<any>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<MonacoInstance | null>(null);
 
   // Map font size to Monaco editor font size
   const fontSizeMap = { small: 12, medium: 14, large: 16 };
@@ -75,7 +80,7 @@ export default function ConfigEditorDialog({ open, onClose, error: externalError
   };
 
   const handleContentChange = (value: string | undefined) => {
-    const newValue = value || '';
+    const newValue = value ?? '';
     setContent(newValue);
     validateJSON(newValue);
   };
@@ -123,30 +128,31 @@ export default function ConfigEditorDialog({ open, onClose, error: externalError
     }
   }, [content, onClose]);
 
-  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
+  const handleEditorDidMount = useCallback((editor: editor.IStandaloneCodeEditor, monacoInstance: MonacoInstance) => {
     editorRef.current = editor;
-    monacoRef.current = monaco;
+    monacoRef.current = monacoInstance;
 
     // Register custom Monaco themes (Dracula, Monokai)
-    registerCustomThemes(monaco);
+    registerCustomThemes(monacoInstance);
 
     // Configure JSON validation
-    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+    // Use the new top-level json namespace instead of deprecated languages.json
+    monaco.json.jsonDefaults.setDiagnosticsOptions({
       validate: true,
       allowComments: false,
       schemas: [],
     });
 
     // Add keyboard shortcuts
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSave();
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+      void handleSave();
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyF, () => {
       editor.getAction('actions.find')?.run();
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Slash, () => {
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Slash, () => {
       formatJSON();
     });
   }, [handleSave, formatJSON]);
