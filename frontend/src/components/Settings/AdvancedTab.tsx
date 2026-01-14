@@ -1,6 +1,11 @@
-import { useCallback } from 'react';
+import React, { useCallback, type RefObject } from 'react';
 import Editor from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
+import * as monaco from 'monaco-editor';
 import { registerCustomThemes } from '../../utils/monacoThemes';
+
+// Type for Monaco instance from @monaco-editor/react
+type MonacoInstance = Parameters<NonNullable<React.ComponentProps<typeof Editor>['onMount']>>[1];
 
 interface AdvancedTabProps {
   configContent: string;
@@ -17,7 +22,7 @@ interface AdvancedTabProps {
   onCopy: () => Promise<void>;
   monacoTheme: string;
   editorFontSize: number;
-  editorRef: React.MutableRefObject<any>;
+  editorRef: RefObject<editor.IStandaloneCodeEditor>;
 }
 
 export default function AdvancedTab({
@@ -37,16 +42,17 @@ export default function AdvancedTab({
   editorFontSize,
   editorRef,
 }: AdvancedTabProps) {
-  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
+  const handleEditorDidMount = useCallback((editor: editor.IStandaloneCodeEditor, monacoInstance: MonacoInstance) => {
     editorRef.current = editor;
-    registerCustomThemes(monaco);
-    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+    registerCustomThemes(monacoInstance);
+    // Use the new top-level json namespace instead of deprecated languages.json
+    monaco.json.jsonDefaults.setDiagnosticsOptions({
       validate: true,
       allowComments: false,
       schemas: [],
     });
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      onSave();
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+      void onSave();
     });
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
       editor.getAction('actions.find')?.run();
@@ -219,9 +225,6 @@ export default function AdvancedTab({
         </div>
       ) : (
         <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
-          <label htmlFor="config-content" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
-            Config File Content (~/.pubsub-gui/config.json)
-          </label>
           <div
             className="flex-1 border rounded-md overflow-hidden"
             style={{
