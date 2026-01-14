@@ -28,13 +28,14 @@ type SubscriptionUpdateParams struct {
 
 // ResourceHandler handles topic and subscription resource management
 type ResourceHandler struct {
-	ctx           context.Context
-	clientManager *auth.ClientManager
-	resourceMu    *sync.RWMutex
-	topics        *[]admin.TopicInfo
-	subscriptions *[]admin.SubscriptionInfo
-	syncMu        sync.Mutex // Prevents concurrent sync operations
-	syncing       bool       // Tracks if sync is in progress
+	ctx               context.Context
+	clientManager     *auth.ClientManager
+	resourceMu        *sync.RWMutex
+	topics            *[]admin.TopicInfo
+	subscriptions     *[]admin.SubscriptionInfo
+	syncMu            sync.Mutex // Prevents concurrent sync operations
+	syncing           bool       // Tracks if sync is in progress
+	isEmulatorEnabled func() bool
 }
 
 // NewResourceHandler creates a new resource handler
@@ -52,6 +53,11 @@ func NewResourceHandler(
 		topics:        topics,
 		subscriptions: subscriptions,
 	}
+}
+
+// SetEmulatorCheckFunc sets the function to check if emulator is enabled
+func (h *ResourceHandler) SetEmulatorCheckFunc(fn func() bool) {
+	h.isEmulatorEnabled = fn
 }
 
 // SyncResources manually triggers a resource sync (exposed for frontend refresh button)
@@ -119,8 +125,14 @@ func (h *ResourceHandler) syncResources() {
 	wg.Wait()
 
 	// Check if we're using emulator (for more lenient error handling)
-	// Check both env var and if endpoint looks like localhost (common emulator pattern)
-	isEmulator := os.Getenv("PUBSUB_EMULATOR_HOST") != ""
+	// Uses the callback if set, falls back to env var check for backward compatibility
+	isEmulator := false
+	if h.isEmulatorEnabled != nil {
+		isEmulator = h.isEmulatorEnabled()
+	} else {
+		// Fallback to env var for backward compatibility
+		isEmulator = os.Getenv("PUBSUB_EMULATOR_HOST") != ""
+	}
 
 	// Handle partial failures - update what succeeded, emit errors for what failed
 	hasErrors := false
