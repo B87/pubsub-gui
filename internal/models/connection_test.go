@@ -289,7 +289,7 @@ func TestConnectionProfile_GetEffectiveEmulatorMode(t *testing.T) {
 			want: EmulatorModeExternal,
 		},
 		{
-			name: "migration - no emulator config",
+			name:    "migration - no emulator config",
 			profile: ConnectionProfile{},
 			want:    EmulatorModeOff,
 		},
@@ -391,7 +391,7 @@ func TestConnectionProfile_GetEffectiveEmulatorHost(t *testing.T) {
 			want: "legacy-host:8085",
 		},
 		{
-			name: "migration - no config returns empty",
+			name:    "migration - no config returns empty",
 			profile: ConnectionProfile{},
 			want:    "",
 		},
@@ -443,7 +443,7 @@ func TestConnectionProfile_IsEmulatorEnabled(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "migration - no config returns false",
+			name:    "migration - no config returns false",
 			profile: ConnectionProfile{},
 			want:    false,
 		},
