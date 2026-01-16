@@ -631,10 +631,10 @@ func TestResolveConfig(t *testing.T) {
 // Tests for buildDockerArgs - builds docker run command arguments
 func TestBuildDockerArgs(t *testing.T) {
 	tests := []struct {
-		name          string
-		containerName string
-		cfg           resolvedConfig
-		wantContains  []string
+		name           string
+		containerName  string
+		cfg            resolvedConfig
+		wantContains   []string
 		wantNotContain []string
 	}{
 		{
@@ -645,7 +645,7 @@ func TestBuildDockerArgs(t *testing.T) {
 				Image:       "google/cloud-sdk:emulators",
 				BindAddress: "127.0.0.1",
 			},
-			wantContains:  []string{"run", "--rm", "--name", "test-container", "-p", "127.0.0.1:8085:8085", "google/cloud-sdk:emulators"},
+			wantContains:   []string{"run", "--rm", "--name", "test-container", "-p", "127.0.0.1:8085:8085", "google/cloud-sdk:emulators"},
 			wantNotContain: []string{"-v", "--data-dir"},
 		},
 		{
@@ -656,7 +656,7 @@ func TestBuildDockerArgs(t *testing.T) {
 				Image:       "google/cloud-sdk:emulators",
 				BindAddress: "0.0.0.0",
 			},
-			wantContains:  []string{"-p", "9000:8085"},
+			wantContains:   []string{"-p", "9000:8085"},
 			wantNotContain: []string{"127.0.0.1:9000"},
 		},
 		{
