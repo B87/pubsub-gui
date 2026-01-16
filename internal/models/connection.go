@@ -115,8 +115,10 @@ func (cp *ConnectionProfile) Validate() error {
 
 	// Validate managed mode settings
 	if cp.EmulatorMode == EmulatorModeManaged && cp.ManagedEmulator != nil {
-		if cp.ManagedEmulator.Port < 1 || cp.ManagedEmulator.Port > 65535 {
-			return errors.New("managed emulator port must be between 1 and 65535")
+		port := cp.ManagedEmulator.Port
+		// Port 0 is valid (defaults to 8085), otherwise must be between 1 and 65535
+		if port != 0 && (port < 1 || port > 65535) {
+			return errors.New("managed emulator port must be 0 (default) or between 1 and 65535")
 		}
 		if cp.ManagedEmulator.BindAddress != "" &&
 			cp.ManagedEmulator.BindAddress != "127.0.0.1" &&
@@ -134,8 +136,9 @@ func (cp *ConnectionProfile) GetEffectiveEmulatorMode() EmulatorMode {
 	if cp.EmulatorMode != "" {
 		return cp.EmulatorMode
 	}
-	// Migration: if emulatorHost is set, treat as external mode
-	if cp.EmulatorHost != "" {
+	// Migration: if emulatorHost is set (after trimming whitespace), treat as external mode
+	trimmedHost := strings.TrimSpace(cp.EmulatorHost)
+	if trimmedHost != "" {
 		return EmulatorModeExternal
 	}
 	return EmulatorModeOff

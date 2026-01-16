@@ -175,7 +175,7 @@ func TestConnectionProfile_Validate(t *testing.T) {
 			errMsg:  "emulator host required when using external emulator mode",
 		},
 		{
-			name: "managed mode with invalid port (too low)",
+			name: "managed mode with port 0 (valid, defaults to 8085)",
 			profile: ConnectionProfile{
 				ID:           "test-id",
 				Name:         "Test Profile",
@@ -186,8 +186,22 @@ func TestConnectionProfile_Validate(t *testing.T) {
 					Port: 0,
 				},
 			},
+			wantErr: false,
+		},
+		{
+			name: "managed mode with invalid port (too low)",
+			profile: ConnectionProfile{
+				ID:           "test-id",
+				Name:         "Test Profile",
+				ProjectID:    "my-project",
+				AuthMethod:   "ADC",
+				EmulatorMode: EmulatorModeManaged,
+				ManagedEmulator: &ManagedEmulatorConfig{
+					Port: -1,
+				},
+			},
 			wantErr: true,
-			errMsg:  "managed emulator port must be between 1 and 65535",
+			errMsg:  "managed emulator port must be 0 (default) or between 1 and 65535",
 		},
 		{
 			name: "managed mode with invalid port (too high)",
@@ -202,7 +216,7 @@ func TestConnectionProfile_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "managed emulator port must be between 1 and 65535",
+			errMsg:  "managed emulator port must be 0 (default) or between 1 and 65535",
 		},
 		{
 			name: "managed mode with invalid bind address",
