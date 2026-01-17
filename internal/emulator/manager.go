@@ -358,9 +358,16 @@ func (m *Manager) Stop(profileID string) error {
 	// Give container a moment to stop gracefully
 	time.Sleep(500 * time.Millisecond)
 
-	// Force stop if still running
+	// Check if container is still running
 	containerName := containerName(profileID)
-	if running, _ := m.isContainerRunning(containerName); running {
+	running, err := m.isContainerRunning(containerName)
+	if err != nil {
+		logger.Error("Failed to check container status", "profileId", profileID, "container", containerName, "error", err)
+		return fmt.Errorf("failed to check container status: %w", err)
+	}
+
+	// Force stop if still running
+	if running {
 		logger.Info("Force stopping container", "container", containerName)
 		m.stopContainer(containerName)
 	}
