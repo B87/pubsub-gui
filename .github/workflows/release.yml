@@ -25,6 +25,9 @@ jobs:
           - os: macos-15
             platform: darwin/arm64
             artifact_name: darwin_arm64
+          - os: macos-15
+            platform: darwin/amd64
+            artifact_name: darwin_amd64
           - os: ubuntu-latest
             platform: linux/amd64
             artifact_name: linux_amd64
@@ -70,7 +73,8 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
-            pkg-config
+            pkg-config \
+            imagemagick
           # Create symlink for webkit2gtk-4.0 if it doesn't exist (Wails looks for 4.0)
           # Check common pkg-config locations
           for PKG_DIR in /usr/lib/x86_64-linux-gnu/pkgconfig /usr/lib/pkgconfig /usr/share/pkgconfig; do
@@ -121,6 +125,21 @@ jobs:
         run: |
           wails build -ldflags "-X main.version=$VERSION -X internal/version.Version=$VERSION" -platform ${{ matrix.platform }} -clean
 
+      - name: Create AppImage (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Use shared script for AppImage creation (single source of truth)
+          ./scripts/create-appimage.sh "$VERSION"
+
+          # Also create regular tar.gz for users who prefer it
+          cd build/bin
+          tar -czf "../../pubsub-gui_linux_amd64_${VERSION}.tar.gz" pubsub-gui
+          cd ../..
+          echo "✓ Created tar.gz: pubsub-gui_linux_amd64_${VERSION}.tar.gz"
+
       - name: Package artifacts (macOS/Linux)
         if: matrix.os != 'windows-latest'
         shell: bash
@@ -133,12 +152,8 @@ jobs:
             cd build/bin
             tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION}.tar.gz" pubsub-gui.app
             cd ../..
-          else
-            # Package binary for Linux
-            cd build/bin
-            tar -czf "../../pubsub-gui_${ARTIFACT_NAME}_${VERSION}.tar.gz" pubsub-gui
-            cd ../..
           fi
+          # Note: Linux packaging is done in the AppImage step above
 
       - name: Package artifacts (Windows)
         if: matrix.os == 'windows-latest'
@@ -161,6 +176,7 @@ jobs:
           path: |
             pubsub-gui_${{ matrix.artifact_name }}_*.tar.gz
             pubsub-gui_${{ matrix.artifact_name }}_*.zip
+            pubsub-gui_${{ matrix.artifact_name }}_*.AppImage
 
   release:
     name: Create Release
@@ -203,7 +219,7 @@ jobs:
       - name: Create checksums
         run: |
           cd artifacts
-          find . -maxdepth 1 \( -name "*.tar.gz" -o -name "*.zip" \) | while read file; do
+          find . -maxdepth 1 \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.AppImage" \) | while read file; do
             if command -v shasum >/dev/null 2>&1; then
               shasum -a 256 "$file" >> pubsub-gui_${{ steps.version.outputs.version }}_checksums.txt
             else
@@ -232,10 +248,51 @@ jobs:
             - **macOS (Intel)**: `pubsub-gui_darwin_amd64_*.tar.gz`
             - **macOS (Apple Silicon)**: `pubsub-gui_darwin_arm64_*.tar.gz`
             - **Windows**: `pubsub-gui_windows_amd64_*.zip`
-            - **Linux**: `pubsub-gui_linux_amd64_*.tar.gz`
+            - **Linux**:
+              - **AppImage (Recommended)**: `pubsub-gui_linux_amd64_*.AppImage` - No dependencies required!
+              - **tar.gz**: `pubsub-gui_linux_amd64_*.tar.gz` - Requires runtime libraries (see below)
 
-            Extract the archive:
-            - **macOS**: Extract the `.app` bundle to `/Applications` or `~/Applications`
-            - **Windows/Linux**: Extract and run the `pubsub-gui` binary
+            ### Installation Instructions
+
+            **macOS:**
+            Extract the `.app` bundle to `/Applications` or `~/Applications`
+
+            **Windows:**
+            Extract and run the `pubsub-gui.exe` binary
+
+            **Linux - AppImage (Recommended):**
+            ```bash
+            chmod +x pubsub-gui_linux_amd64_*.AppImage
+            ./pubsub-gui_linux_amd64_*.AppImage
+            ```
+            The AppImage bundles all dependencies - no additional installation required!
+
+            **Linux - tar.gz (Alternative):**
+            Extract and run the `pubsub-gui` binary. Requires the following runtime libraries:
+            - `libwebkit2gtk-4.1-0` (or `webkit2gtk-4.1` on Arch)
+            - `libgtk-3-0` (or `gtk3` on Arch/RHEL)
+            - `libappindicator3-1` (or `libappindicator-gtk3` on Arch/RHEL)
+
+            **Install on Debian/Ubuntu:**
+            ```bash
+            sudo apt-get update
+            sudo apt-get install libwebkit2gtk-4.1-0 libgtk-3-0 libappindicator3-1
+            ```
+
+            **Install on RHEL/CentOS/Fedora:**
+            ```bash
+            sudo dnf install webkit2gtk4 gtk3 libappindicator-gtk3
+            ```
+
+            **Install on Arch Linux:**
+            ```bash
+            sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator-gtk3
+            ```
+
+            **Or use the automated installer:**
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install.sh | bash
+            ```
+            The installer will automatically detect and install missing dependencies.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
