@@ -16,10 +16,12 @@ import (
 
 // ConnectionStatus represents the current connection status
 type ConnectionStatus struct {
-	IsConnected  bool   `json:"isConnected"`
-	ProjectID    string `json:"projectId"`
-	AuthMethod   string `json:"authMethod,omitempty"`
-	EmulatorHost string `json:"emulatorHost,omitempty"`
+	IsConnected            bool   `json:"isConnected"`
+	ProjectID              string `json:"projectId"`
+	AuthMethod             string `json:"authMethod,omitempty"`
+	EmulatorHost           string `json:"emulatorHost,omitempty"`
+	EmulatorMode           string `json:"emulatorMode,omitempty"`
+	ManagedEmulatorRunning bool   `json:"managedEmulatorRunning,omitempty"`
 }
 
 // ConnectionHandler handles connection and profile management
@@ -31,8 +33,10 @@ type ConnectionHandler struct {
 	syncResources       func() // Callback to trigger resource sync
 	currentEmulatorHost string // Track emulator host from current connection (for status display)
 	currentAuthMethod   string // Track auth method from current connection (for status display)
+	currentEmulatorMode string // Track emulator mode from current connection
 	emulatorHostMu      sync.RWMutex
 	authMethodMu        sync.RWMutex
+	emulatorModeMu      sync.RWMutex
 }
 
 // ClearEmulatorHost clears the tracked emulator host (called on disconnect)
@@ -43,6 +47,23 @@ func (h *ConnectionHandler) ClearEmulatorHost() {
 	h.authMethodMu.Lock()
 	h.currentAuthMethod = ""
 	h.authMethodMu.Unlock()
+	h.emulatorModeMu.Lock()
+	h.currentEmulatorMode = ""
+	h.emulatorModeMu.Unlock()
+}
+
+// SetEmulatorMode sets the current emulator mode for status display
+func (h *ConnectionHandler) SetEmulatorMode(mode string) {
+	h.emulatorModeMu.Lock()
+	h.currentEmulatorMode = mode
+	h.emulatorModeMu.Unlock()
+}
+
+// GetEmulatorMode returns the current emulator mode
+func (h *ConnectionHandler) GetEmulatorMode() string {
+	h.emulatorModeMu.RLock()
+	defer h.emulatorModeMu.RUnlock()
+	return h.currentEmulatorMode
 }
 
 // NewConnectionHandler creates a new connection handler
@@ -86,11 +107,16 @@ func (h *ConnectionHandler) GetConnectionStatus() ConnectionStatus {
 	authMethod := h.currentAuthMethod
 	h.authMethodMu.RUnlock()
 
+	h.emulatorModeMu.RLock()
+	emulatorMode := h.currentEmulatorMode
+	h.emulatorModeMu.RUnlock()
+
 	return ConnectionStatus{
 		IsConnected:  h.clientManager.IsConnected(),
 		ProjectID:    h.clientManager.GetProjectID(),
 		AuthMethod:   authMethod,
 		EmulatorHost: emulatorHost,
+		EmulatorMode: emulatorMode,
 	}
 }
 

@@ -4,8 +4,10 @@ import {version} from '../models';
 import {models} from '../models';
 import {subscriber} from '../models';
 import {app} from '../models';
-import {admin} from '../models';
 import {main} from '../models';
+import {admin} from '../models';
+
+export function CheckDockerAvailable():Promise<void>;
 
 export function CheckEmulatorStatus(arg1:string):Promise<Record<string, any>>;
 
@@ -52,6 +54,8 @@ export function GetConfigFileContent():Promise<string>;
 export function GetConnectionStatus():Promise<app.ConnectionStatus>;
 
 export function GetCurrentVersion():Promise<string>;
+
+export function GetEmulatorStatus(arg1:string):Promise<main.EmulatorStatus>;
 
 export function GetLogs(arg1:string,arg2:number,arg3:number):Promise<Array<app.LogEntry>>;
 
@@ -101,11 +105,15 @@ export function SetAutoAck(arg1:boolean):Promise<void>;
 
 export function SetVersion(arg1:string):Promise<void>;
 
+export function StartManagedEmulator(arg1:string):Promise<void>;
+
 export function StartMonitor(arg1:string):Promise<void>;
 
 export function StartPeriodicUpgradeCheck():Promise<void>;
 
 export function StartTopicMonitor(arg1:string,arg2:string):Promise<void>;
+
+export function StopManagedEmulator(arg1:string):Promise<void>;
 
 export function StopMonitor(arg1:string):Promise<void>;
 

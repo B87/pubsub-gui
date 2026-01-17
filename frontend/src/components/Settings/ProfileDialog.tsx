@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ConnectionProfile } from '../../types';
+import type { ConnectionProfile, EmulatorMode, ManagedEmulatorConfig } from '../../types';
 import { Button, Input, Label, FormField, Checkbox, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Alert, AlertDescription } from '../ui';
 
 interface ProfileDialogProps {
@@ -9,18 +9,43 @@ interface ProfileDialogProps {
   error?: string;
 }
 
+// Helper to get effective emulator mode (migration logic)
+function getEffectiveEmulatorMode(profile: ConnectionProfile | null): EmulatorMode {
+  if (profile?.emulatorMode) {
+    return profile.emulatorMode;
+  }
+  // Migration: if emulatorHost is set, treat as external mode
+  if (profile?.emulatorHost) {
+    return 'external';
+  }
+  return 'off';
+}
+
+// Default managed emulator config
+const defaultManagedConfig: ManagedEmulatorConfig = {
+  port: 8085,
+  image: 'google/cloud-sdk:emulators',
+  autoStart: true,
+  autoStop: true,
+  bindAddress: '127.0.0.1',
+};
+
 export default function ProfileDialog({ profile, onSave, onClose, error: externalError }: ProfileDialogProps) {
   const isEdit = !!profile;
   const [formData, setFormData] = useState({
-    name: profile?.name || '',
-    projectId: profile?.projectId || '',
-    authMethod: (profile?.authMethod || 'ADC') as 'ADC' | 'ServiceAccount' | 'OAuth',
-    serviceAccountPath: profile?.serviceAccountPath || '',
-    oauthClientPath: profile?.oauthClientPath || '',
-    emulatorHost: profile?.emulatorHost || '',
-    isDefault: profile?.isDefault || false,
+    name: profile?.name ?? '',
+    projectId: profile?.projectId ?? '',
+    authMethod: (profile?.authMethod ?? 'ADC') as 'ADC' | 'ServiceAccount' | 'OAuth',
+    serviceAccountPath: profile?.serviceAccountPath ?? '',
+    oauthClientPath: profile?.oauthClientPath ?? '',
+    emulatorHost: profile?.emulatorHost ?? 'localhost:8085',
+    isDefault: profile?.isDefault ?? false,
   });
-  const [useEmulator, setUseEmulator] = useState(!!profile?.emulatorHost);
+  const [emulatorMode, setEmulatorMode] = useState<EmulatorMode>(getEffectiveEmulatorMode(profile));
+  const [managedConfig, setManagedConfig] = useState<ManagedEmulatorConfig>(
+    profile?.managedEmulator ?? { ...defaultManagedConfig }
+  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -30,12 +55,13 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         name: profile.name,
         projectId: profile.projectId,
         authMethod: profile.authMethod,
-        serviceAccountPath: profile.serviceAccountPath || '',
-        oauthClientPath: profile.oauthClientPath || '',
-        emulatorHost: profile.emulatorHost || 'localhost:8085',
+        serviceAccountPath: profile.serviceAccountPath ?? '',
+        oauthClientPath: profile.oauthClientPath ?? '',
+        emulatorHost: profile.emulatorHost ?? 'localhost:8085',
         isDefault: profile.isDefault,
       });
-      setUseEmulator(!!profile.emulatorHost);
+      setEmulatorMode(getEffectiveEmulatorMode(profile));
+      setManagedConfig(profile.managedEmulator ?? { ...defaultManagedConfig });
     } else {
       setFormData({
         name: '',
@@ -46,7 +72,8 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         emulatorHost: 'localhost:8085',
         isDefault: false,
       });
-      setUseEmulator(false);
+      setEmulatorMode('off');
+      setManagedConfig({ ...defaultManagedConfig });
     }
     setError('');
   }, [profile]);
@@ -71,19 +98,29 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
       setError('OAuth client path is required when using OAuth auth method');
       return;
     }
+    if (emulatorMode === 'external' && !formData.emulatorHost.trim()) {
+      setError('Emulator host is required for external emulator mode');
+      return;
+    }
+    if (emulatorMode === 'managed' && (managedConfig.port < 1 || managedConfig.port > 65535)) {
+      setError('Port must be between 1 and 65535');
+      return;
+    }
 
     setSaving(true);
     try {
       const profileToSave: ConnectionProfile = {
-        id: profile?.id || Date.now().toString(),
+        id: profile?.id ?? Date.now().toString(),
         name: formData.name.trim(),
         projectId: formData.projectId.trim(),
         authMethod: formData.authMethod,
         serviceAccountPath: formData.authMethod === 'ServiceAccount' ? formData.serviceAccountPath.trim() : undefined,
         oauthClientPath: formData.authMethod === 'OAuth' ? formData.oauthClientPath.trim() : undefined,
-        emulatorHost: useEmulator ? (formData.emulatorHost.trim() || undefined) : undefined,
+        emulatorMode: emulatorMode,
+        emulatorHost: emulatorMode === 'external' ? formData.emulatorHost.trim() : undefined,
+        managedEmulator: emulatorMode === 'managed' ? managedConfig : undefined,
         isDefault: formData.isDefault,
-        createdAt: profile?.createdAt || new Date().toISOString(),
+        createdAt: profile?.createdAt ?? new Date().toISOString(),
       };
       await onSave(profileToSave);
     } catch (e: any) {
@@ -219,45 +256,177 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
             </FormField>
           )}
 
-          {/* Emulator Toggle */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="use-emulator"
-                checked={useEmulator}
-                onCheckedChange={(checked) => {
-                  setUseEmulator(checked === true);
-                  if (!checked) {
-                    setFormData({ ...formData, emulatorHost: '' });
-                  } else if (!formData.emulatorHost) {
-                    setFormData({ ...formData, emulatorHost: 'localhost:8085' });
-                  }
-                }}
+          {/* Emulator Mode */}
+          <FormField
+            label="Emulator Mode"
+            helperText="Use a local Pub/Sub emulator instead of production GCP"
+          >
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={emulatorMode === 'off' ? 'default' : 'outline'}
+                onClick={() => setEmulatorMode('off')}
                 disabled={saving}
-              />
-              <Label htmlFor="use-emulator" className="cursor-pointer">
-                Use local Pub/Sub emulator
-              </Label>
+                className="flex-1"
+                size="sm"
+              >
+                Off
+              </Button>
+              <Button
+                type="button"
+                variant={emulatorMode === 'external' ? 'default' : 'outline'}
+                onClick={() => setEmulatorMode('external')}
+                disabled={saving}
+                className="flex-1"
+                size="sm"
+              >
+                External
+              </Button>
+              <Button
+                type="button"
+                variant={emulatorMode === 'managed' ? 'default' : 'outline'}
+                onClick={() => setEmulatorMode('managed')}
+                disabled={saving}
+                className="flex-1"
+                size="sm"
+              >
+                Managed
+              </Button>
             </div>
+          </FormField>
 
-            {useEmulator && (
-              <div className="ml-6">
-                <FormField
-                  label="Emulator Host"
-                  helperText="Leave empty for default (localhost:8085)"
-                >
-                  <Input
-                    id="emulator-host"
-                    type="text"
-                    value={formData.emulatorHost}
-                    onChange={(e) => setFormData({ ...formData, emulatorHost: e.target.value })}
-                    placeholder="localhost:8085"
-                    disabled={saving}
-                  />
-                </FormField>
+          {/* External Emulator Host */}
+          {emulatorMode === 'external' && (
+            <div className="ml-4 pl-4 border-l-2" style={{ borderColor: 'var(--color-border-primary)' }}>
+              <FormField
+                label="Emulator Host"
+                required
+                helperText="Address of an externally running emulator"
+              >
+                <Input
+                  id="emulator-host"
+                  type="text"
+                  value={formData.emulatorHost}
+                  onChange={(e) => setFormData({ ...formData, emulatorHost: e.target.value })}
+                  placeholder="localhost:8085"
+                  disabled={saving}
+                />
+              </FormField>
+            </div>
+          )}
+
+          {/* Managed Emulator Settings */}
+          {emulatorMode === 'managed' && (
+            <div className="ml-4 pl-4 border-l-2 space-y-3" style={{ borderColor: 'var(--color-border-primary)' }}>
+              <FormField
+                label="Port"
+                helperText="Host port for the emulator"
+              >
+                <Input
+                  id="emulator-port"
+                  type="number"
+                  value={managedConfig.port}
+                  onChange={(e) => setManagedConfig({ ...managedConfig, port: parseInt(e.target.value) || 8085 })}
+                  placeholder="8085"
+                  disabled={saving}
+                />
+              </FormField>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="auto-start"
+                  checked={managedConfig.autoStart}
+                  onCheckedChange={(checked) => setManagedConfig({ ...managedConfig, autoStart: checked === true })}
+                  disabled={saving}
+                />
+                <Label htmlFor="auto-start" className="text-sm cursor-pointer">
+                  Auto-start on connect
+                </Label>
               </div>
-            )}
-          </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="auto-stop"
+                  checked={managedConfig.autoStop}
+                  onCheckedChange={(checked) => setManagedConfig({ ...managedConfig, autoStop: checked === true })}
+                  disabled={saving}
+                />
+                <Label htmlFor="auto-stop" className="text-sm cursor-pointer">
+                  Auto-stop on disconnect
+                </Label>
+              </div>
+
+              {/* Advanced settings toggle */}
+              <button
+                type="button"
+                onClick={() => { setShowAdvanced(!showAdvanced); }}
+                className="text-xs hover:underline"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                {showAdvanced ? 'Hide advanced settings' : 'Show advanced settings'}
+              </button>
+
+              {showAdvanced && (
+                <div className="space-y-3 pt-2">
+                  <FormField
+                    label="Docker Image"
+                    helperText="Docker image for the emulator"
+                  >
+                    <Input
+                      id="emulator-image"
+                      type="text"
+                      value={managedConfig.image ?? ''}
+                      onChange={(e) => setManagedConfig({ ...managedConfig, image: e.target.value })}
+                      placeholder="google/cloud-sdk:emulators"
+                      disabled={saving}
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Data Directory"
+                    helperText="Optional: Persist emulator data to this directory"
+                  >
+                    <Input
+                      id="emulator-data-dir"
+                      type="text"
+                      value={managedConfig.dataDir ?? ''}
+                      onChange={(e) => setManagedConfig({ ...managedConfig, dataDir: e.target.value })}
+                      placeholder="/path/to/emulator-data"
+                      disabled={saving}
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Bind Address"
+                    helperText="127.0.0.1 (localhost only) or 0.0.0.0 (LAN access)"
+                  >
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={managedConfig.bindAddress === '127.0.0.1' ? 'default' : 'outline'}
+                        onClick={() => setManagedConfig({ ...managedConfig, bindAddress: '127.0.0.1' })}
+                        disabled={saving}
+                        size="sm"
+                        className="flex-1"
+                      >
+                        Localhost
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={managedConfig.bindAddress === '0.0.0.0' ? 'default' : 'outline'}
+                        onClick={() => setManagedConfig({ ...managedConfig, bindAddress: '0.0.0.0' })}
+                        disabled={saving}
+                        size="sm"
+                        className="flex-1"
+                      >
+                        All Interfaces
+                      </Button>
+                    </div>
+                  </FormField>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Is Default */}
           <div className="flex items-center gap-2">
@@ -296,7 +465,8 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
               !formData.name.trim() ||
               !formData.projectId.trim() ||
               (formData.authMethod === 'ServiceAccount' && !formData.serviceAccountPath.trim()) ||
-              (formData.authMethod === 'OAuth' && !formData.oauthClientPath.trim())
+              (formData.authMethod === 'OAuth' && !formData.oauthClientPath.trim()) ||
+              (emulatorMode === 'external' && !formData.emulatorHost.trim())
             }
             loading={saving}
           >

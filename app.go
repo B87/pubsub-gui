@@ -17,6 +17,7 @@ import (
 	"pubsub-gui/internal/app"
 	"pubsub-gui/internal/auth"
 	"pubsub-gui/internal/config"
+	"pubsub-gui/internal/emulator"
 	"pubsub-gui/internal/logger"
 	"pubsub-gui/internal/models"
 	"pubsub-gui/internal/pubsub/admin"
@@ -49,6 +50,13 @@ type App struct {
 	configH                    *app.ConfigHandler
 	snapshots                  *app.SnapshotHandler
 	logs                       *app.LogsHandler
+
+	// Emulator manager for managed Docker emulator
+	emulatorManager *emulator.Manager
+
+	// Track active profile for emulator lifecycle
+	activeProfileMu sync.RWMutex
+	activeProfile   *models.ConnectionProfile
 
 	// Application version
 	version string
@@ -103,6 +111,18 @@ func (a *App) startup(ctx context.Context) {
 		&a.topics,
 		&a.subscriptions,
 	)
+
+	// Set emulator check function for better error handling
+	a.resources.SetEmulatorCheckFunc(func() bool {
+		a.activeProfileMu.RLock()
+		profile := a.activeProfile
+		a.activeProfileMu.RUnlock()
+		if profile != nil {
+			return profile.IsEmulatorEnabled()
+		}
+		return false
+	})
+
 	a.connection = app.NewConnectionHandler(
 		a.ctx,
 		a.config,
@@ -140,6 +160,9 @@ func (a *App) startup(ctx context.Context) {
 	)
 	a.logs = app.NewLogsHandler()
 
+	// Initialize emulator manager
+	a.emulatorManager = emulator.NewManager(a.ctx)
+
 	// Log startup
 	logger.Info("Application started", "version", a.version)
 
@@ -166,7 +189,18 @@ func (a *App) startup(ctx context.Context) {
 
 // GetConnectionStatus returns the current connection status
 func (a *App) GetConnectionStatus() app.ConnectionStatus {
-	return a.connection.GetConnectionStatus()
+	status := a.connection.GetConnectionStatus()
+
+	// Add managed emulator running status
+	a.activeProfileMu.RLock()
+	profile := a.activeProfile
+	a.activeProfileMu.RUnlock()
+
+	if profile != nil && profile.GetEffectiveEmulatorMode() == models.EmulatorModeManaged {
+		status.ManagedEmulatorRunning = a.emulatorManager.IsRunning(profile.ID)
+	}
+
+	return status
 }
 
 // SetVersion sets the application version
@@ -429,7 +463,44 @@ func (a *App) Disconnect() error {
 		a.connection.ClearEmulatorHost()
 	}
 
+	// Stop managed emulator if autoStop is enabled
+	a.stopManagedEmulatorIfNeeded()
+
+	// Clear active profile
+	a.activeProfileMu.Lock()
+	a.activeProfile = nil
+	a.activeProfileMu.Unlock()
+
 	return a.clientManager.Close()
+}
+
+// stopManagedEmulatorIfNeeded stops the managed emulator if autoStop is enabled
+func (a *App) stopManagedEmulatorIfNeeded() {
+	a.activeProfileMu.RLock()
+	profile := a.activeProfile
+	a.activeProfileMu.RUnlock()
+
+	if profile == nil {
+		return
+	}
+
+	// Check if managed emulator mode
+	if profile.GetEffectiveEmulatorMode() != models.EmulatorModeManaged {
+		return
+	}
+
+	// Check autoStop setting (default: true)
+	autoStop := true
+	if profile.ManagedEmulator != nil {
+		autoStop = profile.ManagedEmulator.AutoStop
+	}
+
+	if autoStop {
+		logger.Info("Stopping managed emulator on disconnect", "profileId", profile.ID)
+		if err := a.emulatorManager.Stop(profile.ID); err != nil {
+			logger.Error("Failed to stop managed emulator", "profileId", profile.ID, "error", err)
+		}
+	}
 }
 
 // stopAllMonitors stops all active monitors asynchronously to avoid blocking
@@ -567,19 +638,76 @@ func (a *App) SwitchProfile(profileID string) error {
 
 // connectWithProfile is a helper method to connect using a profile's settings
 func (a *App) connectWithProfile(profile *models.ConnectionProfile) error {
-	// Get emulator host from profile (pass directly, don't modify global env var)
-	emulatorHost := profile.EmulatorHost
+	// Handle managed emulator mode
+	emulatorMode := profile.GetEffectiveEmulatorMode()
+	if emulatorMode == models.EmulatorModeManaged {
+		// Get or create managed emulator config
+		config := profile.ManagedEmulator
+		if config == nil {
+			defaultConfig := models.DefaultManagedEmulatorConfig()
+			config = &defaultConfig
+		}
 
+		// Check Docker availability
+		if err := a.emulatorManager.CheckDocker(); err != nil {
+			return fmt.Errorf("docker required for managed emulator: %w", err)
+		}
+
+		// Start emulator if autoStart is enabled (default: true)
+		if config.AutoStart {
+			if err := a.emulatorManager.Start(profile.ID, config); err != nil {
+				return fmt.Errorf("failed to start emulator: %w", err)
+			}
+
+			// Wait for emulator to be ready
+			maxWait := 30 * time.Second
+			start := time.Now()
+			for {
+				if a.emulatorManager.IsRunning(profile.ID) {
+					break
+				}
+				status := a.emulatorManager.GetStatus(profile.ID)
+				if status.Status == emulator.StatusError {
+					return fmt.Errorf("emulator failed to start: %s", status.Error)
+				}
+				if time.Since(start) > maxWait {
+					return fmt.Errorf("timeout waiting for emulator to start")
+				}
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+	}
+
+	// Get effective emulator host (works for both external and managed modes)
+	emulatorHost := profile.GetEffectiveEmulatorHost()
+
+	// Store active profile for disconnect cleanup
+	a.activeProfileMu.Lock()
+	profileCopy := *profile
+	a.activeProfile = &profileCopy
+	a.activeProfileMu.Unlock()
+
+	// Set emulator mode for status display
+	a.connection.SetEmulatorMode(string(emulatorMode))
+
+	var err error
 	switch profile.AuthMethod {
 	case "ADC":
-		return a.connection.ConnectWithADC(profile.ProjectID, emulatorHost)
+		err = a.connection.ConnectWithADC(profile.ProjectID, emulatorHost)
 	case "ServiceAccount":
-		return a.connection.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath, emulatorHost)
+		err = a.connection.ConnectWithServiceAccount(profile.ProjectID, profile.ServiceAccountPath, emulatorHost)
 	case "OAuth":
-		return a.connection.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath, emulatorHost)
+		err = a.connection.ConnectWithOAuth(profile.ProjectID, profile.OAuthClientPath, emulatorHost)
 	default:
-		return fmt.Errorf("unsupported auth method: %s", profile.AuthMethod)
+		err = fmt.Errorf("unsupported auth method: %s", profile.AuthMethod)
 	}
+
+	// If connection failed and we started a managed emulator, stop it
+	if err != nil && emulatorMode == models.EmulatorModeManaged {
+		a.emulatorManager.Stop(profile.ID)
+	}
+
+	return err
 }
 
 // SyncResources manually triggers a resource sync (exposed for frontend refresh button)
@@ -953,4 +1081,73 @@ func (a *App) GetLogs(date string, limit int, offset int) ([]app.LogEntry, error
 // GetLogsFiltered returns filtered logs across a date range
 func (a *App) GetLogsFiltered(startDate, endDate, levelFilter, searchTerm string, limit, offset int) (app.FilteredLogsResult, error) {
 	return a.logs.GetLogsFiltered(startDate, endDate, levelFilter, searchTerm, limit, offset)
+}
+
+// EmulatorStatus represents the status of a managed emulator instance
+type EmulatorStatus struct {
+	ProfileID     string `json:"profileId"`
+	ContainerName string `json:"containerName"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	Status        string `json:"status"` // "stopped", "starting", "running", "stopping", "error"
+	Error         string `json:"error,omitempty"`
+}
+
+// GetEmulatorStatus returns the status of the managed emulator for a profile
+func (a *App) GetEmulatorStatus(profileID string) EmulatorStatus {
+	info := a.emulatorManager.GetStatus(profileID)
+	return EmulatorStatus{
+		ProfileID:     info.ProfileID,
+		ContainerName: info.ContainerName,
+		Host:          info.Host,
+		Port:          info.Port,
+		Status:        string(info.Status),
+		Error:         info.Error,
+	}
+}
+
+// CheckDockerAvailable checks if Docker is installed and running
+func (a *App) CheckDockerAvailable() error {
+	return a.emulatorManager.CheckDocker()
+}
+
+// StartManagedEmulator manually starts the managed emulator for a profile
+func (a *App) StartManagedEmulator(profileID string) error {
+	// Find the profile
+	var profile *models.ConnectionProfile
+	for i, p := range a.config.Profiles {
+		if p.ID == profileID {
+			profile = &a.config.Profiles[i]
+			break
+		}
+	}
+
+	if profile == nil {
+		return fmt.Errorf("profile not found: %s", profileID)
+	}
+
+	// Check if profile uses managed emulator mode
+	if profile.GetEffectiveEmulatorMode() != models.EmulatorModeManaged {
+		return fmt.Errorf("profile is not configured for managed emulator mode")
+	}
+
+	// Get or create managed emulator config
+	config := profile.ManagedEmulator
+	if config == nil {
+		defaultConfig := models.DefaultManagedEmulatorConfig()
+		config = &defaultConfig
+	}
+
+	// Check Docker availability
+	if err := a.emulatorManager.CheckDocker(); err != nil {
+		return fmt.Errorf("docker required: %w", err)
+	}
+
+	// Start emulator
+	return a.emulatorManager.Start(profileID, config)
+}
+
+// StopManagedEmulator manually stops the managed emulator for a profile
+func (a *App) StopManagedEmulator(profileID string) error {
+	return a.emulatorManager.Stop(profileID)
 }

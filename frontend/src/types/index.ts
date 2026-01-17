@@ -1,5 +1,18 @@
 // TypeScript type definitions matching Go backend structs
 
+// Emulator mode for connection profiles
+export type EmulatorMode = 'off' | 'external' | 'managed';
+
+// Configuration for managed Docker emulator
+export interface ManagedEmulatorConfig {
+  port: number;                    // Host port to expose (default: 8085)
+  image?: string;                  // Docker image (default: google/cloud-sdk:emulators)
+  dataDir?: string;                // Optional data directory for persistence
+  autoStart: boolean;              // Start emulator automatically on connect (default: true)
+  autoStop: boolean;               // Stop emulator on disconnect (default: true)
+  bindAddress?: string;            // Bind address (default: 127.0.0.1, use 0.0.0.0 for LAN access)
+}
+
 export interface ConnectionProfile {
   id: string;
   name: string;
@@ -8,7 +21,9 @@ export interface ConnectionProfile {
   serviceAccountPath?: string;
   oauthClientPath?: string;
   oauthEmail?: string;
-  emulatorHost?: string;
+  emulatorHost?: string;           // For external mode (backward compatible)
+  emulatorMode?: EmulatorMode;     // 'off' | 'external' | 'managed'
+  managedEmulator?: ManagedEmulatorConfig;  // Settings for managed Docker emulator
   isDefault: boolean;
   createdAt: string;
 }
@@ -18,6 +33,8 @@ export interface ConnectionStatus {
   projectId: string;
   authMethod?: string;
   emulatorHost?: string;
+  emulatorMode?: string; // 'off' | 'external' | 'managed'
+  managedEmulatorRunning?: boolean;
 }
 
 export interface Topic {
@@ -170,4 +187,16 @@ export interface SnapshotInfo {
   subscription?: string;
   expireTime: string;
   labels?: Record<string, string>;
+}
+
+// Emulator Status Types
+export type EmulatorStatusType = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
+
+export interface EmulatorStatus {
+  profileId: string;
+  containerName: string;
+  host: string;
+  port: number;
+  status: EmulatorStatusType;
+  error?: string;
 }
