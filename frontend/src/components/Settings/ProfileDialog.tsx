@@ -33,17 +33,17 @@ const defaultManagedConfig: ManagedEmulatorConfig = {
 export default function ProfileDialog({ profile, onSave, onClose, error: externalError }: ProfileDialogProps) {
   const isEdit = !!profile;
   const [formData, setFormData] = useState({
-    name: profile?.name || '',
-    projectId: profile?.projectId || '',
-    authMethod: (profile?.authMethod || 'ADC') as 'ADC' | 'ServiceAccount' | 'OAuth',
-    serviceAccountPath: profile?.serviceAccountPath || '',
-    oauthClientPath: profile?.oauthClientPath || '',
-    emulatorHost: profile?.emulatorHost || 'localhost:8085',
-    isDefault: profile?.isDefault || false,
+    name: profile?.name ?? '',
+    projectId: profile?.projectId ?? '',
+    authMethod: (profile?.authMethod ?? 'ADC') as 'ADC' | 'ServiceAccount' | 'OAuth',
+    serviceAccountPath: profile?.serviceAccountPath ?? '',
+    oauthClientPath: profile?.oauthClientPath ?? '',
+    emulatorHost: profile?.emulatorHost ?? 'localhost:8085',
+    isDefault: profile?.isDefault ?? false,
   });
   const [emulatorMode, setEmulatorMode] = useState<EmulatorMode>(getEffectiveEmulatorMode(profile));
   const [managedConfig, setManagedConfig] = useState<ManagedEmulatorConfig>(
-    profile?.managedEmulator || { ...defaultManagedConfig }
+    profile?.managedEmulator ?? { ...defaultManagedConfig }
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState('');
@@ -55,13 +55,13 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         name: profile.name,
         projectId: profile.projectId,
         authMethod: profile.authMethod,
-        serviceAccountPath: profile.serviceAccountPath || '',
-        oauthClientPath: profile.oauthClientPath || '',
-        emulatorHost: profile.emulatorHost || 'localhost:8085',
+        serviceAccountPath: profile.serviceAccountPath ?? '',
+        oauthClientPath: profile.oauthClientPath ?? '',
+        emulatorHost: profile.emulatorHost ?? 'localhost:8085',
         isDefault: profile.isDefault,
       });
       setEmulatorMode(getEffectiveEmulatorMode(profile));
-      setManagedConfig(profile.managedEmulator || { ...defaultManagedConfig });
+      setManagedConfig(profile.managedEmulator ?? { ...defaultManagedConfig });
     } else {
       setFormData({
         name: '',
@@ -110,7 +110,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
     setSaving(true);
     try {
       const profileToSave: ConnectionProfile = {
-        id: profile?.id || Date.now().toString(),
+        id: profile?.id ?? Date.now().toString(),
         name: formData.name.trim(),
         projectId: formData.projectId.trim(),
         authMethod: formData.authMethod,
@@ -120,7 +120,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
         emulatorHost: emulatorMode === 'external' ? formData.emulatorHost.trim() : undefined,
         managedEmulator: emulatorMode === 'managed' ? managedConfig : undefined,
         isDefault: formData.isDefault,
-        createdAt: profile?.createdAt || new Date().toISOString(),
+        createdAt: profile?.createdAt ?? new Date().toISOString(),
       };
       await onSave(profileToSave);
     } catch (e: any) {
@@ -359,7 +359,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
               {/* Advanced settings toggle */}
               <button
                 type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
+                onClick={() => { setShowAdvanced(!showAdvanced); }}
                 className="text-xs hover:underline"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
@@ -375,7 +375,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
                     <Input
                       id="emulator-image"
                       type="text"
-                      value={managedConfig.image || ''}
+                      value={managedConfig.image ?? ''}
                       onChange={(e) => setManagedConfig({ ...managedConfig, image: e.target.value })}
                       placeholder="google/cloud-sdk:emulators"
                       disabled={saving}
@@ -389,7 +389,7 @@ export default function ProfileDialog({ profile, onSave, onClose, error: externa
                     <Input
                       id="emulator-data-dir"
                       type="text"
-                      value={managedConfig.dataDir || ''}
+                      value={managedConfig.dataDir ?? ''}
                       onChange={(e) => setManagedConfig({ ...managedConfig, dataDir: e.target.value })}
                       placeholder="/path/to/emulator-data"
                       disabled={saving}

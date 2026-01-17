@@ -110,6 +110,76 @@ export default function Component({ topic, onAction }: ComponentProps) {
 - **Props interfaces**: `ComponentNameProps` (e.g., `TopicDetailsProps`)
 - **Types**: PascalCase, exported from `types/index.ts`
 
+## TypeScript Best Practices
+
+### Nullish Coalescing (`??`) vs Logical OR (`||`)
+
+**CRITICAL**: Prefer using the nullish coalescing operator (`??`) instead of logical OR (`||`) for default values, as it is safer and more precise.
+
+**Key Difference:**
+- `??` only checks for `null` or `undefined`
+- `||` checks for any falsy value (`null`, `undefined`, `0`, `''`, `false`, `NaN`)
+
+**When to Use `??` (Default Values):**
+
+```tsx
+// ✅ CORRECT: Use ?? for default values when you want to preserve falsy values
+const name = profile?.name ?? '';
+const projectId = profile?.projectId ?? '';
+const authMethod = profile?.authMethod ?? 'ADC';
+const isDefault = profile?.isDefault ?? false;
+const port = managedConfig.port ?? 8085;
+const createdAt = profile?.createdAt ?? new Date().toISOString();
+
+// ✅ CORRECT: Use ?? for optional object properties
+const managedEmulator = profile?.managedEmulator ?? { ...defaultManagedConfig };
+const image = managedConfig.image ?? '';
+const dataDir = managedConfig.dataDir ?? '';
+```
+
+**When to Use `||` (Legitimate Cases):**
+
+```tsx
+// ✅ CORRECT: Use || when you want to handle falsy values (including 0, '', false)
+// Example: parseInt can return NaN, and we want to handle NaN as well
+const port = parseInt(e.target.value) || 8085; // NaN || 8085 works, NaN ?? 8085 would return NaN
+
+// ✅ CORRECT: Use || for boolean logic (not default values)
+if (error || externalError) {
+  // Show error if either exists
+}
+
+// ✅ CORRECT: Use || for conditional rendering
+{(error || externalError) && (
+  <Alert>{error || externalError}</Alert>
+)}
+
+// ✅ CORRECT: Use || for logical conditions in disabled props
+disabled={
+  saving ||
+  !formData.name.trim() ||
+  !formData.projectId.trim()
+}
+```
+
+**Anti-Patterns:**
+
+```tsx
+// ❌ WRONG: Using || for default values (can cause bugs with falsy values)
+const name = profile?.name || ''; // If name is '', this works but is less clear
+const isDefault = profile?.isDefault || false; // If isDefault is false, this works but is less clear
+const port = managedConfig.port || 8085; // If port is 0, this incorrectly uses 8085!
+
+// ✅ CORRECT: Use ?? for default values
+const name = profile?.name ?? '';
+const isDefault = profile?.isDefault ?? false;
+const port = managedConfig.port ?? 8085; // If port is 0, it correctly uses 0
+```
+
+**Summary:**
+- **Use `??`** for default value assignments (when you want to preserve `0`, `''`, `false`)
+- **Use `||`** for boolean logic, conditional rendering, and cases where you want to handle all falsy values (like `NaN` from `parseInt`)
+
 ## Styling Guidelines
 
 ### Theme System
