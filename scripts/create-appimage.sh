@@ -34,7 +34,7 @@ NC='\033[0m' # No Color
 # =============================================================================
 
 # linuxdeploy: using specific release tag with SHA256 verification
-LINUXDEPLOY_VERSION="1-alpha-20250213-1"
+LINUXDEPLOY_VERSION="1-alpha-20251107-1"
 LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_VERSION}/linuxdeploy-x86_64.AppImage"
 LINUXDEPLOY_SHA256_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_VERSION}/linuxdeploy-x86_64.AppImage.sha256"
 
@@ -105,15 +105,19 @@ log_success "Binary found: $BINARY_PATH"
 # =============================================================================
 
 log_info "Downloading linuxdeploy ${LINUXDEPLOY_VERSION}..."
-wget -q "$LINUXDEPLOY_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage" || {
+if ! wget -q "$LINUXDEPLOY_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage" 2>&1; then
     log_error "Error: Failed to download linuxdeploy"
+    log_error "URL: $LINUXDEPLOY_URL"
+    log_error "Please verify the version exists and the URL is correct"
     exit 1
-}
+fi
 
-wget -q "$LINUXDEPLOY_SHA256_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage.sha256" || {
+if ! wget -q "$LINUXDEPLOY_SHA256_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage.sha256" 2>&1; then
     log_error "Error: Failed to download linuxdeploy checksum"
+    log_error "URL: $LINUXDEPLOY_SHA256_URL"
+    log_error "Please verify the version exists and the URL is correct"
     exit 1
-}
+fi
 
 if [[ "$SKIP_CHECKSUM" != "1" ]]; then
     log_info "Verifying linuxdeploy checksum..."
