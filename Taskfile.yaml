@@ -112,6 +112,16 @@ tasks:
       - task: build:windows
       - task: build:linux
 
+  build:appimage:
+    desc: Create Linux AppImage (requires Linux with GTK dev libs)
+    vars:
+      VERSION: '{{.VERSION | default "dev"}}'
+    preconditions:
+      - sh: test "$(uname -s)" = "Linux"
+        msg: "AppImage creation is only supported on Linux"
+    cmds:
+      - ./scripts/create-appimage.sh {{.VERSION}}
+
   # ============================================================================
   # Testing & Code Quality
   # ============================================================================

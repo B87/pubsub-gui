@@ -48,11 +48,47 @@ curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install
 1. Download the appropriate binary for your platform from the [Releases](https://github.com/b87/pubsub-gui/releases) page:
    - **macOS**: `pubsub-gui_darwin_amd64_*.tar.gz` or `pubsub-gui_darwin_arm64_*.tar.gz`
    - **Windows**: `pubsub-gui_windows_amd64_*.zip`
-   - **Linux**: `pubsub-gui_linux_amd64_*.tar.gz` or `pubsub-gui_linux_arm64_*.tar.gz`
+   - **Linux**:
+     - **AppImage (Recommended)**: `pubsub-gui_linux_amd64_*.AppImage` - No dependencies required!
+     - **tar.gz**: `pubsub-gui_linux_amd64_*.tar.gz` - Requires runtime libraries (see below)
 
-2. Extract the archive and run the `pubsub-gui` binary
+2. **Linux - AppImage (Recommended):**
+   ```bash
+   chmod +x pubsub-gui_linux_amd64_*.AppImage
+   ./pubsub-gui_linux_amd64_*.AppImage
+   ```
+   The AppImage bundles all dependencies - no additional installation required!
 
-3. (Optional) Add the binary to your PATH for global access
+3. **Linux - tar.gz (Alternative):**
+   Extract the archive and run the `pubsub-gui` binary.
+
+   **Linux Runtime Dependencies** (for tar.gz only):
+
+   The Linux binary requires the following runtime libraries:
+   - `libwebkit2gtk-4.1-0` (Debian/Ubuntu) or `webkit2gtk4.1` (RHEL/CentOS/Fedora) or `webkit2gtk-4.1` (Arch)
+   - `libgtk-3-0` (Debian/Ubuntu) or `gtk3` (RHEL/CentOS/Fedora/Arch)
+   - `libappindicator3-1` (Debian/Ubuntu) or `libappindicator-gtk3` (RHEL/CentOS/Fedora/Arch)
+
+   **Install on Debian/Ubuntu:**
+   ```bash
+   sudo apt-get update
+   sudo apt-get install libwebkit2gtk-4.1-0 libgtk-3-0 libappindicator3-1
+   ```
+
+   **Install on RHEL/CentOS/Fedora:**
+   ```bash
+   sudo dnf install webkit2gtk4.1 gtk3 libappindicator-gtk3
+   ```
+   > **Note:** `webkit2gtk4.1` is available on Fedora 40+ and RHEL/CentOS 10+. For older versions (RHEL/CentOS 8-9, Fedora ≤39), only `webkit2gtk3` (4.0 ABI) is available, which may not be compatible.
+
+   **Install on Arch Linux:**
+   ```bash
+   sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator-gtk3
+   ```
+
+   If you see an error like `libwebkit2gtk-4.1.so.0: cannot open shared object file`, install the missing dependencies above.
+
+4. (Optional) Add the binary to your PATH for global access
 
 ## 🎯 Quick Start
 

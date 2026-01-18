@@ -26,9 +26,10 @@ else
     IMAGEMAGICK_CMD="convert"
 fi
 
-# Generate PNG icon (512x512) for macOS
+# Generate PNG icon (512x512) for macOS and Linux AppImage
+# Resize to fit within 512x512 (preserving aspect ratio), then extend to exactly 512x512 square
 echo "📱 Generating PNG icon (512x512)..."
-$IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 512x512 "$BUILD_DIR/appicon.png"
+$IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 512x512 -extent 512x512 -gravity center "$BUILD_DIR/appicon.png"
 
 # Generate Windows ICO file (multiple sizes)
 echo "🪟 Generating Windows ICO file..."
@@ -53,31 +54,45 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "🍎 Generating macOS ICNS file..."
 
     ICONSET_DIR="$BUILD_DIR/appicon.iconset"
+    # Clean up any existing iconset directory
+    rm -rf "$ICONSET_DIR"
     mkdir -p "$ICONSET_DIR"
 
-    # Generate all required sizes for ICNS
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 512x512 "$ICONSET_DIR/icon_512x512.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 256x256 "$ICONSET_DIR/icon_256x256.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 128x128 "$ICONSET_DIR/icon_128x128.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 64x64 "$ICONSET_DIR/icon_64x64.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 32x32 "$ICONSET_DIR/icon_32x32.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 16x16 "$ICONSET_DIR/icon_16x16.png"
+    # Ensure output directory exists
+    mkdir -p "$BUILD_DIR/bin/pubsub-gui.app/Contents/Resources"
+
+    # Generate all required sizes for ICNS (ensure they're exactly square)
+    # Standard sizes
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 512x512 -extent 512x512 -gravity center "$ICONSET_DIR/icon_512x512.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 256x256 -extent 256x256 -gravity center "$ICONSET_DIR/icon_256x256.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 128x128 -extent 128x128 -gravity center "$ICONSET_DIR/icon_128x128.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 64x64 -extent 64x64 -gravity center "$ICONSET_DIR/icon_64x64.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 32x32 -extent 32x32 -gravity center "$ICONSET_DIR/icon_32x32.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 16x16 -extent 16x16 -gravity center "$ICONSET_DIR/icon_16x16.png"
 
     # Generate @2x versions
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 1024x1024 "$ICONSET_DIR/icon_512x512@2x.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 512x512 "$ICONSET_DIR/icon_256x256@2x.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 256x256 "$ICONSET_DIR/icon_128x128@2x.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 128x128 "$ICONSET_DIR/icon_64x64@2x.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 64x64 "$ICONSET_DIR/icon_32x32@2x.png"
-    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 32x32 "$ICONSET_DIR/icon_16x16@2x.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 1024x1024 -extent 1024x1024 -gravity center "$ICONSET_DIR/icon_512x512@2x.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 512x512 -extent 512x512 -gravity center "$ICONSET_DIR/icon_256x256@2x.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 256x256 -extent 256x256 -gravity center "$ICONSET_DIR/icon_128x128@2x.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 128x128 -extent 128x128 -gravity center "$ICONSET_DIR/icon_64x64@2x.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 64x64 -extent 64x64 -gravity center "$ICONSET_DIR/icon_32x32@2x.png"
+    $IMAGEMAGICK_CMD "$SVG_ICON" -background none -resize 32x32 -extent 32x32 -gravity center "$ICONSET_DIR/icon_16x16@2x.png"
 
     # Create ICNS file
-    iconutil -c icns "$ICONSET_DIR" -o "$BUILD_DIR/bin/pubsub-gui.app/Contents/Resources/iconfile.icns"
+    if iconutil -c icns "$ICONSET_DIR" -o "$BUILD_DIR/bin/pubsub-gui.app/Contents/Resources/iconfile.icns" 2>&1; then
+        echo "✅ macOS ICNS file generated!"
+    else
+        echo "❌ Failed to generate ICNS file"
+        echo "   Checking iconset directory contents..."
+        ls -la "$ICONSET_DIR" || true
+        echo "   Attempting to diagnose issue..."
+        # Clean up on failure
+        rm -rf "$ICONSET_DIR"
+        exit 1
+    fi
 
     # Clean up iconset directory
     rm -rf "$ICONSET_DIR"
-
-    echo "✅ macOS ICNS file generated!"
 else
     echo "⚠️  Skipping ICNS generation (macOS only)"
 fi
