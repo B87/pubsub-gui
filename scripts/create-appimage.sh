@@ -17,6 +17,7 @@
 # Prerequisites:
 #   - Linux with GTK3 development libraries
 #   - wget, sha256sum, imagemagick (for placeholder icon)
+#   - squashfs-tools (for mksquashfs, required by appimagetool)
 #   - Built binary at BINARY_PATH
 #
 

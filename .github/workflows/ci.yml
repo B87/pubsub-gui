@@ -109,7 +109,8 @@ jobs:
             patchelf \
             pkg-config \
             imagemagick \
-            wget
+            wget \
+            squashfs-tools
           # Create symlink for webkit2gtk-4.0 if it doesn't exist (Wails looks for 4.0)
           for PKG_DIR in /usr/lib/x86_64-linux-gnu/pkgconfig /usr/lib/pkgconfig /usr/share/pkgconfig; do
             if [ -d "$PKG_DIR" ] && [ -f "${PKG_DIR}/webkit2gtk-4.1.pc" ] && [ ! -f "${PKG_DIR}/webkit2gtk-4.0.pc" ]; then
