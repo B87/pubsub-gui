@@ -210,6 +210,13 @@ fi
 
 log_success "Using icon: $ICON_PATH"
 
+# Copy icon to working directory with the name expected by desktop file
+# The desktop file specifies Icon=pubsub-gui, so linuxdeploy expects pubsub-gui.png
+ICON_EXT="${ICON_PATH##*.}"
+ICON_FOR_LINUXDEPLOY="$WORK_DIR/pubsub-gui.${ICON_EXT}"
+cp "$ICON_PATH" "$ICON_FOR_LINUXDEPLOY"
+log_info "Icon copied to: $ICON_FOR_LINUXDEPLOY (matching desktop file Icon entry)"
+
 # =============================================================================
 # Create AppImage
 # =============================================================================
@@ -225,7 +232,7 @@ export DEPLOY_GTK_VERSION=3
     --appdir "$WORK_DIR/AppDir" \
     --executable "$BINARY_PATH" \
     --desktop-file "$WORK_DIR/pubsub-gui.desktop" \
-    --icon-file "$ICON_PATH" \
+    --icon-file "$ICON_FOR_LINUXDEPLOY" \
     --plugin gtk \
     --output appimage
 
