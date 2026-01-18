@@ -107,7 +107,10 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
-            pkg-config
+            pkg-config \
+            imagemagick \
+            wget \
+            squashfs-tools
           # Create symlink for webkit2gtk-4.0 if it doesn't exist (Wails looks for 4.0)
           for PKG_DIR in /usr/lib/x86_64-linux-gnu/pkgconfig /usr/lib/pkgconfig /usr/share/pkgconfig; do
             if [ -d "$PKG_DIR" ] && [ -f "${PKG_DIR}/webkit2gtk-4.1.pc" ] && [ ! -f "${PKG_DIR}/webkit2gtk-4.0.pc" ]; then
@@ -145,3 +148,9 @@ jobs:
           else
             test -f build/bin/pubsub-gui && echo "✅ Linux binary created" || (echo "❌ Linux binary not found" && exit 1)
           fi
+
+      - name: Verify AppImage creation (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          ./scripts/create-appimage.sh ci-test

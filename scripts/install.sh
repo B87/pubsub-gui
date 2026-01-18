@@ -8,6 +8,22 @@
 # - Automatic platform detection (Linux, macOS, Windows)
 # - SHA256 checksum verification for downloaded archives
 # - Support for latest release or specific version
+# - Linux: AppImage by default (self-contained, no dependencies needed)
+#
+# Environment Variables:
+# - PUBSUB_GUI_REPO_URL: Override the GitHub repository URL
+# - PUBSUB_GUI_INSTALL_DIR: Override the installation directory
+# - PUBSUB_GUI_USE_TARBALL: Set to "1" to use tar.gz instead of AppImage on Linux
+#
+# Examples:
+#   # Install latest version (AppImage on Linux)
+#   curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install.sh | bash
+#
+#   # Install specific version
+#   curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install.sh | bash -s -- v1.2.0
+#
+#   # Force tar.gz instead of AppImage on Linux
+#   curl -fsSL https://raw.githubusercontent.com/b87/pubsub-gui/main/scripts/install.sh | PUBSUB_GUI_USE_TARBALL=1 bash
 #
 
 set -euo pipefail
@@ -30,10 +46,17 @@ detect_platform() {
     local os=""
     local arch=""
     local ext="tar.gz"
+    local use_appimage="false"
 
     case "$(uname -s)" in
         Linux*)
             os="linux"
+            # Default to AppImage for Linux (self-contained, no dependencies needed)
+            # Can be overridden with PUBSUB_GUI_USE_TARBALL=1
+            if [ "${PUBSUB_GUI_USE_TARBALL:-}" != "1" ]; then
+                use_appimage="true"
+                ext="AppImage"
+            fi
             ;;
         Darwin*)
             os="darwin"
@@ -54,9 +77,19 @@ detect_platform() {
             ;;
         arm64|aarch64)
             arch="arm64"
+            # AppImage currently only available for amd64
+            if [ "$os" = "linux" ]; then
+                use_appimage="false"
+                ext="tar.gz"
+            fi
             ;;
         armv7l|armv7)
             arch="armv7"
+            # AppImage not available for armv7
+            if [ "$os" = "linux" ]; then
+                use_appimage="false"
+                ext="tar.gz"
+            fi
             ;;
         *)
             echo -e "${RED}Error: Unsupported architecture: $(uname -m)${NC}" >&2
@@ -73,6 +106,7 @@ detect_platform() {
     PLATFORM_OS="$os"
     PLATFORM_ARCH="$arch"
     ARCHIVE_EXT="$ext"
+    USE_APPIMAGE="$use_appimage"
 }
 
 # Normalize GitHub repository URL (remove www, ensure https://github.com format)
@@ -239,12 +273,212 @@ verify_checksum() {
     fi
 }
 
+# Check and install Linux runtime dependencies
+check_linux_dependencies() {
+    if [ "$PLATFORM_OS" != "linux" ]; then
+        return 0
+    fi
+
+    echo -e "${BLUE}Checking Linux runtime dependencies...${NC}"
+
+    # Check if required libraries are available
+    local missing_deps=()
+
+    # Function to check if a library exists
+    check_library() {
+        local lib_name="$1"
+
+        # Try ldconfig first (most reliable)
+        if command -v ldconfig >/dev/null 2>&1; then
+            if ldconfig -p 2>/dev/null | grep -q "${lib_name}.so"; then
+                return 0
+            fi
+        fi
+
+        # Fallback: check common library paths
+        local lib_paths=(
+            "/usr/lib"
+            "/usr/lib64"
+            "/usr/local/lib"
+            "/usr/local/lib64"
+            "/lib"
+            "/lib64"
+        )
+
+        for lib_path in "${lib_paths[@]}"; do
+            if [ -f "${lib_path}/${lib_name}.so" ] || [ -f "${lib_path}/${lib_name}.so.0" ] || \
+               find "${lib_path}" -name "${lib_name}.so*" 2>/dev/null | grep -q .; then
+                return 0
+            fi
+        done
+
+        return 1
+    }
+
+    # Check for webkit2gtk-4.1 (most critical)
+    if ! check_library "libwebkit2gtk-4.1"; then
+        missing_deps+=("webkit2gtk-4.1")
+    fi
+
+    # Check for GTK3
+    if ! check_library "libgtk-3"; then
+        missing_deps+=("gtk-3")
+    fi
+
+    # Check for appindicator3
+    if ! check_library "libappindicator3"; then
+        missing_deps+=("appindicator3")
+    fi
+
+    if [ ${#missing_deps[@]} -eq 0 ]; then
+        echo -e "${GREEN}✓ All runtime dependencies are installed${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}Missing runtime dependencies detected: ${missing_deps[*]}${NC}"
+    echo -e "${YELLOW}Attempting to install missing dependencies...${NC}"
+
+    # Detect package manager and install dependencies
+    if command -v apt-get >/dev/null 2>&1; then
+        # Debian/Ubuntu
+        local packages=()
+        for dep in "${missing_deps[@]}"; do
+            case "$dep" in
+                webkit2gtk-4.1)
+                    packages+=("libwebkit2gtk-4.1-0")
+                    ;;
+                gtk-3)
+                    packages+=("libgtk-3-0")
+                    ;;
+                appindicator3)
+                    packages+=("libappindicator3-1")
+                    ;;
+            esac
+        done
+
+        if [ ${#packages[@]} -gt 0 ]; then
+            echo -e "${BLUE}Installing: ${packages[*]}${NC}"
+            if [ "$EUID" -eq 0 ]; then
+                apt-get update -qq && apt-get install -y "${packages[@]}" || {
+                    echo -e "${YELLOW}Warning: Failed to install dependencies automatically${NC}"
+                    echo -e "${YELLOW}Please install manually: sudo apt-get install ${packages[*]}${NC}"
+                    return 1
+                }
+            else
+                echo -e "${YELLOW}Root privileges required to install dependencies${NC}"
+                echo -e "${YELLOW}Please run: sudo apt-get update && sudo apt-get install ${packages[*]}${NC}"
+                return 1
+            fi
+        fi
+    elif command -v yum >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; then
+        # RHEL/CentOS/Fedora
+        local packages=()
+        for dep in "${missing_deps[@]}"; do
+            case "$dep" in
+                webkit2gtk-4.1)
+                    packages+=("webkit2gtk4")
+                    ;;
+                gtk-3)
+                    packages+=("gtk3")
+                    ;;
+                appindicator3)
+                    packages+=("libappindicator-gtk3")
+                    ;;
+            esac
+        done
+
+        if [ ${#packages[@]} -gt 0 ]; then
+            echo -e "${BLUE}Installing: ${packages[*]}${NC}"
+            local pkg_manager="yum"
+            if command -v dnf >/dev/null 2>&1; then
+                pkg_manager="dnf"
+            fi
+
+            if [ "$EUID" -eq 0 ]; then
+                $pkg_manager install -y "${packages[@]}" || {
+                    echo -e "${YELLOW}Warning: Failed to install dependencies automatically${NC}"
+                    echo -e "${YELLOW}Please install manually: sudo $pkg_manager install ${packages[*]}${NC}"
+                    return 1
+                }
+            else
+                echo -e "${YELLOW}Root privileges required to install dependencies${NC}"
+                echo -e "${YELLOW}Please run: sudo $pkg_manager install ${packages[*]}${NC}"
+                return 1
+            fi
+        fi
+    elif command -v pacman >/dev/null 2>&1; then
+        # Arch Linux
+        local packages=()
+        for dep in "${missing_deps[@]}"; do
+            case "$dep" in
+                webkit2gtk-4.1)
+                    packages+=("webkit2gtk-4.1")
+                    ;;
+                gtk-3)
+                    packages+=("gtk3")
+                    ;;
+                appindicator3)
+                    packages+=("libappindicator-gtk3")
+                    ;;
+            esac
+        done
+
+        if [ ${#packages[@]} -gt 0 ]; then
+            echo -e "${BLUE}Installing: ${packages[*]}${NC}"
+            if [ "$EUID" -eq 0 ]; then
+                pacman -S --noconfirm "${packages[@]}" || {
+                    echo -e "${YELLOW}Warning: Failed to install dependencies automatically${NC}"
+                    echo -e "${YELLOW}Please install manually: sudo pacman -S ${packages[*]}${NC}"
+                    return 1
+                }
+            else
+                echo -e "${YELLOW}Root privileges required to install dependencies${NC}"
+                echo -e "${YELLOW}Please run: sudo pacman -S ${packages[*]}${NC}"
+                return 1
+            fi
+        fi
+    else
+        echo -e "${YELLOW}Warning: Could not detect package manager${NC}"
+        echo -e "${YELLOW}Please install the following runtime dependencies manually:${NC}"
+        echo -e "${YELLOW}  - libwebkit2gtk-4.1-0 (or webkit2gtk-4.1)${NC}"
+        echo -e "${YELLOW}  - libgtk-3-0 (or gtk3)${NC}"
+        echo -e "${YELLOW}  - libappindicator3-1 (or libappindicator-gtk3)${NC}"
+        return 1
+    fi
+
+    echo -e "${GREEN}✓ Runtime dependencies installed${NC}"
+    return 0
+}
+
 # Download and install
 install_binary() {
     local version="$1"
     local os="$2"
     local arch="$3"
     local ext="$4"
+
+    # Check Linux dependencies before installation (only for tar.gz, not AppImage)
+    if [ "$os" = "linux" ] && [ "$USE_APPIMAGE" != "true" ]; then
+        if ! check_linux_dependencies; then
+            echo -e "${YELLOW}Warning: Some runtime dependencies may be missing${NC}"
+            echo -e "${YELLOW}The application may not run correctly until dependencies are installed${NC}"
+
+            # Only prompt if running interactively (stdin is a TTY)
+            if [ -t 0 ]; then
+                read -p "Continue with installation anyway? (y/N) " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    echo -e "${RED}Installation cancelled${NC}"
+                    exit 1
+                fi
+            else
+                echo -e "${YELLOW}Continuing with installation (non-interactive mode)${NC}"
+                echo -e "${YELLOW}Please install dependencies manually if the application fails to run${NC}"
+            fi
+        fi
+    elif [ "$os" = "linux" ] && [ "$USE_APPIMAGE" = "true" ]; then
+        echo -e "${GREEN}✓ Using AppImage (all dependencies bundled)${NC}"
+    fi
 
     # Construct download URL (normalize GitHub URL first)
     local normalized_url=$(normalize_github_url "$REPO_URL")
@@ -290,7 +524,94 @@ install_binary() {
     # Verify checksum
     verify_checksum "$archive_path" "$archive_name" "$version" "$normalized_url" "$tmp_dir"
 
-    # Extract archive
+    # Handle AppImage specially (no extraction needed)
+    if [ "$ext" = "AppImage" ]; then
+        echo -e "${BLUE}Installing AppImage...${NC}"
+
+        # Determine install location for AppImage
+        local appimage_dir="${INSTALL_DIR:-$HOME/.local/bin}"
+        local appimage_path="${appimage_dir}/${BINARY_NAME}.AppImage"
+
+        # Create directory if needed
+        mkdir -p "$appimage_dir"
+
+        # Check if we need sudo
+        local needs_sudo=false
+        if [ ! -w "$appimage_dir" ] && [ "$EUID" -ne 0 ]; then
+            needs_sudo=true
+        fi
+
+        # Remove existing AppImage if present
+        if [ -f "$appimage_path" ]; then
+            echo -e "${YELLOW}Removing existing AppImage...${NC}"
+            if [ "$needs_sudo" = true ]; then
+                sudo rm -f "$appimage_path"
+            else
+                rm -f "$appimage_path"
+            fi
+        fi
+
+        # Install AppImage
+        if [ "$needs_sudo" = true ]; then
+            sudo cp "$archive_path" "$appimage_path"
+            sudo chmod +x "$appimage_path"
+        else
+            cp "$archive_path" "$appimage_path"
+            chmod +x "$appimage_path"
+        fi
+
+        # Create symlink for easier command-line access
+        local symlink_path="${appimage_dir}/${BINARY_NAME}"
+        if [ -L "$symlink_path" ] || [ -f "$symlink_path" ]; then
+            if [ "$needs_sudo" = true ]; then
+                sudo rm -f "$symlink_path"
+            else
+                rm -f "$symlink_path"
+            fi
+        fi
+        if [ "$needs_sudo" = true ]; then
+            sudo ln -sf "$appimage_path" "$symlink_path"
+        else
+            ln -sf "$appimage_path" "$symlink_path"
+        fi
+
+        echo -e "${GREEN}✓ Successfully installed Pub/Sub GUI AppImage to ${appimage_path}${NC}"
+        echo -e "${GREEN}✓ Symlink created at ${symlink_path}${NC}"
+
+        # Verify installation
+        if [ -f "$appimage_path" ] && [ -x "$appimage_path" ]; then
+            if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+                echo -e "${GREEN}✓ Binary is available in PATH${NC}"
+            else
+                echo -e "${YELLOW}⚠ Binary is not in PATH${NC}"
+                echo -e "${YELLOW}Add ${appimage_dir} to your PATH, or run directly: ${appimage_path}${NC}"
+
+                # Suggest adding to PATH
+                local shell_rc=""
+                if [ -n "${ZSH_VERSION:-}" ] || [ -f "$HOME/.zshrc" ]; then
+                    shell_rc="$HOME/.zshrc"
+                elif [ -n "${BASH_VERSION:-}" ] || [ -f "$HOME/.bashrc" ]; then
+                    shell_rc="$HOME/.bashrc"
+                fi
+
+                if [ -n "$shell_rc" ] && ! grep -q "$appimage_dir" "$shell_rc" 2>/dev/null; then
+                    echo -e "${BLUE}Add this to your ${shell_rc}:${NC}"
+                    echo -e "${BLUE}export PATH=\"\$PATH:$appimage_dir\"${NC}"
+                fi
+            fi
+
+            # Show version if available
+            if "$appimage_path" --version >/dev/null 2>&1; then
+                echo -e "${GREEN}Version: $("$appimage_path" --version)${NC}"
+            fi
+        else
+            echo -e "${RED}Error: Installation verification failed${NC}" >&2
+            exit 1
+        fi
+        return
+    fi
+
+    # Extract archive (for non-AppImage formats)
     echo -e "${BLUE}Extracting archive...${NC}"
     cd "$tmp_dir"
 
@@ -379,7 +700,8 @@ install_binary() {
     if [ "$os" = "windows" ]; then
         extracted_binary=$(find . -name "${BINARY_NAME}.exe" -type f | head -1)
     else
-        extracted_binary=$(find . -name "$BINARY_NAME" -type f -perm +111 | head -1)
+        # /111 means "any execute bit is set" (executable by owner, group, or others)
+        extracted_binary=$(find . -name "$BINARY_NAME" -type f -perm /111 | head -1)
         if [ -z "$extracted_binary" ]; then
             extracted_binary=$(find . -name "$BINARY_NAME" -type f | head -1)
         fi
@@ -461,6 +783,13 @@ main() {
 
     # Detect platform
     detect_platform
+
+    # Show platform info
+    local format_info="$ARCHIVE_EXT"
+    if [ "$USE_APPIMAGE" = "true" ]; then
+        format_info="AppImage (self-contained)"
+    fi
+    echo -e "${BLUE}Platform: ${PLATFORM_OS}/${PLATFORM_ARCH} (${format_info})${NC}"
 
     # Get version
     local install_version="$VERSION"
