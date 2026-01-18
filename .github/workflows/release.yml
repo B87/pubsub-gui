@@ -75,6 +75,7 @@ jobs:
             patchelf \
             pkg-config \
             imagemagick \
+            wget \
             squashfs-tools
           # Create symlink for webkit2gtk-4.0 if it doesn't exist (Wails looks for 4.0)
           # Check common pkg-config locations

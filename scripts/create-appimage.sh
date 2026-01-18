@@ -181,11 +181,11 @@ log_info "Creating desktop file..."
 cat > "$WORK_DIR/pubsub-gui.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=Pub/Sub GUI
+Name=PubSub GUI
 Comment=Google Cloud Pub/Sub Management Tool
 Exec=pubsub-gui
 Icon=pubsub-gui
-Categories=Network;Development;
+Categories=Development;
 Terminal=false
 EOF
 
@@ -228,25 +228,16 @@ log_info "Icon copied to: $ICON_FOR_LINUXDEPLOY (matching desktop file Icon entr
 
 log_info "Creating AppImage..."
 
-# Change to OUTPUT_DIR to ensure AppImage is created there
-# linuxdeploy creates the AppImage in the current working directory
+# Save original working directory
 ORIGINAL_PWD=$(pwd)
+
+# Ensure OUTPUT_DIR exists and is writable
 log_info "Output directory: $OUTPUT_DIR"
-log_info "Current directory: $ORIGINAL_PWD"
-cd "$OUTPUT_DIR" || {
-    log_error "Error: Cannot change to output directory: $OUTPUT_DIR"
-    exit 1
-}
-log_info "Changed to output directory: $(pwd)"
-# Verify we can write to this directory
-if [[ ! -w . ]]; then
+mkdir -p "$OUTPUT_DIR"
+if [[ ! -w "$OUTPUT_DIR" ]]; then
     log_error "Error: Output directory is not writable: $OUTPUT_DIR"
     exit 1
 fi
-
-# Copy GTK plugin to OUTPUT_DIR (linuxdeploy looks for it in current directory)
-cp "$WORK_DIR/linuxdeploy-plugin-gtk.sh" ./linuxdeploy-plugin-gtk.sh
-chmod +x ./linuxdeploy-plugin-gtk.sh
 
 # Convert BINARY_PATH to absolute path if it's relative
 if [[ "$BINARY_PATH" != /* ]]; then
@@ -254,6 +245,60 @@ if [[ "$BINARY_PATH" != /* ]]; then
 else
     ABS_BINARY_PATH="$BINARY_PATH"
 fi
+
+# Set TMPDIR to a writable location (appimagetool/mksquashfs uses this for temporary files)
+# Prefer OUTPUT_DIR as it's guaranteed to be writable
+export TMPDIR="$OUTPUT_DIR/.appimage-tmp"
+mkdir -p "$TMPDIR"
+if [[ ! -w "$TMPDIR" ]]; then
+    # Fallback to system temp if OUTPUT_DIR/.appimage-tmp isn't writable
+    export TMPDIR="${TMPDIR_SYSTEM:-/tmp}"
+    mkdir -p "$TMPDIR"
+    if [[ ! -w "$TMPDIR" ]]; then
+        log_error "Error: Cannot create writable temporary directory"
+        exit 1
+    fi
+    log_info "Using system temp for temporary files: $TMPDIR"
+else
+    log_info "Using OUTPUT_DIR for temporary files: $TMPDIR"
+fi
+
+# Change to OUTPUT_DIR - linuxdeploy creates AppImage in current working directory
+log_info "Changing to output directory: $OUTPUT_DIR"
+cd "$OUTPUT_DIR" || {
+    log_error "Error: Cannot change to output directory: $OUTPUT_DIR"
+    exit 1
+}
+
+# Copy GTK plugin to OUTPUT_DIR (linuxdeploy looks for it in current directory)
+cp "$WORK_DIR/linuxdeploy-plugin-gtk.sh" ./linuxdeploy-plugin-gtk.sh
+chmod +x ./linuxdeploy-plugin-gtk.sh
+
+log_info "Working directory: $(pwd)"
+log_info "Temporary directory: $TMPDIR"
+
+# Verify mksquashfs is available
+if ! command -v mksquashfs >/dev/null 2>&1; then
+    log_error "Error: mksquashfs not found. Please install squashfs-tools:"
+    log_error "  sudo apt-get install squashfs-tools"
+    exit 1
+fi
+log_info "mksquashfs found: $(which mksquashfs)"
+
+# Verify we can write to current directory
+if [[ ! -w . ]]; then
+    log_error "Error: Current directory is not writable: $(pwd)"
+    exit 1
+fi
+
+# Test write access by creating a test file
+TEST_FILE=".appimage-test-$$"
+if ! touch "$TEST_FILE" 2>/dev/null; then
+    log_error "Error: Cannot create files in current directory: $(pwd)"
+    exit 1
+fi
+rm -f "$TEST_FILE"
+log_info "Verified write access to current directory"
 
 export DEPLOY_GTK_VERSION=3
 "$WORK_DIR/linuxdeploy-x86_64.AppImage" \
@@ -267,6 +312,11 @@ export DEPLOY_GTK_VERSION=3
 # Clean up GTK plugin from OUTPUT_DIR
 rm -f ./linuxdeploy-plugin-gtk.sh
 
+# Clean up temporary directory if we created it in OUTPUT_DIR
+if [[ "$TMPDIR" == "$OUTPUT_DIR/.appimage-tmp" ]]; then
+    rm -rf "$TMPDIR"
+fi
+
 # Return to original directory
 cd "$ORIGINAL_PWD" || {
     log_error "Error: Cannot return to original directory: $ORIGINAL_PWD"
@@ -277,22 +327,30 @@ cd "$ORIGINAL_PWD" || {
 # Rename and move output
 # =============================================================================
 
-# Find the generated AppImage in OUTPUT_DIR (name varies based on desktop file)
-GENERATED_APPIMAGE=$(ls -1 "${OUTPUT_DIR}"/Pub_Sub_GUI*.AppImage 2>/dev/null || ls -1 "${OUTPUT_DIR}"/*.AppImage 2>/dev/null | head -1)
+# Find the generated AppImage in OUTPUT_DIR (linuxdeploy creates it in CWD where we ran it)
+# The name is based on the desktop file Name field (PubSub_GUI-x86_64.AppImage)
+GENERATED_APPIMAGE=$(ls -1 "${OUTPUT_DIR}"/PubSub_GUI*.AppImage 2>/dev/null || ls -1 "${OUTPUT_DIR}"/*.AppImage 2>/dev/null | head -1)
 
 if [[ -z "$GENERATED_APPIMAGE" ]]; then
-    log_error "Error: AppImage was not created in $OUTPUT_DIR"
-    log_error "Contents of $OUTPUT_DIR:"
+    log_error "Error: AppImage was not created in output directory"
+    log_error "Output directory: $OUTPUT_DIR"
+    log_error "Contents of output directory:"
     ls -la "$OUTPUT_DIR" || true
     exit 1
 fi
 
 OUTPUT_NAME="pubsub-gui_linux_amd64_${VERSION}.AppImage"
-# Only rename if the generated name is different
+OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_NAME}"
+
+# Rename if the generated name is different
 if [[ "$(basename "$GENERATED_APPIMAGE")" != "$OUTPUT_NAME" ]]; then
-    mv "$GENERATED_APPIMAGE" "${OUTPUT_DIR}/${OUTPUT_NAME}"
+    log_info "Renaming AppImage: $(basename "$GENERATED_APPIMAGE") -> $OUTPUT_NAME"
+    mv "$GENERATED_APPIMAGE" "$OUTPUT_PATH"
+else
+    OUTPUT_PATH="$GENERATED_APPIMAGE"
 fi
-chmod +x "${OUTPUT_DIR}/${OUTPUT_NAME}"
+
+chmod +x "$OUTPUT_PATH"
 
 # =============================================================================
 # Summary
