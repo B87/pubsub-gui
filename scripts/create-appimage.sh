@@ -54,6 +54,10 @@ ICON_PATH="${ICON_PATH:-build/appicon.png}"
 OUTPUT_DIR="${OUTPUT_DIR:-.}"
 SKIP_CHECKSUM="${SKIP_CHECKSUM:-0}"
 
+# Ensure OUTPUT_DIR exists and is absolute
+OUTPUT_DIR=$(cd "$OUTPUT_DIR" && pwd)
+mkdir -p "$OUTPUT_DIR"
+
 # Working directory for downloads
 WORK_DIR=$(mktemp -d)
 trap "rm -rf '$WORK_DIR'" EXIT
@@ -223,36 +227,70 @@ log_info "Icon copied to: $ICON_FOR_LINUXDEPLOY (matching desktop file Icon entr
 
 log_info "Creating AppImage..."
 
-# Copy GTK plugin to working directory (linuxdeploy looks for it there)
+# Change to OUTPUT_DIR to ensure AppImage is created there
+# linuxdeploy creates the AppImage in the current working directory
+ORIGINAL_PWD=$(pwd)
+log_info "Output directory: $OUTPUT_DIR"
+log_info "Current directory: $ORIGINAL_PWD"
+cd "$OUTPUT_DIR" || {
+    log_error "Error: Cannot change to output directory: $OUTPUT_DIR"
+    exit 1
+}
+log_info "Changed to output directory: $(pwd)"
+# Verify we can write to this directory
+if [[ ! -w . ]]; then
+    log_error "Error: Output directory is not writable: $OUTPUT_DIR"
+    exit 1
+fi
+
+# Copy GTK plugin to OUTPUT_DIR (linuxdeploy looks for it in current directory)
 cp "$WORK_DIR/linuxdeploy-plugin-gtk.sh" ./linuxdeploy-plugin-gtk.sh
 chmod +x ./linuxdeploy-plugin-gtk.sh
+
+# Convert BINARY_PATH to absolute path if it's relative
+if [[ "$BINARY_PATH" != /* ]]; then
+    ABS_BINARY_PATH="$ORIGINAL_PWD/$BINARY_PATH"
+else
+    ABS_BINARY_PATH="$BINARY_PATH"
+fi
 
 export DEPLOY_GTK_VERSION=3
 "$WORK_DIR/linuxdeploy-x86_64.AppImage" \
     --appdir "$WORK_DIR/AppDir" \
-    --executable "$BINARY_PATH" \
+    --executable "$ABS_BINARY_PATH" \
     --desktop-file "$WORK_DIR/pubsub-gui.desktop" \
     --icon-file "$ICON_FOR_LINUXDEPLOY" \
     --plugin gtk \
     --output appimage
 
-# Clean up GTK plugin from current directory
+# Clean up GTK plugin from OUTPUT_DIR
 rm -f ./linuxdeploy-plugin-gtk.sh
+
+# Return to original directory
+cd "$ORIGINAL_PWD" || {
+    log_error "Error: Cannot return to original directory: $ORIGINAL_PWD"
+    exit 1
+}
 
 # =============================================================================
 # Rename and move output
 # =============================================================================
 
-# Find the generated AppImage (name varies based on desktop file)
-GENERATED_APPIMAGE=$(ls -1 Pub_Sub_GUI*.AppImage 2>/dev/null || ls -1 *.AppImage 2>/dev/null | head -1)
+# Find the generated AppImage in OUTPUT_DIR (name varies based on desktop file)
+GENERATED_APPIMAGE=$(ls -1 "${OUTPUT_DIR}"/Pub_Sub_GUI*.AppImage 2>/dev/null || ls -1 "${OUTPUT_DIR}"/*.AppImage 2>/dev/null | head -1)
 
 if [[ -z "$GENERATED_APPIMAGE" ]]; then
-    log_error "Error: AppImage was not created"
+    log_error "Error: AppImage was not created in $OUTPUT_DIR"
+    log_error "Contents of $OUTPUT_DIR:"
+    ls -la "$OUTPUT_DIR" || true
     exit 1
 fi
 
 OUTPUT_NAME="pubsub-gui_linux_amd64_${VERSION}.AppImage"
-mv "$GENERATED_APPIMAGE" "${OUTPUT_DIR}/${OUTPUT_NAME}"
+# Only rename if the generated name is different
+if [[ "$(basename "$GENERATED_APPIMAGE")" != "$OUTPUT_NAME" ]]; then
+    mv "$GENERATED_APPIMAGE" "${OUTPUT_DIR}/${OUTPUT_NAME}"
+fi
 chmod +x "${OUTPUT_DIR}/${OUTPUT_NAME}"
 
 # =============================================================================
