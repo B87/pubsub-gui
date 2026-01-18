@@ -112,14 +112,17 @@ if ! wget -q "$LINUXDEPLOY_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage" 2>&1;
     exit 1
 fi
 
-if ! wget -q "$LINUXDEPLOY_SHA256_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage.sha256" 2>&1; then
-    log_error "Error: Failed to download linuxdeploy checksum"
-    log_error "URL: $LINUXDEPLOY_SHA256_URL"
-    log_error "Please verify the version exists and the URL is correct"
-    exit 1
+# Try to download checksum file (may not exist for all releases)
+CHECKSUM_AVAILABLE=false
+if wget -q "$LINUXDEPLOY_SHA256_URL" -O "$WORK_DIR/linuxdeploy-x86_64.AppImage.sha256" 2>&1; then
+    CHECKSUM_AVAILABLE=true
+    log_success "Downloaded linuxdeploy checksum"
+else
+    log_warn "Checksum file not available for this release (this is normal for some releases)"
+    log_warn "Skipping checksum verification"
 fi
 
-if [[ "$SKIP_CHECKSUM" != "1" ]]; then
+if [[ "$SKIP_CHECKSUM" != "1" ]] && [[ "$CHECKSUM_AVAILABLE" == "true" ]]; then
     log_info "Verifying linuxdeploy checksum..."
     cd "$WORK_DIR"
     sha256sum -c linuxdeploy-x86_64.AppImage.sha256 || {
@@ -128,7 +131,7 @@ if [[ "$SKIP_CHECKSUM" != "1" ]]; then
     }
     cd - > /dev/null
     log_success "linuxdeploy checksum verified"
-else
+elif [[ "$SKIP_CHECKSUM" == "1" ]]; then
     log_warn "Skipping linuxdeploy checksum verification (SKIP_CHECKSUM=1)"
 fi
 
